@@ -137,40 +137,47 @@ def baseball_reference():
     comment_html = [x for x in comment if '<td' in x][-1].string
 
     table = BeautifulSoup(comment_html, "html.parser")
-    for item in table.find_all('td'):
-        print(item.string)
 
-        # df = pd.DataFrame(stats, columns=cols)
-    # dfcols = pd.MultiIndex.from_tuples(dfcols)
-    # df = pd.DataFrame(dfdata, columns=dfcols)
+    # Locate table and extract data
+    data=[]
+    for item in table.find_all(lambda tag: tag.has_attr("data-stat")):
+        data.append(item.string)
+
+    # Construct league standings dataframe
+    data = np.array(data).reshape([-1, 27])
+    cols, dfdata = data[:1].reshape(-1,), data[1:]
+    standings = pd.DataFrame(dfdata, columns=cols)
+
+    # Save output for testing
     df.to_csv('test.csv', index=False)
-        # break
+    standings.to_csv('standings.csv', index=False)
+
 
 
 
 
 #### TEST AREA
-
-# fanGraphs('bat', 'astros')
-baseball_reference()
-
-
-
-# fanUrl = """http://www.fangraphs.com/leaders.aspx?pos=all&stats=pit&lg=all&qual=0&type=8&season=2017&month=0&season1=2017&ind=0&team={}&rost=&age=&filter=&players=""".format(9)
-
-# soup = openUrl(fanUrl)
-
-# table = soup.find('tbody')
-
-# names = [x.string for x in table.find_all('a')]
-# # g = table.fi
-
-# # print(names)
-# # print(table.find('tr'))
+if __name__ == '__main__':
+    # fanGraphs('bat', 'astros')
+    # baseball_reference()
 
 
 
-# print(df)
+    # fanUrl = """http://www.fangraphs.com/leaders.aspx?pos=all&stats=pit&lg=all&qual=0&type=8&season=2017&month=0&season1=2017&ind=0&team={}&rost=&age=&filter=&players=""".format(9)
+
+    # soup = openUrl(fanUrl)
+
+    # table = soup.find('tbody')
+
+    # names = [x.string for x in table.find_all('a')]
+    # # g = table.fi
+
+    # # print(names)
+    # # print(table.find('tr'))
+
+
+
+    # print(df)
 
 
 
