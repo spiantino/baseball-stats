@@ -19,7 +19,8 @@ def fanGraphs(type_, team):
     elif type_ in ['pitch', 'pitching']:
         type_ = 'pit'
 
-    team_id = {'angels': 1,
+    team_id = {
+               'angels': 1,
                'astros': 21,
                'athletics': 10,
                'blue jays': 14,
