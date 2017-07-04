@@ -3,14 +3,23 @@ from urllib.request import urlopen
 import pandas as pd
 import re
 import numpy as np
-
-import time
-from selenium import webdriver
-from selenium.webdriver.support.ui import WebDriverWait
+import json
+import datetime
+from df2gspread import df2gspread as d2g
+#'1aoVUZE3dAFEVQDWbOY9YqLNSw5cvJr4l4i16a3FM-aQ'
 
 def openUrl(url):
     page = urlopen(url)
     return BeautifulSoup(page.read(), "html.parser")
+
+def write_to_sheet(df, sheet_name):
+    print("writing {} to sheet".format(sheet_name))
+    df = df.fillna('')
+    d2g.upload( df,
+               '1aoVUZE3dAFEVQDWbOY9YqLNSw5cvJr4l4i16a3FM-aQ',
+                sheet_name,
+                row_names=False
+                )
 
 def fanGraphs(type_, team):
     """
@@ -24,6 +33,7 @@ def fanGraphs(type_, team):
         type_ = 'pit'
 
     team_id = {
+               'all': 0,
                'angels': 1,
                'astros': 21,
                'athletics': 10,
@@ -81,9 +91,9 @@ def fanGraphs(type_, team):
         row = [td.string for td in tds]
         stats.append(row)
 
-
     df = pd.DataFrame(stats, columns=cols)
 
+    # df.to_csv('nyy-pitching-stats.csv', index=False)
     print(df)
 
 def br_standings():
@@ -96,7 +106,6 @@ def br_standings():
 
     h2 = soup.find_all('h2')
     headers = [x.string for x in h2[:6]]
-    # print(h2[6:])
 
     # Scrape division standings
     tables = soup.find_all('div', attrs={'class':'table_outer_container'})
@@ -138,7 +147,7 @@ def br_standings():
             break
 
     # Scrape full league standings
-    comment=soup.find_all(string=lambda text: isinstance(text,Comment))
+    comment = soup.find_all(string=lambda text: isinstance(text,Comment))
     comment_html = [x for x in comment if '<td' in x][-1].string
 
     table = BeautifulSoup(comment_html, "html.parser")
@@ -154,8 +163,8 @@ def br_standings():
     standings = pd.DataFrame(dfdata, columns=cols)
 
     # Save output for testing
-    df.to_csv('test.csv', index=False)
-    standings.to_csv('standings.csv', index=False)
+    df.to_csv('division-standings.csv', index=False)
+    standings.to_csv('league-standings.csv', index=False)
 
 def yankees_schedule():
     """
@@ -171,7 +180,12 @@ def yankees_schedule():
 
     data = []
     for item in table.find_all(lambda tag: tag.has_attr('data-stat')):
-        data.append(item.string)
+        data.append(item.text)
+
+    # for item in table.find_all('td',  {'data-stat': 'date_game'}):
+    #     print(item)
+    #     print(item.text)
+    #     print()
 
     # Extract games that have already been played
     current = next((x for x in data if x and
@@ -183,36 +197,42 @@ def yankees_schedule():
     ap_data = already_played[1:]
 
     df_ap = pd.DataFrame(ap_data, columns=ap_cols)
+    df_ap = df_ap.loc[df_ap['Gm#'] != 'Gm#']
+    df_ap['Streak'] = df_ap.Streak.apply(lambda x: "'{}".format(x))
 
     # Extract upcomming games schedule
     upcomming = np.array(data[idx:]).reshape([-1, 9])
-    up_cols = ['Gm#', 'Date', None, 'Tm', None, 'Opp', None, None, 'D/N']
+    up_cols = ['Gm#', 'Date', '', 'Tm', ' ', 'Opp', '  ', '   ', 'D/N']
 
     df_up = pd.DataFrame(upcomming, columns=up_cols)
-    df_up = df_up.loc[~df_up.iloc[:,6].isnull()]
+    df_up = df_up.loc[df_up['Gm#'] != 'Gm#']
 
-def pitching_logs(year):
+    # df_ap.to_csv('nyy-played2.csv', index=False)
+    # df_up.to_csv('nyy-upcoming.csv', index=False)
+    write_to_sheet(df=df_ap, sheet_name='schedule-played')
+    write_to_sheet(df=df_up, sheet_name='schedule-upcoming')
+
+
+def pitching_logs(team, year):
     """
     Scrape pitching logs from
     baseball-reference.com
     """
-    url = "http://www.baseball-reference.com/teams/tgl.cgi?team=NYY&t=p&year={}".format(year)
+    team = team.upper()
+    url = "http://www.baseball-reference.com/teams/tgl.cgi?team={}&t=p&year={}".format(team, year)
 
     soup = openUrl(url)
 
-    # table = soup.find('table', 'id: team_pitching_gamelogs')
-    # print(table)
-
     data = []
     for item in soup.find_all(lambda tag: tag.has_attr('data-stat')):
-        data.append(item.string)
+        data.append(item.text)
 
     # Slice to only capture relevant data
     data = data[data.index('Rk'): ]
 
     # Add None columns to match shape
-    flag = ['May', 'Jun', 'Jul', 'Aug', 'September/October']
-    for month in flag:
+    flags = ['May', 'Jun', 'Jul', 'Aug', 'September/October']
+    for month in flags:
         try:
             idx = data.index(month)
             for i in range(idx+1, idx+3):
@@ -225,40 +245,215 @@ def pitching_logs(year):
     dfdata = data[1:]
 
     df = pd.DataFrame(dfdata, columns=cols)
-    print(df)
+    df = df.loc[~df.Rk.isin(flags)]
+
+    # df.to_csv('pitching-logs2.csv', index=False)
+    wirte_to_sheet(df=df, sheet_name='pitching=logs')
+
+def forty_man():
+    """
+    Extract 40-man roster from
+    baseball-reference.com
+    """
+    url = "http://www.baseball-reference.com/teams/NYY/2017-roster.shtml"
+
+    soup = openUrl(url)
+    table = soup.find('table', {'id' : 'the40man'})
+
+    data = []
+    for item in table.find_all(lambda tag: tag.has_attr('data-stat')):
+        data.append(item.text)
+
+    data = np.array(data).reshape(-1, 14)
+    cols = data[:1].reshape(-1,).tolist()
+    dfdata = data[1:]
+
+    # Make blank cols unique (move this to write_to_sheet function?)
+    i=1
+    for col in cols:
+        if col == '':
+            cols[cols.index(col)] = ' ' * i
+            i +=1
+
+    df = pd.DataFrame(dfdata, columns=cols)
+    df = df.iloc[:-1]
+
+    df.rename(columns={'': ' '}, inplace=True)
+    write_to_sheet(df=df, sheet_name='40-man roster')
+
+def current_injuries():
+    """
+    Extract current injuries table
+    from baseball-reference.com
+    """
+    url = "http://www.baseball-reference.com/teams/NYY/2017.shtml"
+
+    soup = openUrl(url)
+
+    # Data is stored in html comment
+    comment = soup.find_all(string=lambda text: isinstance(text,Comment))
+    comment_html = [x for x in comment if 'Injuries Table' in x][-1].string
+
+    table = BeautifulSoup(comment_html, "html.parser")
+
+    data = []
+    for item in table.find_all(lambda tag: tag.has_attr('data-stat')):
+        data.append(item.text)
+
+    data = np.array(data).reshape(-1, 4)
+    cols = data[:1].reshape(-1,).tolist()
+    dfdata = data[1:]
+
+    df = pd.DataFrame(dfdata, columns=cols)
+    write_to_sheet(df=df, sheet_name='current injuries')
+
+def transactions(year):
+    """
+    Extract transations from
+    http://mlb.mlb.com/mlb/transactions
+    """
+    if year == 2017:
+        today = datetime.date.today().strftime('%Y%m%d')
+        url = "http://mlb.mlb.com/lookup/json/named.transaction_all.bam?start_date=20170101&end_date={}&team_id=147".format(today)
+    else:
+        url = "http://mlb.mlb.com/lookup/json/named.transaction_all.bam?start_date={0}0101&end_date={0}1231&team_id=147".format(year)
+
+
+    team_id = {
+               'angels': 108,
+               'astros': 117,
+               'athletics': 133,
+               'blue jays': 141,
+               'braves': 144,
+               'brewers': 158,
+               'cardinals': 138,
+               'cubs': ,
+               'diamondbacks': ,
+               'dodgers': ,
+               'giants': ,
+               'indians': ,
+               'mariners': ,
+               'marlins': ,
+               'mets': ,
+               'nationals': ,
+               'orioles': ,
+               'padres': ,
+               'phillies': ,
+               'pirates': ,
+               'rangers': ,
+               'rays': ,
+               'red sox': ,
+               'reds': ,
+               'rockies': ,
+               'royals': ,
+               'tigers': ,
+               'twins': ,
+               'white sox': ,
+               'yankees': ,
+               }
+
+
+    # Open and read json object
+    res = urlopen(url).read()
+    j = json.loads(res.decode('utf-8'))
+
+    transactions = j['transaction_all'] \
+                    ['queryResults']    \
+                    ['row']
+
+    data = []
+    for tran in transactions:
+        date = tran['trans_date']
+        note = tran['note']
+        data.append([date, note])
+
+    df = pd.DataFrame(data, columns=['Date', 'Transaction'])
+    df = df.sort_values(by='Date', ascending=False)
+    df['Date'] = pd.to_datetime(df.Date)
+    df['Date'] = df.Date.apply(lambda x: x.strftime("%m/%d/%y"))
+
+    team = 'nyy'   # placeholder
+    sheet_name = '{}-transactions-{}'.format(team, year)
+    write_to_sheet(df=df, sheet_name=sheet_name)
+
+
 
 def game_preview():
     """
     Collect data on upcomming game
     from mlb.com/gameday
     """
-    url = "https://www.mlb.com/gameday/491347/preview"
-    url = "https://www.mlb.com/gameday/blue-jays-vs-yankees/2017/07/03/491347#game_state=preview,game_tab=,game=491347"
+    url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=07/04/2017&sortBy=gameDate&hydrate=linescore(runners),flags,team,review"
 
-    url = "http://www.mlb.com/mlb/gameday/index.jsp?gid=2017_07_03_tormlb_nyamlb_1&mode=preview&c_id=mlb"
+    res = urlopen(url).read()
+    j = json.loads(res.decode('utf-8'))
 
-    soup = openUrl(url)
+    data = j['dates'][0]['games']
 
-    # driver = webdriver.Firefox()
-    # driver.get(url)
-    # time.sleep(5)
-    # html = driver.page_source
-    # soup  = BeautifulSoup(html)
+    for game in data:
+        if game['status']['detailedState'] == 'Scheduled':
+            game_url = "https://statsapi.mlb.com" + game['link']
+            content_url = game['content']['link']
+
+            away = game['teams']['away']['team']['name']
+            home = game['teams']['home']['team']['name']
+
+            res = urlopen(game_url).read()
+            jgame = json.loads(res.decode('utf-8'))
+
+            # Extract starting pitcher data
+            pitchers = jgame['gameData']['probablePitchers']
+            a_pit = pitchers['away']['fullName']
+            h_pit = pitchers['home']['fullName']
+
+            a_pit_name = ' '.join(reversed(a_pit.split(','))).strip()
+            h_pit_name = ' '.join(reversed(h_pit.split(','))).strip()
+
+            # Get weather
+            weather = jgame['gameData']['weather']
+            if weather:
+                weather = "{} degrees, {}, wind: {}"\
+                          .format(weather['temp'],
+                                  weather['condition'],
+                                  weather['wind'])
+            else:
+                weather = None
+
+            # playerData = jgame['gameData']['players']
+            # print(jgame['liveData']['boxscore']['teams']['home'].keys())
+            test = []
+            for val in jgame['liveData']['boxscore'] \
+                          ['teams']['away']['players'].values() :
+
+                if val['status']['description'] == 'Active':
+                    player = val['person']['fullName']
+                    test.append(player)
+            print(sorted(test))
+            # for k in playerData.keys():
+                # print(playerData[k]['firstLastName'], playerData[k]['active'])
+
+        break
 
     # hrefs = [a.string for a in soup.find_all('a', href=True)]
     # print(hrefs)
     # h5 = [x for x in soup.find_all('h5')]
     # print(h5)
-    print(soup)
+
+
+
+
 
 #### TEST AREA
 if __name__ == '__main__':
-    # fanGraphs('bat', 'astros')
+    # fanGraphs('pit', 'yankees')
+    # fanGraphs('pit', 'all')
     # br_standings()
     # yankees_schedule()
-    # pitching_logs(2017)
-    game_preview()
-
+    # pitching_logs('NYY', 2017)
+    # game_preview()
+    # forty_man()
+    # current_injuries()
+    transactions(2016)
 
 
 
