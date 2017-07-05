@@ -5,7 +5,11 @@ import re
 import numpy as np
 import json
 import datetime
+import pickle
 from df2gspread import df2gspread as d2g
+import requests
+
+# GOOGLE DOC ADDRESS
 #'1aoVUZE3dAFEVQDWbOY9YqLNSw5cvJr4l4i16a3FM-aQ'
 
 def openUrl(url):
@@ -21,7 +25,7 @@ def write_to_sheet(df, sheet_name):
                 row_names=False
                 )
 
-def fanGraphs(type_, team):
+def fanGraphs(type_, team, year):
     """
     Scrape data from fangraphs.com
     """
@@ -69,32 +73,57 @@ def fanGraphs(type_, team):
     team = team.lower()
     tid = team_id[team]
 
-    url = """http://www.fangraphs.com/leaders.aspx?pos=all&stats={}&lg=all&qual=0&type=8&season=2017&month=0&season1=2017&ind=0&team={}&rost=&age=&filter=&players=""".format(type_, tid)
+    url = """http://www.fangraphs.com/leaders.aspx?pos=all&stats={0}&lg=all&qual=0&type=8&season={1}&month=0&season1={1}&ind=0&team={2}&rost=&age=&filter=&players=""".format(type_, year, tid)
 
-    # Store url HTML as a bs4 object
-    soup = openUrl(url)
+    with open('data.pkl', 'rb') as f:
+        params = pickle.load(f)
 
-    # Extract HTML from stat table element
-    table = soup.find('tbody')
+    res = requests.post(url, data=params).text
+    res = res.replace('\ufeff', '#,')
+    res = res.replace('"', '')
+    res = res.replace('\r\n', ',1,')
 
-    # Extract column names
-    cols = []
-    th = soup.find_all('th')
-    for t in th:
-        cols.append(t.string)
+    data = res.split(',')[:-2]
 
-    # Extract rows from table
-    trs = table.find_all('tr')#[:-1]
-    stats = []
-    for tr in trs:
-        tds = tr.find_all('td')
-        row = [td.string for td in tds]
-        stats.append(row)
+    row_len = 21 if team=='all' else 20
+    data = np.array(data).reshape(-1, row_len)
 
-    df = pd.DataFrame(stats, columns=cols)
+    cols, dfdata = data[:1].reshape(-1,), data[1:]
+    df = pd.DataFrame(dfdata, columns=cols)
 
-    # df.to_csv('nyy-pitching-stats.csv', index=False)
-    print(df)
+    df['#'] = df.index + 1
+    df = df.iloc[:, :-1]
+
+    type_ = 'batting' if type_=='bat' else 'pitching'
+    team = 'league' if team=='all' else team
+    sheet_name = '{}-{}-leaderboard-{}'.format(team, type_, year)
+
+    write_to_sheet(df=df, sheet_name=sheet_name)
+
+    # # Store url HTML as a bs4 object
+    # soup = openUrl(url)
+
+    # # Extract HTML from stat table element
+    # table = soup.find('tbody')
+
+    # # Extract column names
+    # cols = []
+    # th = soup.find_all('th')
+    # for t in th:
+    #     cols.append(t.string)
+
+    # # Extract rows from table
+    # trs = table.find_all('tr')#[:-1]
+    # stats = []
+    # for tr in trs:
+    #     tds = tr.find_all('td')
+    #     row = [td.string for td in tds]
+    #     stats.append(row)
+
+    # df = pd.DataFrame(stats, columns=cols)
+
+    # # df.to_csv('nyy-pitching-stats.csv', index=False)
+    # print(df)
 
 def br_standings():
     """
@@ -247,8 +276,28 @@ def pitching_logs(team, year):
     df = pd.DataFrame(dfdata, columns=cols)
     df = df.loc[~df.Rk.isin(flags)]
 
+    # Split pitchers into different columns
+    pit_lists = df.iloc[:,-1].apply(lambda x: x.split(',')).tolist()
+    max_len = max([len(x) for x in pit_lists])
+
+    # Remove combined column
+    df = df.iloc[:,:-1]
+
+    # Add padding to make shapes match
+    for l in pit_lists:
+        pad = max_len - len(l)
+        for _ in range(pad):
+            l.append(None)
+
+    # Add pitchers to new columns
+    pitchers = np.array(pit_lists).T
+    for i in range(0, max_len):
+        colname = 'Pitcher_{}'.format(i+1)
+        df.loc[:,colname] = pitchers[i]
+
     # df.to_csv('pitching-logs2.csv', index=False)
-    wirte_to_sheet(df=df, sheet_name='pitching=logs')
+    sheet_name = '{}-pitching-logs-{}'.format(team.lower(), year)
+    write_to_sheet(df=df, sheet_name=sheet_name)
 
 def forty_man():
     """
@@ -307,18 +356,12 @@ def current_injuries():
     df = pd.DataFrame(dfdata, columns=cols)
     write_to_sheet(df=df, sheet_name='current injuries')
 
-def transactions(year):
+def transactions(team, year):
     """
     Extract transations from
     http://mlb.mlb.com/mlb/transactions
     """
-    if year == 2017:
-        today = datetime.date.today().strftime('%Y%m%d')
-        url = "http://mlb.mlb.com/lookup/json/named.transaction_all.bam?start_date=20170101&end_date={}&team_id=147".format(today)
-    else:
-        url = "http://mlb.mlb.com/lookup/json/named.transaction_all.bam?start_date={0}0101&end_date={0}1231&team_id=147".format(year)
-
-
+    team = team.lower()
     team_id = {
                'angels': 108,
                'astros': 117,
@@ -327,30 +370,39 @@ def transactions(year):
                'braves': 144,
                'brewers': 158,
                'cardinals': 138,
-               'cubs': ,
-               'diamondbacks': ,
-               'dodgers': ,
-               'giants': ,
-               'indians': ,
-               'mariners': ,
-               'marlins': ,
-               'mets': ,
-               'nationals': ,
-               'orioles': ,
-               'padres': ,
-               'phillies': ,
-               'pirates': ,
-               'rangers': ,
-               'rays': ,
-               'red sox': ,
-               'reds': ,
-               'rockies': ,
-               'royals': ,
-               'tigers': ,
-               'twins': ,
-               'white sox': ,
-               'yankees': ,
+               'cubs': 112,
+               'diamondbacks': 109,
+               'dodgers': 119,
+               'giants': 137,
+               'indians': 114,
+               'mariners': 136,
+               'marlins': 146,
+               'mets': 121,
+               'nationals': 120,
+               'orioles': 110,
+               'padres': 135,
+               'phillies': 143,
+               'pirates': 134,
+               'rangers': 140,
+               'rays': 139,
+               'red sox': 111,
+               'reds': 113,
+               'rockies': 115,
+               'royals': 118,
+               'tigers': 116,
+               'twins': 142,
+               'white sox': 145,
+               'yankees': 147,
                }
+    tid = team_id[team]
+
+    current_year = datetime.date.today().strftime('%Y')
+
+    if str(year) == current_year:
+        today = datetime.date.today().strftime('%Y%m%d')
+        url = "http://mlb.mlb.com/lookup/json/named.transaction_all.bam?start_date={}0101&end_date={}&team_id={}".format(year, today, tid)
+    else:
+        url = "http://mlb.mlb.com/lookup/json/named.transaction_all.bam?start_date={0}0101&end_date={0}1231&team_id={1}".format(year, tid)
 
 
     # Open and read json object
@@ -360,7 +412,6 @@ def transactions(year):
     transactions = j['transaction_all'] \
                     ['queryResults']    \
                     ['row']
-
     data = []
     for tran in transactions:
         date = tran['trans_date']
@@ -372,10 +423,8 @@ def transactions(year):
     df['Date'] = pd.to_datetime(df.Date)
     df['Date'] = df.Date.apply(lambda x: x.strftime("%m/%d/%y"))
 
-    team = 'nyy'   # placeholder
     sheet_name = '{}-transactions-{}'.format(team, year)
     write_to_sheet(df=df, sheet_name=sheet_name)
-
 
 
 def game_preview():
@@ -440,20 +489,25 @@ def game_preview():
     # print(h5)
 
 
-
+def boxscores():
+    """
+    Extract box scores from
+    """
+    pass
 
 
 #### TEST AREA
 if __name__ == '__main__':
-    # fanGraphs('pit', 'yankees')
-    # fanGraphs('pit', 'all')
+    # fanGraphs('pit', 'yankees', 2017)
+    # fanGraphs('pit', 'all', 2017)
     # br_standings()
     # yankees_schedule()
-    # pitching_logs('NYY', 2017)
+    # pitching_logs('NYY', 2016)
+    pitching_logs('NYY', 2017)
     # game_preview()
     # forty_man()
     # current_injuries()
-    transactions(2016)
+    # transactions('astros', 2017)
 
 
 
