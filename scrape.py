@@ -16,13 +16,15 @@ def openUrl(url):
     page = urlopen(url)
     return BeautifulSoup(page.read(), "html.parser")
 
-def write_to_sheet(df, sheet_name):
+def write_to_sheet(df, sheet_name, start_cell='A1', clean=True):
     print("writing {} to sheet".format(sheet_name))
     df = df.fillna('')
-    d2g.upload( df,
-               '1aoVUZE3dAFEVQDWbOY9YqLNSw5cvJr4l4i16a3FM-aQ',
-                sheet_name,
-                row_names=False
+    d2g.upload( df=df,
+                gfile='1aoVUZE3dAFEVQDWbOY9YqLNSw5cvJr4l4i16a3FM-aQ',
+                wks_name=sheet_name,
+                row_names=False,
+                start_cell=start_cell,
+                clean=clean
                 )
 
 def fanGraphs(type_, team, year):
@@ -518,7 +520,7 @@ def boxscore(team):
             # Search for team and if game is finished
             if all(x in ' '.join(teams) for x in ['final', team]):
                 box_url = match.find_all('a', href=True)
-                return(box_url[1]['href'])
+                return box_url[1]['href']
 
         # If not found, search through the previous day
         i+=1
@@ -544,6 +546,7 @@ def boxscore(team):
 
     # Insert team names
     sum_df.loc[:,'Team'] = teams
+    write_to_sheet(df=sum_df, sheet_name='boxscore')
 
     # Extract box-scores
     comment = soup.find_all(string=lambda text: isinstance(text,Comment))
@@ -551,7 +554,7 @@ def boxscore(team):
     pit_table = [x for x in comment if '>Pitching</th>' in x][0]
 
     # Collect home and away batting box score
-    hdf, adf = pd.DataFrame(), pd.DataFrame()
+    b_hdf, b_adf = pd.DataFrame(), pd.DataFrame()
     for table in bat_tables:
         box = BeautifulSoup(table, "html.parser")
 
@@ -566,22 +569,36 @@ def boxscore(team):
         dfdata = data[1:]
 
         df = pd.DataFrame(dfdata, columns=cols)
+        df = df.dropna(axis=0)
+        df = df.loc[df.Batting!='']
         df.loc[:,'Batting'] = players
 
         # Assign data frame to home or away
-        if hdf.empty:
-            hdf = df
+        if b_hdf.empty:
+            b_hdf = df
         else:
-            # Add visual padding
-            df[' '] = None
-            cols = df.columns.tolist()[:-1]
-            cols.insert(0, ' ')
-            df = df[cols]
-            adf = df
+            # # Add visual padding
+            # df[' '] = None
+            # cols = df.columns.tolist()[:-1]
+            # cols.insert(0, ' ')
+            # df = df[cols]
+            b_adf = df
 
     # Merge home and away frames
-    df_bat = pd.concat([hdf, adf], axis=1)
-    # df_bat.to_csv('test.csv', index=False)
+    # df_bat = pd.concat([hdf, adf], axis=1)
+    # write_to_sheet(df=df_bat, sheet_name='boxscore', start_cell=cell_idx, clean=False)
+
+    # Write to next available cell
+    idx = sum_df.shape[0]+3
+    cell_idx = 'A{}'.format(idx)
+    print(cell_idx)
+    write_to_sheet(df=b_hdf, sheet_name='boxscore', start_cell=cell_idx, clean=False)
+
+    idx += b_hdf.shape[0]+2
+    cell_idx = 'A{}'.format(idx)
+    print(cell_idx)
+    write_to_sheet(df=b_adf, sheet_name='boxscore', start_cell=cell_idx, clean=False)
+
 
     # Collect home and away pitching box score
     box = BeautifulSoup(pit_table, "html.parser")
@@ -596,24 +613,39 @@ def boxscore(team):
     df = pd.DataFrame(dfdata, columns=cols)
 
     # Split df in two then concatenate
-    idx = df.Pitching.tolist().index('Pitching')
-    hdf, adf = df.iloc[:idx], df.iloc[idx+1:]
-    adf = adf.reset_index(drop=True)
+    idx2 = df.Pitching.tolist().index('Pitching')
+    p_hdf, p_adf = df.iloc[:idx2], df.iloc[idx2+1:]
+    p_hdf = p_hdf.loc[p_hdf.Pitching!='']
+    p_adf = p_adf.loc[p_adf.Pitching!='']
+    # p_adf = p_adf.reset_index(drop=True)
 
-    # Add visual padding
-    adf[' '] = None
-    cols = adf.columns.tolist()[:-1]
-    cols.insert(0, ' ')
-    adf = adf[cols]
+    # # Add visual padding
+    # adf[' '] = None
+    # cols = adf.columns.tolist()[:-1]
+    # cols.insert(0, ' ')
+    # adf = adf[cols]
 
-    df_pit = pd.concat([hdf, adf], axis=1)
-    # df_pit.to_csv('test2.csv', index=False)
+    # df_pit = pd.concat([hdf, adf], axis=1)
+    # write_to_sheet(df=df_pit, sheet_name='boxscore', start_cell=cell_idx, clean=False)
+
+    idx += b_adf.shape[0]+2
+    cell_idx = 'A{}'.format(idx)
+    print(cell_idx)
+    write_to_sheet(df=p_hdf, sheet_name='boxscore', start_cell=cell_idx, clean=False)
+
+    idx += p_hdf.shape[0]+2
+    cell_idx = 'A{}'.format(idx)
+    print(cell_idx)
+    write_to_sheet(df=p_adf, sheet_name='boxscore', start_cell=cell_idx, clean=False)
+
+    # df_pit.to_csv('test3.csv', index=False)
 
     # Concatenate batting and pitching boxscores
     # df = df_bat.append(df_pit, ignore_index=True)
     # df.to_csv('test3.csv', index=False)
 
-
+    # max_cols = max([x[1] for x in [df1.shape, df2.shape, df3.shape]])
+    # for
 
 #### TEST AREA
 if __name__ == '__main__':
@@ -627,6 +659,7 @@ if __name__ == '__main__':
     # forty_man()
     # current_injuries()
     # transactions('astros', 2017)
-    boxscore('astros')
+    # boxscore('astros')
+    boxscore('yankees')
 
 
