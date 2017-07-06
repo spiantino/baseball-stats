@@ -489,11 +489,130 @@ def game_preview():
     # print(h5)
 
 
-def boxscores():
+def boxscore(team):
     """
     Extract box scores from
     """
-    pass
+    team = team.lower()
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    i = 0
+
+    def team_search(i):
+        """
+        Search through previous days
+        until match is found
+        """
+        print("""Searching for last game... looking back {} days""".format(i))
+        yesterday = ((datetime.date.today() -
+                      datetime.timedelta(i))
+                      .strftime('%Y-%m-%d'))
+        y,m,d = yesterday.split('-')
+        url = "http://www.baseball-reference.com/boxes/?year={}&month={}&day={}".format(y,m,d)
+
+        soup = openUrl(url)
+        matches = soup.find_all('table', {'class' : 'teams'})
+
+        for match in matches:
+            teams = [a.string.lower() for a in match.find_all('a', href=True)]
+
+            # Search for team and if game is finished
+            if all(x in ' '.join(teams) for x in ['final', team]):
+                box_url = match.find_all('a', href=True)
+                return(box_url[1]['href'])
+
+        # If not found, search through the previous day
+        i+=1
+        team_search(i)
+
+    url = "http://www.baseball-reference.com" + team_search(i)
+    soup = openUrl(url)
+
+    teams = [x.string for x in soup.find_all('h2')[:2]]
+
+    # Extract summary table
+    summary = soup.find('table', {
+                                  'class' :
+                                  'linescore nohover stats_table no_freeze'
+                                  })
+    sumstats = [x.string for x in
+                summary.find_all('td', {'class' : 'center'})]
+
+    dfdata = np.array(sumstats).reshape(2, 13)
+    sumcols = ['Team', '1', '2', '3', '4', '5',
+               '6', '7', '8', '9', 'R', 'H', 'E']
+    sum_df = pd.DataFrame(dfdata, columns=sumcols)
+
+    # Insert team names
+    sum_df.loc[:,'Team'] = teams
+
+    # Extract box-scores
+    comment = soup.find_all(string=lambda text: isinstance(text,Comment))
+    bat_tables = [x for x in comment if '>Batting</th>' in x]
+    pit_table = [x for x in comment if '>Pitching</th>' in x][0]
+
+    # Collect home and away batting box score
+    hdf, adf = pd.DataFrame(), pd.DataFrame()
+    for table in bat_tables:
+        box = BeautifulSoup(table, "html.parser")
+
+        data = []
+        for item in box.find_all(lambda tag: tag.has_attr('data-stat')):
+            data.append(item.text)
+        players = [x.string for x in box.find_all('a', href=True)]
+        players.append('Team Totals')
+
+        data = np.array(data).reshape(-1, 22)
+        cols = data[:1].reshape(-1,)
+        dfdata = data[1:]
+
+        df = pd.DataFrame(dfdata, columns=cols)
+        df.loc[:,'Batting'] = players
+
+        # Assign data frame to home or away
+        if hdf.empty:
+            hdf = df
+        else:
+            # Add visual padding
+            df[' '] = None
+            cols = df.columns.tolist()[:-1]
+            cols.insert(0, ' ')
+            df = df[cols]
+            adf = df
+
+    # Merge home and away frames
+    df_bat = pd.concat([hdf, adf], axis=1)
+    # df_bat.to_csv('test.csv', index=False)
+
+    # Collect home and away pitching box score
+    box = BeautifulSoup(pit_table, "html.parser")
+
+    data = []
+    for item in box.find_all(lambda tag: tag.has_attr('data-stat')):
+        data.append(item.text)
+
+    data = np.array(data).reshape(-1, 25)
+    cols = data[:1].reshape(-1,)
+    dfdata = data[1:]
+    df = pd.DataFrame(dfdata, columns=cols)
+
+    # Split df in two then concatenate
+    idx = df.Pitching.tolist().index('Pitching')
+    hdf, adf = df.iloc[:idx], df.iloc[idx+1:]
+    adf = adf.reset_index(drop=True)
+
+    # Add visual padding
+    adf[' '] = None
+    cols = adf.columns.tolist()[:-1]
+    cols.insert(0, ' ')
+    adf = adf[cols]
+
+    df_pit = pd.concat([hdf, adf], axis=1)
+    # df_pit.to_csv('test2.csv', index=False)
+
+    # Concatenate batting and pitching boxscores
+    # df = df_bat.append(df_pit, ignore_index=True)
+    # df.to_csv('test3.csv', index=False)
+
 
 
 #### TEST AREA
@@ -503,11 +622,11 @@ if __name__ == '__main__':
     # br_standings()
     # yankees_schedule()
     # pitching_logs('NYY', 2016)
-    pitching_logs('NYY', 2017)
+    # pitching_logs('NYY', 2017)
     # game_preview()
     # forty_man()
     # current_injuries()
     # transactions('astros', 2017)
-
+    boxscore('astros')
 
 
