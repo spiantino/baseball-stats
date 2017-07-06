@@ -1,13 +1,14 @@
 from bs4 import BeautifulSoup, Comment
+from df2gspread import df2gspread as d2g
 from urllib.request import urlopen
 import pandas as pd
-import re
 import numpy as np
+import requests
+import re
 import json
 import datetime
 import pickle
-from df2gspread import df2gspread as d2g
-import requests
+import xmltodict as xd
 
 # GOOGLE DOC ADDRESS
 #'1aoVUZE3dAFEVQDWbOY9YqLNSw5cvJr4l4i16a3FM-aQ'
@@ -428,69 +429,6 @@ def transactions(team, year):
     sheet_name = '{}-transactions-{}'.format(team, year)
     write_to_sheet(df=df, sheet_name=sheet_name)
 
-
-def game_preview():
-    """
-    Collect data on upcomming game
-    from mlb.com/gameday
-    """
-    url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=07/04/2017&sortBy=gameDate&hydrate=linescore(runners),flags,team,review"
-
-    res = urlopen(url).read()
-    j = json.loads(res.decode('utf-8'))
-
-    data = j['dates'][0]['games']
-
-    for game in data:
-        if game['status']['detailedState'] == 'Scheduled':
-            game_url = "https://statsapi.mlb.com" + game['link']
-            content_url = game['content']['link']
-
-            away = game['teams']['away']['team']['name']
-            home = game['teams']['home']['team']['name']
-
-            res = urlopen(game_url).read()
-            jgame = json.loads(res.decode('utf-8'))
-
-            # Extract starting pitcher data
-            pitchers = jgame['gameData']['probablePitchers']
-            a_pit = pitchers['away']['fullName']
-            h_pit = pitchers['home']['fullName']
-
-            a_pit_name = ' '.join(reversed(a_pit.split(','))).strip()
-            h_pit_name = ' '.join(reversed(h_pit.split(','))).strip()
-
-            # Get weather
-            weather = jgame['gameData']['weather']
-            if weather:
-                weather = "{} degrees, {}, wind: {}"\
-                          .format(weather['temp'],
-                                  weather['condition'],
-                                  weather['wind'])
-            else:
-                weather = None
-
-            # playerData = jgame['gameData']['players']
-            # print(jgame['liveData']['boxscore']['teams']['home'].keys())
-            test = []
-            for val in jgame['liveData']['boxscore'] \
-                          ['teams']['away']['players'].values() :
-
-                if val['status']['description'] == 'Active':
-                    player = val['person']['fullName']
-                    test.append(player)
-            print(sorted(test))
-            # for k in playerData.keys():
-                # print(playerData[k]['firstLastName'], playerData[k]['active'])
-
-        break
-
-    # hrefs = [a.string for a in soup.find_all('a', href=True)]
-    # print(hrefs)
-    # h5 = [x for x in soup.find_all('h5')]
-    # print(h5)
-
-
 def boxscore(team):
     """
     Extract box scores from
@@ -546,7 +484,9 @@ def boxscore(team):
 
     # Insert team names
     sum_df.loc[:,'Team'] = teams
-    write_to_sheet(df=sum_df, sheet_name='boxscore')
+    write_to_sheet(df=sum_df,
+                   sheet_name='boxscore',
+                   clean=True)
 
     # Extract box-scores
     comment = soup.find_all(string=lambda text: isinstance(text,Comment))
@@ -589,15 +529,19 @@ def boxscore(team):
     # write_to_sheet(df=df_bat, sheet_name='boxscore', start_cell=cell_idx, clean=False)
 
     # Write to next available cell
-    idx = sum_df.shape[0]+3
+    idx = sum_df.shape[0] + 3
     cell_idx = 'A{}'.format(idx)
-    print(cell_idx)
-    write_to_sheet(df=b_hdf, sheet_name='boxscore', start_cell=cell_idx, clean=False)
+    write_to_sheet(df=b_hdf,
+                   sheet_name='boxscore',
+                   start_cell=cell_idx,
+                   clean=False)
 
-    idx += b_hdf.shape[0]+2
+    idx += b_hdf.shape[0] + 2
     cell_idx = 'A{}'.format(idx)
-    print(cell_idx)
-    write_to_sheet(df=b_adf, sheet_name='boxscore', start_cell=cell_idx, clean=False)
+    write_to_sheet(df=b_adf,
+                   sheet_name='boxscore',
+                   start_cell=cell_idx,
+                   clean=False)
 
 
     # Collect home and away pitching box score
@@ -628,15 +572,19 @@ def boxscore(team):
     # df_pit = pd.concat([hdf, adf], axis=1)
     # write_to_sheet(df=df_pit, sheet_name='boxscore', start_cell=cell_idx, clean=False)
 
-    idx += b_adf.shape[0]+2
+    idx += b_adf.shape[0] + 2
     cell_idx = 'A{}'.format(idx)
-    print(cell_idx)
-    write_to_sheet(df=p_hdf, sheet_name='boxscore', start_cell=cell_idx, clean=False)
+    write_to_sheet(df=p_hdf,
+                   sheet_name='boxscore',
+                   start_cell=cell_idx,
+                   clean=False)
 
-    idx += p_hdf.shape[0]+2
+    idx += p_hdf.shape[0] + 2
     cell_idx = 'A{}'.format(idx)
-    print(cell_idx)
-    write_to_sheet(df=p_adf, sheet_name='boxscore', start_cell=cell_idx, clean=False)
+    write_to_sheet(df=p_adf,
+                   sheet_name='boxscore',
+                   start_cell=cell_idx,
+                   clean=False)
 
     # df_pit.to_csv('test3.csv', index=False)
 
@@ -647,6 +595,178 @@ def boxscore(team):
     # max_cols = max([x[1] for x in [df1.shape, df2.shape, df3.shape]])
     # for
 
+def game_preview(team):
+    """
+    Collect data on upcomming game
+    from mlb.com/gameday
+    """
+    url = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=07/06/2017'
+    team = team.lower()
+
+    res = urlopen(url).read()
+    schedule_data = json.loads(res.decode('utf-8'))
+
+    data = schedule_data['dates'][0]['games']
+
+    # Get game link
+    game_data = [
+                 x for x in data
+                 if team in
+                 x['teams']['home']['team']['name'].lower().split()
+                 or team in
+                 x['teams']['away']['team']['name'].lower().split()
+                ]
+
+    # Exit if game is not found
+    if not game_data:
+        print('Game preview not found')
+        return
+
+    # Collect sumamry data
+    away = game_data[0]['teams']['away']['team']['name']
+    home = game_data[0]['teams']['home']['team']['name']
+    a_rec = game_data[0]['teams']['away']['leagueRecord'] #wins, losses, pct
+    h_rec = game_data[0]['teams']['home']['leagueRecord']
+
+    a_win, a_loss, a_pct = a_rec['wins'], a_rec['losses'], a_rec['pct']
+    h_win, h_loss, h_pct = h_rec['wins'], h_rec['losses'], h_rec['pct']
+
+    sum_df = pd.DataFrame({
+                           'Teams'  : [home, away],
+                           'Wins'   : [h_win, a_win],
+                           'Losses' : [h_loss, a_loss],
+                           'Pct'    : [h_pct, a_pct]
+                         })
+    sum_df = sum_df[['Teams', 'Wins', 'Losses', 'Pct']]
+
+    write_to_sheet(df=sum_df,
+                   sheet_name='Game Preview',
+                   start_cell='A1',
+                   clean=True)
+
+    # Open game url and look for xml link
+    game_url = 'https://statsapi.mlb.com' + game_data[0]['link']
+    res = urlopen(game_url).read()
+    game_data = json.loads(res.decode('utf-8'))
+
+    game_id = game_data['gameData']['game']['id']
+
+    xml = 'http://gd2.mlb.com/components/game/mlb/year_2017/month_07/day_06/gid_{}/gamecenter.xml'.format(game_id)
+
+
+    # Open xml link and parse pitchers and text blurbs
+    res = urlopen(xml).read()
+    dxml = xd.parse(res)
+    home = dxml['game']['probables']['home']
+    away = dxml['game']['probables']['away']
+
+    # Pitcher names
+    h_pit = ' '.join([home['useName'],
+                      home['lastName'],
+                      home['throwinghand']
+                      ])
+
+    a_pit = ' '.join([away['useName'],
+                      away['lastName'],
+                      away['throwinghand']
+                      ])
+
+    # Pitcher stats
+    hp_win  = home['wins']
+    hp_loss = home['losses']
+    hp_era  = home['era']
+    hp_so   = home['so']
+
+    ap_win  = away['wins']
+    ap_loss = away['losses']
+    ap_era  = away['era']
+    ap_so   = away['so']
+
+    # Pitcher blurbs
+    h_blurb = home['report']
+    a_blurb = away['report']
+
+    # Game blurb
+    blurb = dxml['game']['previews']['mlb']['blurb']
+
+    pit_df   = pd.DataFrame({
+                             'Pitcher' : [h_pit, a_pit],
+                             'Wins'    : [hp_win, ap_win],
+                             'Losses'  : [hp_loss, ap_loss],
+                             'ERA'     : [hp_era, ap_era],
+                             'SO'      : [hp_so, ap_so],
+                             'Blurb'   : [h_blurb, a_blurb]
+                            })
+    pit_df = pit_df[['Pitcher', 'Wins', 'Losses', 'ERA', 'SO', 'Blurb']]
+
+    idx = sum_df.shape[0] + 2
+    cell_idx = 'A{}'.format(idx)
+    blurb_df = pd.DataFrame([blurb], columns=[' '])
+    write_to_sheet(df=blurb_df,
+                   sheet_name='Game Preview',
+                   start_cell=cell_idx,
+                   clean=False)
+
+    idx += 3
+    cell_idx = 'A{}'.format(idx)
+    write_to_sheet(df=pit_df,
+                   sheet_name='Game Preview',
+                   start_cell=cell_idx,
+                   clean=False)
+
+
+
+
+    # for game in data:
+    #     if game['status']['detailedState'] == 'Scheduled':
+    #         game_url = "https://statsapi.mlb.com" + game['link']
+    #         content_url = game['content']['link']
+
+    #         away = game['teams']['away']['team']['name']
+    #         home = game['teams']['home']['team']['name']
+
+    #         res = urlopen(game_url).read()
+    #         jgame = json.loads(res.decode('utf-8'))
+
+    #         # Extract starting pitcher data
+    #         pitchers = jgame['gameData']['probablePitchers']
+    #         a_pit = pitchers['away']['fullName']
+    #         h_pit = pitchers['home']['fullName']
+
+    #         a_pit_name = ' '.join(reversed(a_pit.split(','))).strip()
+    #         h_pit_name = ' '.join(reversed(h_pit.split(','))).strip()
+
+    #         # Get weather
+    #         weather = jgame['gameData']['weather']
+    #         if weather:
+    #             weather = "{} degrees, {}, wind: {}"\
+    #                       .format(weather['temp'],
+    #                               weather['condition'],
+    #                               weather['wind'])
+    #         else:
+    #             weather = None
+
+    #         # playerData = jgame['gameData']['players']
+    #         # print(jgame['liveData']['boxscore']['teams']['home'].keys())
+    #         test = []
+    #         for val in jgame['liveData']['boxscore'] \
+    #                       ['teams']['away']['players'].values() :
+
+    #             if val['status']['description'] == 'Active':
+    #                 player = val['person']['fullName']
+    #                 test.append(player)
+    #         print(sorted(test))
+    #         # for k in playerData.keys():
+    #             # print(playerData[k]['firstLastName'], playerData[k]['active'])
+
+        # break
+
+    # hrefs = [a.string for a in soup.find_all('a', href=True)]
+    # print(hrefs)
+    # h5 = [x for x in soup.find_all('h5')]
+    # print(h5)
+
+
 #### TEST AREA
 if __name__ == '__main__':
     # fanGraphs('pit', 'yankees', 2017)
@@ -655,11 +775,11 @@ if __name__ == '__main__':
     # yankees_schedule()
     # pitching_logs('NYY', 2016)
     # pitching_logs('NYY', 2017)
-    # game_preview()
+    game_preview('Astros')
     # forty_man()
     # current_injuries()
     # transactions('astros', 2017)
     # boxscore('astros')
-    boxscore('yankees')
+    # boxscore('yankees')
 
 
