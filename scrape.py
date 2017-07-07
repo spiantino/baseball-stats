@@ -76,7 +76,12 @@ def fanGraphs(type_, team, year):
     team = team.lower()
     tid = team_id[team]
 
-    url = """http://www.fangraphs.com/leaders.aspx?pos=all&stats={0}&lg=all&qual=0&type=8&season={1}&month=0&season1={1}&ind=0&team={2}&rost=&age=&filter=&players=""".format(type_, year, tid)
+    url = """http://www.fangraphs.com/leaders.aspx?pos=all&stats={0}\
+             &lg=all&qual=0&type=8&season={1}\
+             &month=0&season1={1}\
+             &ind=0&team={2}"""\
+             .format(type_, year, tid)\
+             .replace(' ', '')
 
     with open('data.pkl', 'rb') as f:
         params = pickle.load(f)
@@ -102,31 +107,6 @@ def fanGraphs(type_, team, year):
     sheet_name = '{}-{}-leaderboard-{}'.format(team, type_, year)
 
     write_to_sheet(df=df, sheet_name=sheet_name)
-
-    # # Store url HTML as a bs4 object
-    # soup = openUrl(url)
-
-    # # Extract HTML from stat table element
-    # table = soup.find('tbody')
-
-    # # Extract column names
-    # cols = []
-    # th = soup.find_all('th')
-    # for t in th:
-    #     cols.append(t.string)
-
-    # # Extract rows from table
-    # trs = table.find_all('tr')#[:-1]
-    # stats = []
-    # for tr in trs:
-    #     tds = tr.find_all('td')
-    #     row = [td.string for td in tds]
-    #     stats.append(row)
-
-    # df = pd.DataFrame(stats, columns=cols)
-
-    # # df.to_csv('nyy-pitching-stats.csv', index=False)
-    # print(df)
 
 def br_standings():
     """
@@ -214,11 +194,6 @@ def yankees_schedule():
     for item in table.find_all(lambda tag: tag.has_attr('data-stat')):
         data.append(item.text)
 
-    # for item in table.find_all('td',  {'data-stat': 'date_game'}):
-    #     print(item)
-    #     print(item.text)
-    #     print()
-
     # Extract games that have already been played
     current = next((x for x in data if x and
                     x.startswith("Game Preview")), None)
@@ -239,8 +214,6 @@ def yankees_schedule():
     df_up = pd.DataFrame(upcomming, columns=up_cols)
     df_up = df_up.loc[df_up['Gm#'] != 'Gm#']
 
-    # df_ap.to_csv('nyy-played2.csv', index=False)
-    # df_up.to_csv('nyy-upcoming.csv', index=False)
     write_to_sheet(df=df_ap, sheet_name='schedule-played')
     write_to_sheet(df=df_up, sheet_name='schedule-upcoming')
 
@@ -442,12 +415,16 @@ def boxscore(team):
         Search through previous days
         until match is found
         """
-        print("""Searching for last game... looking back {} days""".format(i))
+        print("Searching for last game... looking back {} days".format(i))
         yesterday = ((datetime.date.today() -
                       datetime.timedelta(i))
                       .strftime('%Y-%m-%d'))
         y,m,d = yesterday.split('-')
-        url = "http://www.baseball-reference.com/boxes/?year={}&month={}&day={}".format(y,m,d)
+        url = "http://www.baseball-reference.com/boxes/?year={}\
+               &month={}\
+               &day={}"\
+               .format(y,m,d)\
+               .replace(' ', '')
 
         soup = openUrl(url)
         matches = soup.find_all('table', {'class' : 'teams'})
@@ -597,6 +574,7 @@ def boxscore(team):
 
 def game_preview(team):
     """
+    !!! Add date parameter
     Collect data on upcomming game
     from mlb.com/gameday
     """
@@ -651,7 +629,10 @@ def game_preview(team):
 
     game_id = game_data['gameData']['game']['id']
 
-    xml = 'http://gd2.mlb.com/components/game/mlb/year_2017/month_07/day_06/gid_{}/gamecenter.xml'.format(game_id)
+    xml = 'http://gd2.mlb.com/components/game/mlb/year_2017/\
+           month_07/day_06/gid_{}/gamecenter.xml'\
+           .format(game_id)\
+           .replace(' ', '')
 
 
     # Open xml link and parse pitchers and text blurbs
@@ -664,12 +645,12 @@ def game_preview(team):
     h_pit = ' '.join([home['useName'],
                       home['lastName'],
                       home['throwinghand']
-                      ])
+                     ])
 
     a_pit = ' '.join([away['useName'],
                       away['lastName'],
                       away['throwinghand']
-                      ])
+                     ])
 
     # Pitcher stats
     hp_win  = home['wins']
