@@ -18,7 +18,7 @@ def openUrl(url):
     return BeautifulSoup(page.read(), "html.parser")
 
 def write_to_sheet(df, sheet_name, start_cell='A1', clean=True):
-    print("writing {} to sheet".format(sheet_name))
+    print("Writing {} to sheet...".format(sheet_name))
     df = df.fillna('')
     d2g.upload( df=df,
                 gfile='1aoVUZE3dAFEVQDWbOY9YqLNSw5cvJr4l4i16a3FM-aQ',
@@ -40,37 +40,37 @@ def fanGraphs(type_, team, year):
         type_ = 'pit'
 
     team_id = {
-               'all': 0,
-               'angels': 1,
-               'astros': 21,
-               'athletics': 10,
-               'blue jays': 14,
-               'braves': 16,
-               'brewers': 23,
-               'cardinals': 28,
-               'cubs': 17,
-               'diamondbacks': 15,
-               'dodgers': 22,
-               'giants': 30,
-               'indians': 5,
-               'mariners': 11,
-               'marlins': 20,
-               'mets': 25,
-               'nationals': 24,
-               'orioles': 2,
-               'padres': 29,
-               'phillies': 26,
-               'pirates': 27,
-               'rangers': 13,
-               'rays': 12,
-               'red sox': 3,
-               'reds': 18,
-               'rockies': 19,
-               'royals': 7,
-               'tigers': 6,
-               'twins': 8,
-               'white sox': 4,
-               'yankees': 9,
+               'all'          : 0,
+               'angels'       : 1,
+               'astros'       : 21,
+               'athletics'    : 10,
+               'blue jays'    : 14,
+               'braves'       : 16,
+               'brewers'      : 23,
+               'cardinals'    : 28,
+               'cubs'         : 17,
+               'diamondbacks' : 15,
+               'dodgers'      : 22,
+               'giants'       : 30,
+               'indians'      : 5,
+               'mariners'     : 11,
+               'marlins'      : 20,
+               'mets'         : 25,
+               'nationals'    : 24,
+               'orioles'      : 2,
+               'padres'       : 29,
+               'phillies'     : 26,
+               'pirates'      : 27,
+               'rangers'      : 13,
+               'rays'         : 12,
+               'red sox'      : 3,
+               'reds'         : 18,
+               'rockies'      : 19,
+               'royals'       : 7,
+               'tigers'       : 6,
+               'twins'        : 8,
+               'white sox'    : 4,
+               'yankees'      : 9
                }
 
     team = team.lower()
@@ -93,7 +93,9 @@ def fanGraphs(type_, team, year):
 
     data = res.split(',')[:-2]
 
-    row_len = 21 if team=='all' else 20
+    row_len = 22 if type_=='bat' else 20
+    row_len += 1 if team=='all' else 0
+
     data = np.array(data).reshape(-1, row_len)
 
     cols, dfdata = data[:1].reshape(-1,), data[1:]
@@ -102,10 +104,10 @@ def fanGraphs(type_, team, year):
     df['#'] = df.index + 1
     df = df.iloc[:, :-1]
 
-    type_ = 'batting' if type_=='bat' else 'pitching'
-    team = 'league' if team=='all' else team
-    sheet_name = '{}-{}-leaderboard-{}'.format(team, type_, year)
-
+    type_ = 'Batting' if type_=='bat' else 'Pitching'
+    # team = 'league' if team=='all' else team
+    # sheet_name = '{}-{}-leaderboard-{}'.format(team, type_, year)
+    sheet_name = '{} Leaderboard'.format(type_)
     write_to_sheet(df=df, sheet_name=sheet_name)
 
 def br_standings():
@@ -116,47 +118,47 @@ def br_standings():
     url = "http://www.baseball-reference.com/leagues/MLB-standings.shtml"
     soup = openUrl(url)
 
-    h2 = soup.find_all('h2')
-    headers = [x.string for x in h2[:6]]
+    divs = ['E', 'C', 'W']
+    for i, div in enumerate(divs):
+        tables = soup.find_all('table', {'id' : 'standings_{}'.format(div)})
+        al_table, nl_table = tables[0], tables[1]
 
-    # Scrape division standings
-    tables = soup.find_all('div', attrs={'class':'table_outer_container'})
-    df = pd.DataFrame()
-    for i, table in enumerate(tables):
+        for j, table in enumerate(tables):
 
-        # Extract all tables and relevant stats
-        trs = table.find_all('tr')
-        data = [th.string for tr in trs for th in tr if th.string != '\n']
+            data = []
+            for item in table.find_all(lambda tag: tag.has_attr('data-stat')):
+                data.append(item.string)
 
-        # Construct data frame
-        cols, stats = data[:5], data[5:]
-        stats = np.array(stats).reshape([-1, 5])
+            # Infer division name
+            div_loc  = {
+                         'E' : 'East',
+                         'C' : 'Central',
+                         'W' : 'West'
+                        }
 
-        # Add blank row as divider
-        if not df.empty:
-            blanks = [None for _ in range(len(cols))]
-            df = df.append(pd.Series(blanks, index=cols), ignore_index=True)
+            div_type = {
+                        0: 'AL',
+                        1: 'NL'
+                        }
 
-        # Made division header
-        df = df.append(pd.Series([headers[i], None, None, None, None],
-                                 index=cols), ignore_index=True)
+            # Build output dataframe
+            division = '{} {}'.format(div_type[j], div_loc[div])
+            data = np.array(data).reshape([-1, 5])
+            cols=[division, ' ', '  ', '   ', '    ']
+            df=pd.DataFrame(data, columns=cols)
 
-        # Make division dataframe
-        df2 = pd.DataFrame(stats, columns=cols)
-
-        # Concat division df to master df
-        df = pd.concat([df, df2])
-        df = df[cols]
-
-        # division = headers[i]
-        # cols = pd.MultiIndex.from_tuples([(division, x) for x in cols])
-
-        # df2 = pd.DataFrame(stats, columns=cols)
-        # df = pd.concat([df.T, df2.T])
-        # df = df.T
-
-        if i+1 == len(headers):
-            break
+            # Write out with appropriate padding
+            clean = True if (i==0 and j==0) else False
+            pad_map = {
+                        0: {0: 1,  1: 9},
+                        1: {0: 17, 1: 25},
+                        2: {0: 33, 1: 41}
+                      }
+            cell_idx = 'A{}'.format(pad_map[i][j])
+            write_to_sheet(df=df,
+                           sheet_name='Division Standings',
+                           start_cell=cell_idx,
+                           clean=clean)
 
     # Scrape full league standings
     comment = soup.find_all(string=lambda text: isinstance(text,Comment))
@@ -174,9 +176,8 @@ def br_standings():
     cols, dfdata = data[:1].reshape(-1,), data[1:]
     standings = pd.DataFrame(dfdata, columns=cols)
 
-    # Save output for testing
-    df.to_csv('division-standings.csv', index=False)
-    standings.to_csv('league-standings.csv', index=False)
+    # Write output to sheet
+    write_to_sheet(df=standings, sheet_name='League Standings')
 
 def yankees_schedule():
     """
@@ -214,8 +215,8 @@ def yankees_schedule():
     df_up = pd.DataFrame(upcomming, columns=up_cols)
     df_up = df_up.loc[df_up['Gm#'] != 'Gm#']
 
-    write_to_sheet(df=df_ap, sheet_name='schedule-played')
-    write_to_sheet(df=df_up, sheet_name='schedule-upcoming')
+    write_to_sheet(df=df_ap, sheet_name='Schedule Played')
+    write_to_sheet(df=df_up, sheet_name='Schedule Upcoming')
 
 
 def pitching_logs(team, year):
@@ -271,8 +272,9 @@ def pitching_logs(team, year):
         colname = 'Pitcher_{}'.format(i+1)
         df.loc[:,colname] = pitchers[i]
 
-    # df.to_csv('pitching-logs2.csv', index=False)
-    sheet_name = '{}-pitching-logs-{}'.format(team.lower(), year)
+
+    # sheet_name = '{}-pitching-logs-{}'.format(team.lower(), year)
+    sheet_name = 'Pitching Logs'
     write_to_sheet(df=df, sheet_name=sheet_name)
 
 def forty_man():
@@ -304,7 +306,7 @@ def forty_man():
     df = df.iloc[:-1]
 
     df.rename(columns={'': ' '}, inplace=True)
-    write_to_sheet(df=df, sheet_name='40-man roster')
+    write_to_sheet(df=df, sheet_name='40-Man Roster')
 
 def current_injuries():
     """
@@ -330,7 +332,7 @@ def current_injuries():
     dfdata = data[1:]
 
     df = pd.DataFrame(dfdata, columns=cols)
-    write_to_sheet(df=df, sheet_name='current injuries')
+    write_to_sheet(df=df, sheet_name='Current Injuries')
 
 def transactions(team, year):
     """
@@ -339,36 +341,36 @@ def transactions(team, year):
     """
     team = team.lower()
     team_id = {
-               'angels': 108,
-               'astros': 117,
-               'athletics': 133,
-               'blue jays': 141,
-               'braves': 144,
-               'brewers': 158,
-               'cardinals': 138,
-               'cubs': 112,
-               'diamondbacks': 109,
-               'dodgers': 119,
-               'giants': 137,
-               'indians': 114,
-               'mariners': 136,
-               'marlins': 146,
-               'mets': 121,
-               'nationals': 120,
-               'orioles': 110,
-               'padres': 135,
-               'phillies': 143,
-               'pirates': 134,
-               'rangers': 140,
-               'rays': 139,
-               'red sox': 111,
-               'reds': 113,
-               'rockies': 115,
-               'royals': 118,
-               'tigers': 116,
-               'twins': 142,
-               'white sox': 145,
-               'yankees': 147,
+               'angels'       : 108,
+               'astros'       : 117,
+               'athletics'    : 133,
+               'blue jays'    : 141,
+               'braves'       : 144,
+               'brewers'      : 158,
+               'cardinals'    : 138,
+               'cubs'         : 112,
+               'diamondbacks' : 109,
+               'dodgers'      : 119,
+               'giants'       : 137,
+               'indians'      : 114,
+               'mariners'     : 136,
+               'marlins'      : 146,
+               'mets'         : 121,
+               'nationals'    : 120,
+               'orioles'      : 110,
+               'padres'       : 135,
+               'phillies'     : 143,
+               'pirates'      : 134,
+               'rangers'      : 140,
+               'rays'         : 139,
+               'red sox'      : 111,
+               'reds'         : 113,
+               'rockies'      : 115,
+               'royals'       : 118,
+               'tigers'       : 116,
+               'twins'        : 142,
+               'white sox'    : 145,
+               'yankees'      : 147,
                }
     tid = team_id[team]
 
@@ -379,7 +381,6 @@ def transactions(team, year):
         url = "http://mlb.mlb.com/lookup/json/named.transaction_all.bam?start_date={}0101&end_date={}&team_id={}".format(year, today, tid)
     else:
         url = "http://mlb.mlb.com/lookup/json/named.transaction_all.bam?start_date={0}0101&end_date={0}1231&team_id={1}".format(year, tid)
-
 
     # Open and read json object
     res = urlopen(url).read()
@@ -399,7 +400,8 @@ def transactions(team, year):
     df['Date'] = pd.to_datetime(df.Date)
     df['Date'] = df.Date.apply(lambda x: x.strftime("%m/%d/%y"))
 
-    sheet_name = '{}-transactions-{}'.format(team, year)
+    # sheet_name = '{}-transactions-{}'.format(team, year)
+    sheet_name = 'Transactions'
     write_to_sheet(df=df, sheet_name=sheet_name)
 
 def boxscore(team):
@@ -415,18 +417,19 @@ def boxscore(team):
         Search through previous days
         until match is found
         """
-        print("Searching for last game... looking back {} days".format(i))
         yesterday = ((datetime.date.today() -
                       datetime.timedelta(i))
                       .strftime('%Y-%m-%d'))
         y,m,d = yesterday.split('-')
+        print("""Searching for last game... looking at {}"""\
+                                            .format(yesterday))
         url = "http://www.baseball-reference.com/boxes/?year={}\
                &month={}\
                &day={}"\
                .format(y,m,d)\
                .replace(' ', '')
-
         soup = openUrl(url)
+
         matches = soup.find_all('table', {'class' : 'teams'})
 
         for match in matches:
@@ -439,7 +442,7 @@ def boxscore(team):
 
         # If not found, search through the previous day
         i+=1
-        team_search(i)
+        return team_search(i)
 
     url = "http://www.baseball-reference.com" + team_search(i)
     soup = openUrl(url)
@@ -450,7 +453,8 @@ def boxscore(team):
     summary = soup.find('table', {
                                   'class' :
                                   'linescore nohover stats_table no_freeze'
-                                  })
+                                  }
+                        )
     sumstats = [x.string for x in
                 summary.find_all('td', {'class' : 'center'})]
 
@@ -462,7 +466,7 @@ def boxscore(team):
     # Insert team names
     sum_df.loc[:,'Team'] = teams
     write_to_sheet(df=sum_df,
-                   sheet_name='boxscore',
+                   sheet_name='Boxscore',
                    clean=True)
 
     # Extract box-scores
@@ -494,32 +498,22 @@ def boxscore(team):
         if b_hdf.empty:
             b_hdf = df
         else:
-            # # Add visual padding
-            # df[' '] = None
-            # cols = df.columns.tolist()[:-1]
-            # cols.insert(0, ' ')
-            # df = df[cols]
             b_adf = df
-
-    # Merge home and away frames
-    # df_bat = pd.concat([hdf, adf], axis=1)
-    # write_to_sheet(df=df_bat, sheet_name='boxscore', start_cell=cell_idx, clean=False)
 
     # Write to next available cell
     idx = sum_df.shape[0] + 3
     cell_idx = 'A{}'.format(idx)
     write_to_sheet(df=b_hdf,
-                   sheet_name='boxscore',
+                   sheet_name='Boxscore',
                    start_cell=cell_idx,
                    clean=False)
 
     idx += b_hdf.shape[0] + 2
     cell_idx = 'A{}'.format(idx)
     write_to_sheet(df=b_adf,
-                   sheet_name='boxscore',
+                   sheet_name='Boxscore',
                    start_cell=cell_idx,
                    clean=False)
-
 
     # Collect home and away pitching box score
     box = BeautifulSoup(pit_table, "html.parser")
@@ -538,47 +532,31 @@ def boxscore(team):
     p_hdf, p_adf = df.iloc[:idx2], df.iloc[idx2+1:]
     p_hdf = p_hdf.loc[p_hdf.Pitching!='']
     p_adf = p_adf.loc[p_adf.Pitching!='']
-    # p_adf = p_adf.reset_index(drop=True)
-
-    # # Add visual padding
-    # adf[' '] = None
-    # cols = adf.columns.tolist()[:-1]
-    # cols.insert(0, ' ')
-    # adf = adf[cols]
-
-    # df_pit = pd.concat([hdf, adf], axis=1)
-    # write_to_sheet(df=df_pit, sheet_name='boxscore', start_cell=cell_idx, clean=False)
 
     idx += b_adf.shape[0] + 2
     cell_idx = 'A{}'.format(idx)
     write_to_sheet(df=p_hdf,
-                   sheet_name='boxscore',
+                   sheet_name='Boxscore',
                    start_cell=cell_idx,
                    clean=False)
 
     idx += p_hdf.shape[0] + 2
     cell_idx = 'A{}'.format(idx)
     write_to_sheet(df=p_adf,
-                   sheet_name='boxscore',
+                   sheet_name='Boxscore',
                    start_cell=cell_idx,
                    clean=False)
 
-    # df_pit.to_csv('test3.csv', index=False)
-
-    # Concatenate batting and pitching boxscores
-    # df = df_bat.append(df_pit, ignore_index=True)
-    # df.to_csv('test3.csv', index=False)
-
-    # max_cols = max([x[1] for x in [df1.shape, df2.shape, df3.shape]])
-    # for
-
 def game_preview(team):
     """
-    !!! Add date parameter
     Collect data on upcomming game
     from mlb.com/gameday
     """
-    url = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date=07/06/2017'
+    today = datetime.date.today().strftime('%m/%d/%Y')
+    m,d,y = today.split('/')
+
+    url = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date='\
+                                                        .format(today)
     team = team.lower()
 
     res = urlopen(url).read()
@@ -617,23 +595,50 @@ def game_preview(team):
                          })
     sum_df = sum_df[['Teams', 'Wins', 'Losses', 'Pct']]
 
-    write_to_sheet(df=sum_df,
-                   sheet_name='Game Preview',
-                   start_cell='A1',
-                   clean=True)
-
-    # Open game url and look for xml link
+    # Open game url
     game_url = 'https://statsapi.mlb.com' + game_data[0]['link']
     res = urlopen(game_url).read()
     game_data = json.loads(res.decode('utf-8'))
 
+    # Find batting lineups
+    h_batter_ids = game_data['liveData']['boxscore']\
+                            ['teams']['home']['battingOrder']
+
+    a_batter_ids = game_data['liveData']['boxscore']\
+                            ['teams']['away']['battingOrder']
+
+    # h_batters = game_data['liveData']['boxscore']['teams']['home']['batters']
+    # a_batters = game_data['liveData']['boxscore']['teams']['away']['batters']
+
+    all_players = game_data['liveData']['players']['allPlayers']
+
+    h_batter_data = [all_players['ID'+x] for x in h_batter_ids]
+    h_batters = [
+                 ' '.join([x['name']['first'],
+                           x['name']['last']])
+                 for x in h_batter_data
+                ]
+
+    a_batter_data = [all_players['ID'+x] for x in a_batter_ids]
+    a_batters = [
+                 ' '.join([x['name']['first'],
+                           x['name']['last']])
+                 for x in a_batter_data
+                ]
+
+    lineup_data = {
+                   '{} Batters'.format(home) : h_batters,
+                   '{} Batters'.format(away) : a_batters
+                  }
+    lineup_df = pd.DataFrame(lineup_data)
+
+    # Find xml link to gamecenter data
     game_id = game_data['gameData']['game']['id']
 
-    xml = 'http://gd2.mlb.com/components/game/mlb/year_2017/\
-           month_07/day_06/gid_{}/gamecenter.xml'\
-           .format(game_id)\
+    xml = 'http://gd2.mlb.com/components/game/mlb/year_{}/\
+           month_{}/day_{}/gid_{}/gamecenter.xml'\
+           .format(y, m, d, game_id)\
            .replace(' ', '')
-
 
     # Open xml link and parse pitchers and text blurbs
     res = urlopen(xml).read()
@@ -680,10 +685,27 @@ def game_preview(team):
                             })
     pit_df = pit_df[['Pitcher', 'Wins', 'Losses', 'ERA', 'SO', 'Blurb']]
 
+    # Weather
+    weather = game_data['gameData']['weather']
+    weather_df = pd.DataFrame(weather, index=[0])
+
+    # Write data to sheet
+    write_to_sheet(df=sum_df,
+                   sheet_name='Game Preview',
+                   start_cell='A1',
+                   clean=True)
+
     idx = sum_df.shape[0] + 2
     cell_idx = 'A{}'.format(idx)
     blurb_df = pd.DataFrame([blurb], columns=[' '])
     write_to_sheet(df=blurb_df,
+                   sheet_name='Game Preview',
+                   start_cell=cell_idx,
+                   clean=False)
+
+    idx += 3
+    cell_idx = 'A{}'.format(idx)
+    write_to_sheet(df=weather_df,
                    sheet_name='Game Preview',
                    start_cell=cell_idx,
                    clean=False)
@@ -695,72 +717,25 @@ def game_preview(team):
                    start_cell=cell_idx,
                    clean=False)
 
-
-
-
-    # for game in data:
-    #     if game['status']['detailedState'] == 'Scheduled':
-    #         game_url = "https://statsapi.mlb.com" + game['link']
-    #         content_url = game['content']['link']
-
-    #         away = game['teams']['away']['team']['name']
-    #         home = game['teams']['home']['team']['name']
-
-    #         res = urlopen(game_url).read()
-    #         jgame = json.loads(res.decode('utf-8'))
-
-    #         # Extract starting pitcher data
-    #         pitchers = jgame['gameData']['probablePitchers']
-    #         a_pit = pitchers['away']['fullName']
-    #         h_pit = pitchers['home']['fullName']
-
-    #         a_pit_name = ' '.join(reversed(a_pit.split(','))).strip()
-    #         h_pit_name = ' '.join(reversed(h_pit.split(','))).strip()
-
-    #         # Get weather
-    #         weather = jgame['gameData']['weather']
-    #         if weather:
-    #             weather = "{} degrees, {}, wind: {}"\
-    #                       .format(weather['temp'],
-    #                               weather['condition'],
-    #                               weather['wind'])
-    #         else:
-    #             weather = None
-
-    #         # playerData = jgame['gameData']['players']
-    #         # print(jgame['liveData']['boxscore']['teams']['home'].keys())
-    #         test = []
-    #         for val in jgame['liveData']['boxscore'] \
-    #                       ['teams']['away']['players'].values() :
-
-    #             if val['status']['description'] == 'Active':
-    #                 player = val['person']['fullName']
-    #                 test.append(player)
-    #         print(sorted(test))
-    #         # for k in playerData.keys():
-    #             # print(playerData[k]['firstLastName'], playerData[k]['active'])
-
-        # break
-
-    # hrefs = [a.string for a in soup.find_all('a', href=True)]
-    # print(hrefs)
-    # h5 = [x for x in soup.find_all('h5')]
-    # print(h5)
-
+    idx += pit_df.shape[0] + 2
+    cell_idx = 'A{}'.format(idx)
+    write_to_sheet(df=lineup_df,
+                   sheet_name='Game Preview',
+                   start_cell=cell_idx,
+                   clean=False)
 
 #### TEST AREA
 if __name__ == '__main__':
-    # fanGraphs('pit', 'yankees', 2017)
+    # fanGraphs('bat', 'all', 2017)
     # fanGraphs('pit', 'all', 2017)
     # br_standings()
     # yankees_schedule()
     # pitching_logs('NYY', 2016)
-    # pitching_logs('NYY', 2017)
-    game_preview('Astros')
+    # # pitching_logs('NYY', 2017)
+    # game_preview('mets')
     # forty_man()
     # current_injuries()
     # transactions('astros', 2017)
-    # boxscore('astros')
     # boxscore('yankees')
-
+    pass
 
