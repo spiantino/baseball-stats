@@ -1,6 +1,6 @@
 from bs4 import BeautifulSoup, Comment
 from df2gspread import df2gspread as d2g
-from urllib.request import urlopen
+# from urllib.request import urlopen
 import pandas as pd
 import numpy as np
 import requests
@@ -13,9 +13,10 @@ import xmltodict as xd
 # GOOGLE DOC ADDRESS
 #'1aoVUZE3dAFEVQDWbOY9YqLNSw5cvJr4l4i16a3FM-aQ'
 
-def openUrl(url):
-    page = urlopen(url)
-    return BeautifulSoup(page.read(), "html.parser")
+def open_url(url):
+    # page = urlopen(url)
+    page = requests.get(page)
+    return BeautifulSoup(page.text, "html.parser")
 
 def write_to_sheet(df, sheet_name, start_cell='A1', clean=True):
     print("Writing {} to sheet...".format(sheet_name))
@@ -116,7 +117,7 @@ def br_standings():
     from baseball-reference.com
     """
     url = "http://www.baseball-reference.com/leagues/MLB-standings.shtml"
-    soup = openUrl(url)
+    soup = open_url(url)
 
     divs = ['E', 'C', 'W']
     for i, div in enumerate(divs):
@@ -186,7 +187,7 @@ def yankees_schedule():
     """
     url = "http://www.baseball-reference.com/teams/NYY/2017-schedule-scores.shtml"
 
-    soup = openUrl(url)
+    soup = open_url(url)
 
     table = soup.find('div', {'class': 'table_outer_container'})
     ths = table.find_all('th')
@@ -227,7 +228,7 @@ def pitching_logs(team, year):
     team = team.upper()
     url = "http://www.baseball-reference.com/teams/tgl.cgi?team={}&t=p&year={}".format(team, year)
 
-    soup = openUrl(url)
+    soup = open_url(url)
 
     data = []
     for item in soup.find_all(lambda tag: tag.has_attr('data-stat')):
@@ -284,7 +285,7 @@ def forty_man():
     """
     url = "http://www.baseball-reference.com/teams/NYY/2017-roster.shtml"
 
-    soup = openUrl(url)
+    soup = open_url(url)
     table = soup.find('table', {'id' : 'the40man'})
 
     data = []
@@ -315,7 +316,7 @@ def current_injuries():
     """
     url = "http://www.baseball-reference.com/teams/NYY/2017.shtml"
 
-    soup = openUrl(url)
+    soup = open_url(url)
 
     # Data is stored in html comment
     comment = soup.find_all(string=lambda text: isinstance(text,Comment))
@@ -383,8 +384,11 @@ def transactions(team, year):
         url = "http://mlb.mlb.com/lookup/json/named.transaction_all.bam?start_date={0}0101&end_date={0}1231&team_id={1}".format(year, tid)
 
     # Open and read json object
-    res = urlopen(url).read()
-    j = json.loads(res.decode('utf-8'))
+    # res = urlopen(url).read()
+    # j = json.loads(res.decode('utf-8'))
+
+    res = requests.get(url)
+    j = json.loads(res.text)
 
     transactions = j['transaction_all'] \
                     ['queryResults']    \
@@ -428,7 +432,7 @@ def boxscore(team):
                &day={}"\
                .format(y,m,d)\
                .replace(' ', '')
-        soup = openUrl(url)
+        soup = open_url(url)
 
         matches = soup.find_all('table', {'class' : 'teams'})
 
@@ -445,7 +449,7 @@ def boxscore(team):
         return team_search(i)
 
     url = "http://www.baseball-reference.com" + team_search(i)
-    soup = openUrl(url)
+    soup = open_url(url)
 
     teams = [x.string for x in soup.find_all('h2')[:2]]
 
@@ -559,8 +563,11 @@ def game_preview(team):
                                                         .format(today)
     team = team.lower()
 
-    res = urlopen(url).read()
-    schedule_data = json.loads(res.decode('utf-8'))
+    # res = urlopen(url).read()
+    # schedule_data = json.loads(res.decode('utf-8'))
+
+    res = requests.get(url)
+    schedule_data = json.loads(res.text)
 
     data = schedule_data['dates'][0]['games']
 
@@ -597,8 +604,11 @@ def game_preview(team):
 
     # Open game url
     game_url = 'https://statsapi.mlb.com' + game_data[0]['link']
-    res = urlopen(game_url).read()
-    game_data = json.loads(res.decode('utf-8'))
+    # res = urlopen(game_url).read()
+    # game_data = json.loads(res.decode('utf-8'))
+    res = requests.get(url)
+    schedule_data = json.loads(res.text)
+
 
     # Find batting lineups
     h_batter_ids = game_data['liveData']['boxscore']\
@@ -641,7 +651,8 @@ def game_preview(team):
            .replace(' ', '')
 
     # Open xml link and parse pitchers and text blurbs
-    res = urlopen(xml).read()
+    # res = urlopen(xml).read()
+    res = requests.get(xml).text
     dxml = xd.parse(res)
     home = dxml['game']['probables']['home']
     away = dxml['game']['probables']['away']
