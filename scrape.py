@@ -3,19 +3,21 @@ from df2gspread import df2gspread as d2g
 # from urllib.request import urlopen
 import pandas as pd
 import numpy as np
+import xmltodict as xd
 import requests
+import argparse
 import re
 import json
 import datetime
 import pickle
-import xmltodict as xd
+import inspect
 
 # GOOGLE DOC ADDRESS
 #'1aoVUZE3dAFEVQDWbOY9YqLNSw5cvJr4l4i16a3FM-aQ'
 
 def open_url(url):
     # page = urlopen(url)
-    page = requests.get(page)
+    page = requests.get(url)
     return BeautifulSoup(page.text, "html.parser")
 
 def write_to_sheet(df, sheet_name, start_cell='A1', clean=True):
@@ -29,16 +31,17 @@ def write_to_sheet(df, sheet_name, start_cell='A1', clean=True):
                 clean=clean
                 )
 
-def fanGraphs(type_, team, year):
+def fangraphs(state, team, year):
     """
     Scrape data from fangraphs.com
     """
     # Turn args into acceptable parameters
-    if type_ == 'batting':
-        type_ = 'bat'
+    state = state.lower()
+    if state == 'batting':
+        state = 'bat'
 
-    elif type_ in ['pitch', 'pitching']:
-        type_ = 'pit'
+    elif state in ['pitch', 'pitching']:
+        state = 'pit'
 
     team_id = {
                'all'          : 0,
@@ -81,7 +84,7 @@ def fanGraphs(type_, team, year):
              &lg=all&qual=0&type=8&season={1}\
              &month=0&season1={1}\
              &ind=0&team={2}"""\
-             .format(type_, year, tid)\
+             .format(state, year, tid)\
              .replace(' ', '')
 
     with open('data.pkl', 'rb') as f:
@@ -94,7 +97,7 @@ def fanGraphs(type_, team, year):
 
     data = res.split(',')[:-2]
 
-    row_len = 22 if type_=='bat' else 20
+    row_len = 22 if state=='bat' else 20
     row_len += 1 if team=='all' else 0
 
     data = np.array(data).reshape(-1, row_len)
@@ -105,13 +108,13 @@ def fanGraphs(type_, team, year):
     df['#'] = df.index + 1
     df = df.iloc[:, :-1]
 
-    type_ = 'Batting' if type_=='bat' else 'Pitching'
+    state = 'Batting' if state=='bat' else 'Pitching'
     # team = 'league' if team=='all' else team
-    # sheet_name = '{}-{}-leaderboard-{}'.format(team, type_, year)
-    sheet_name = '{} Leaderboard'.format(type_)
+    # sheet_name = '{}-{}-leaderboard-{}'.format(team, state, year)
+    sheet_name = '{} Leaderboard'.format(state)
     write_to_sheet(df=df, sheet_name=sheet_name)
 
-def br_standings():
+def standings():
     """
     Scrape MLB standings or Yankees schedule
     from baseball-reference.com
@@ -278,12 +281,13 @@ def pitching_logs(team, year):
     sheet_name = 'Pitching Logs'
     write_to_sheet(df=df, sheet_name=sheet_name)
 
-def forty_man():
+def forty_man(team, year):
     """
     Extract 40-man roster from
     baseball-reference.com
     """
-    url = "http://www.baseball-reference.com/teams/NYY/2017-roster.shtml"
+    url = "http://www.baseball-reference.com/teams/{}/{}-roster.shtml"\
+                                                    .format(team, year)
 
     soup = open_url(url)
     table = soup.find('table', {'id' : 'the40man'})
@@ -309,13 +313,13 @@ def forty_man():
     df.rename(columns={'': ' '}, inplace=True)
     write_to_sheet(df=df, sheet_name='40-Man Roster')
 
-def current_injuries():
+def current_injuries(team, year):
     """
     Extract current injuries table
     from baseball-reference.com
     """
-    url = "http://www.baseball-reference.com/teams/NYY/2017.shtml"
-
+    url = "http://www.baseball-reference.com/teams/{}/{}.shtml"\
+                                            .format(team, year)
     soup = open_url(url)
 
     # Data is stored in html comment
@@ -559,7 +563,7 @@ def game_preview(team):
     today = datetime.date.today().strftime('%m/%d/%Y')
     m,d,y = today.split('/')
 
-    url = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date='\
+    url = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}'\
                                                         .format(today)
     team = team.lower()
 
@@ -572,7 +576,7 @@ def game_preview(team):
     data = schedule_data['dates'][0]['games']
 
     # Get game link
-    game_data = [
+    match_data = [
                  x for x in data
                  if team in
                  x['teams']['home']['team']['name'].lower().split()
@@ -581,15 +585,15 @@ def game_preview(team):
                 ]
 
     # Exit if game is not found
-    if not game_data:
+    if not match_data:
         print('Game preview not found')
         return
 
     # Collect sumamry data
-    away = game_data[0]['teams']['away']['team']['name']
-    home = game_data[0]['teams']['home']['team']['name']
-    a_rec = game_data[0]['teams']['away']['leagueRecord'] #wins, losses, pct
-    h_rec = game_data[0]['teams']['home']['leagueRecord']
+    away = match_data[0]['teams']['away']['team']['name']
+    home = match_data[0]['teams']['home']['team']['name']
+    a_rec = match_data[0]['teams']['away']['leagueRecord']
+    h_rec = match_data[0]['teams']['home']['leagueRecord']
 
     a_win, a_loss, a_pct = a_rec['wins'], a_rec['losses'], a_rec['pct']
     h_win, h_loss, h_pct = h_rec['wins'], h_rec['losses'], h_rec['pct']
@@ -603,67 +607,79 @@ def game_preview(team):
     sum_df = sum_df[['Teams', 'Wins', 'Losses', 'Pct']]
 
     # Open game url
-    game_url = 'https://statsapi.mlb.com' + game_data[0]['link']
-    # res = urlopen(game_url).read()
-    # game_data = json.loads(res.decode('utf-8'))
-    res = requests.get(url)
-    schedule_data = json.loads(res.text)
+    game_url = 'https://statsapi.mlb.com' + match_data[0]['link']
+    res = requests.get(game_url)
+    game_data = json.loads(res.text)
 
+    # Find batting lineups. Skip if not yet available
+    try:
+        h_batter_ids = game_data['liveData']['boxscore']\
+                                ['teams']['home']['battingOrder']
 
-    # Find batting lineups
-    h_batter_ids = game_data['liveData']['boxscore']\
-                            ['teams']['home']['battingOrder']
+        a_batter_ids = game_data['liveData']['boxscore']\
+                                ['teams']['away']['battingOrder']
 
-    a_batter_ids = game_data['liveData']['boxscore']\
-                            ['teams']['away']['battingOrder']
+        all_players = game_data['liveData']['players']['allPlayers']
 
-    # h_batters = game_data['liveData']['boxscore']['teams']['home']['batters']
-    # a_batters = game_data['liveData']['boxscore']['teams']['away']['batters']
+        h_batter_data = [all_players['ID'+x] for x in h_batter_ids]
+        h_batters = [
+                     ' '.join([
+                               x['name']['first'],
+                               x['name']['last'],
+                               x['position']
+                               ])
+                     for x in h_batter_data
+                    ]
+        # h_batters_pos = [x['position'] for x in h_batters_pos]
 
-    all_players = game_data['liveData']['players']['allPlayers']
+        a_batter_data = [all_players['ID'+x] for x in a_batter_ids]
+        a_batters = [
+                     ' '.join([
+                               x['name']['first'],
+                               x['name']['last'],
+                               x['position']
+                               ])
+                     for x in a_batter_data
+                    ]
+        # a_batters_pos = [x['position'] for x in a_batter_data]
 
-    h_batter_data = [all_players['ID'+x] for x in h_batter_ids]
-    h_batters = [
-                 ' '.join([x['name']['first'],
-                           x['name']['last']])
-                 for x in h_batter_data
-                ]
+        lineup_data = {
+                       '{} Batters'.format(home) : h_batters,
+                       '{} Batters'.format(away) : a_batters#,
+                       # 'Home Player Positions'   : h_batters_pos,
+                       # 'Away Player Positions'   : a_batters_pos
+                      }
 
-    a_batter_data = [all_players['ID'+x] for x in a_batter_ids]
-    a_batters = [
-                 ' '.join([x['name']['first'],
-                           x['name']['last']])
-                 for x in a_batter_data
-                ]
-
-    lineup_data = {
-                   '{} Batters'.format(home) : h_batters,
-                   '{} Batters'.format(away) : a_batters
-                  }
-    lineup_df = pd.DataFrame(lineup_data)
+        lineup_df = pd.DataFrame(lineup_data)
+        lineup = True
+    except:
+        lineup = False
 
     # Find xml link to gamecenter data
     game_id = game_data['gameData']['game']['id']
+    game_id = re.sub(r'[/-]', '_', game_id)
 
     xml = 'http://gd2.mlb.com/components/game/mlb/year_{}/\
            month_{}/day_{}/gid_{}/gamecenter.xml'\
            .format(y, m, d, game_id)\
            .replace(' ', '')
-
+    print(xml)
     # Open xml link and parse pitchers and text blurbs
-    # res = urlopen(xml).read()
     res = requests.get(xml).text
     dxml = xd.parse(res)
+
     home = dxml['game']['probables']['home']
     away = dxml['game']['probables']['away']
 
     # Pitcher names
-    h_pit = ' '.join([home['useName'],
+    h_pit = ' '.join([
+                      home['useName'],
                       home['lastName'],
                       home['throwinghand']
                      ])
 
-    a_pit = ' '.join([away['useName'],
+    a_pit = ' '.join([
+                      away['useName'],
                       away['lastName'],
                       away['throwinghand']
                      ])
@@ -685,7 +701,9 @@ def game_preview(team):
 
     # Game blurb
     blurb = dxml['game']['previews']['mlb']['blurb']
+    blurb_df = pd.DataFrame([blurb], columns=[' '])
 
+    # Starting pitchers
     pit_df   = pd.DataFrame({
                              'Pitcher' : [h_pit, a_pit],
                              'Wins'    : [hp_win, ap_win],
@@ -708,18 +726,18 @@ def game_preview(team):
 
     idx = sum_df.shape[0] + 2
     cell_idx = 'A{}'.format(idx)
-    blurb_df = pd.DataFrame([blurb], columns=[' '])
     write_to_sheet(df=blurb_df,
                    sheet_name='Game Preview',
                    start_cell=cell_idx,
                    clean=False)
 
-    idx += 3
-    cell_idx = 'A{}'.format(idx)
-    write_to_sheet(df=weather_df,
-                   sheet_name='Game Preview',
-                   start_cell=cell_idx,
-                   clean=False)
+    if not weather_df.empty:
+        idx += 3
+        cell_idx = 'A{}'.format(idx)
+        write_to_sheet(df=weather_df,
+                       sheet_name='Game Preview',
+                       start_cell=cell_idx,
+                       clean=False)
 
     idx += 3
     cell_idx = 'A{}'.format(idx)
@@ -728,25 +746,48 @@ def game_preview(team):
                    start_cell=cell_idx,
                    clean=False)
 
-    idx += pit_df.shape[0] + 2
-    cell_idx = 'A{}'.format(idx)
-    write_to_sheet(df=lineup_df,
-                   sheet_name='Game Preview',
-                   start_cell=cell_idx,
-                   clean=False)
+    if lineup:
+        idx += pit_df.shape[0] + 2
+        cell_idx = 'A{}'.format(idx)
+        write_to_sheet(df=lineup_df,
+                       sheet_name='Game Preview',
+                       start_cell=cell_idx,
+                       clean=False)
 
-#### TEST AREA
 if __name__ == '__main__':
-    # fanGraphs('bat', 'all', 2017)
-    # fanGraphs('pit', 'all', 2017)
-    # br_standings()
-    # yankees_schedule()
-    # pitching_logs('NYY', 2016)
-    # # pitching_logs('NYY', 2017)
-    # game_preview('mets')
-    # forty_man()
-    # current_injuries()
-    # transactions('astros', 2017)
-    # boxscore('yankees')
-    pass
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--function', default='all')
+    parser.add_argument('-y', '--year',     default=2017)
+    parser.add_argument('-t', '--team',     default='NYY')
+    args = parser.parse_args()
+
+    fns = {
+            'bat_leaders'   : fangraphs,
+            'pit_leaders'   : fangraphs,
+            'pit_logs'      : pitching_logs,
+            'injuries'      : current_injuries,
+            'transactions'  : transactions,
+            'preview'       : game_preview,
+            'boxscore'      : boxscore,
+            'schedule'      : yankees_schedule,
+            'standings'     : standings,
+            'forty_man'     : forty_man
+           }
+
+    def run(fn, team, year):
+        arglen = len(inspect.getargspec(fns[fn])[0])
+
+        if fn == 'bat_leaders':
+            fangraphs(state='bat', team=team, year=year)
+        elif fn =='pit_leaders':
+            fangraphs(state='pit', team=team, year=year)
+        elif arglen == 2:
+            fns[fn](team=team, year=year)
+        elif arglen == 1:
+            fns[fn](team=team)
+        elif arglen == 0:
+            fns[fn]()
+
+    run(args.function, args.team, args.year)
+
 
