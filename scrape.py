@@ -1,6 +1,6 @@
+#!/usr/bin/env python
 from bs4 import BeautifulSoup, Comment
 from df2gspread import df2gspread as d2g
-# from urllib.request import urlopen
 import pandas as pd
 import numpy as np
 import xmltodict as xd
@@ -12,11 +12,7 @@ import datetime
 import pickle
 import inspect
 
-# GOOGLE DOC ADDRESS
-#'1aoVUZE3dAFEVQDWbOY9YqLNSw5cvJr4l4i16a3FM-aQ'
-
 def open_url(url):
-    # page = urlopen(url)
     page = requests.get(url)
     return BeautifulSoup(page.text, "html.parser")
 
@@ -31,18 +27,68 @@ def write_to_sheet(df, sheet_name, start_cell='A1', clean=True):
                 clean=clean
                 )
 
+def convert_name(name, how):
+    """
+    Convert between abbreviation
+    and full team name
+    """
+    full2abbr = {
+                  'angels'       : 'laa',
+                  'astros'       : 'hou',
+                  'athletics'    : 'oak',
+                  'blue jays'    : 'tor',
+                  'braves'       : 'atl',
+                  'brewers'      : 'mil',
+                  'cardinals'    : 'stl',
+                  'cubs'         : 'chc',
+                  'diamondbacks' : 'ari',
+                  'dodgers'      : 'lad',
+                  'giants'       : 'sfg',
+                  'indians'      : 'cle',
+                  'mariners'     : 'sea',
+                  'marlins'      : 'mia',
+                  'mets'         : 'nym',
+                  'nationals'    : 'was',
+                  'orioles'      : 'bal',
+                  'padres'       : 'sdp',
+                  'phillies'     : 'phi',
+                  'pirates'      : 'pit',
+                  'rangers'      : 'tex',
+                  'rays'         : 'tbr',
+                  'red sox'      : 'bos',
+                  'reds'         : 'cin',
+                  'rockies'      : 'col',
+                  'royals'       : 'kcr',
+                  'tigers'       : 'det',
+                  'twins'        : 'min',
+                  'white sox'    : 'chw',
+                  'yankees'      : 'nyy'
+                  }
+    abbr2full = {k:v for v,k in full2abbr.items()}
+
+    name = name.lower()
+
+    if name == 'all':
+        return name
+
+    elif how == 'full':
+        if len(name) == 3:
+            return abbr2full[name]
+        else:
+            return name
+
+    elif how == 'abbr':
+        if len(name) != 3:
+            return full2abbr[name].upper()
+        else:
+            return name
+
+
 def fangraphs(state, team, year):
     """
     Scrape data from fangraphs.com
     """
-    # Turn args into acceptable parameters
-    state = state.lower()
-    if state == 'batting':
-        state = 'bat'
-
-    elif state in ['pitch', 'pitching']:
-        state = 'pit'
-
+    team = convert_name(name=team, how='full')
     team_id = {
                'all'          : 0,
                'angels'       : 1,
@@ -87,9 +133,26 @@ def fangraphs(state, team, year):
              .format(state, year, tid)\
              .replace(' ', '')
 
-    with open('data.pkl', 'rb') as f:
-        params = pickle.load(f)
+    # Find parameters for POST request
+    soup = open_url(url)
 
+    params = {'__EVENTTARGET' : 'LeaderBoard1$cmdCSV'}
+
+    rcbInput = soup.find_all('input', {'class' : 'rcbInput'})
+    for inp in rcbInput:
+        params.update({inp['id']   : inp['value']})
+        params.update({inp['name'] : inp['value']})
+
+    elems = ['__VIEWSTATE',
+             '__VIEWSTATEGENERATOR',
+             '__EVENTVALIDATION',
+             'LeaderBoard1_rcbLeague_Input']
+
+    moreInput = [soup.find('input', {'id' : elem}) for elem in elems]
+    for inp in moreInput:
+        params.update({inp['id'] : inp['value']})
+
+    # Send POST request to retrieve csv data
     res = requests.post(url, data=params).text
     res = res.replace('\ufeff', '#,')
     res = res.replace('"', '')
@@ -109,8 +172,6 @@ def fangraphs(state, team, year):
     df = df.iloc[:, :-1]
 
     state = 'Batting' if state=='bat' else 'Pitching'
-    # team = 'league' if team=='all' else team
-    # sheet_name = '{}-{}-leaderboard-{}'.format(team, state, year)
     sheet_name = '{} Leaderboard'.format(state)
     write_to_sheet(df=df, sheet_name=sheet_name)
 
@@ -222,13 +283,12 @@ def yankees_schedule():
     write_to_sheet(df=df_ap, sheet_name='Schedule Played')
     write_to_sheet(df=df_up, sheet_name='Schedule Upcoming')
 
-
 def pitching_logs(team, year):
     """
     Scrape pitching logs from
     baseball-reference.com
     """
-    team = team.upper()
+    team = convert_name(name=team, how='abbr')
     url = "http://www.baseball-reference.com/teams/tgl.cgi?team={}&t=p&year={}".format(team, year)
 
     soup = open_url(url)
@@ -276,8 +336,6 @@ def pitching_logs(team, year):
         colname = 'Pitcher_{}'.format(i+1)
         df.loc[:,colname] = pitchers[i]
 
-
-    # sheet_name = '{}-pitching-logs-{}'.format(team.lower(), year)
     sheet_name = 'Pitching Logs'
     write_to_sheet(df=df, sheet_name=sheet_name)
 
@@ -286,6 +344,7 @@ def forty_man(team, year):
     Extract 40-man roster from
     baseball-reference.com
     """
+    team = convert_name(name=team, how='abbr')
     url = "http://www.baseball-reference.com/teams/{}/{}-roster.shtml"\
                                                     .format(team, year)
 
@@ -318,6 +377,7 @@ def current_injuries(team, year):
     Extract current injuries table
     from baseball-reference.com
     """
+    team = convert_name(name=team, how='abbr')
     url = "http://www.baseball-reference.com/teams/{}/{}.shtml"\
                                             .format(team, year)
     soup = open_url(url)
@@ -344,7 +404,7 @@ def transactions(team, year):
     Extract transations from
     http://mlb.mlb.com/mlb/transactions
     """
-    team = team.lower()
+    team = convert_name(name=team, how='full')
     team_id = {
                'angels'       : 108,
                'astros'       : 117,
@@ -388,9 +448,6 @@ def transactions(team, year):
         url = "http://mlb.mlb.com/lookup/json/named.transaction_all.bam?start_date={0}0101&end_date={0}1231&team_id={1}".format(year, tid)
 
     # Open and read json object
-    # res = urlopen(url).read()
-    # j = json.loads(res.decode('utf-8'))
-
     res = requests.get(url)
     j = json.loads(res.text)
 
@@ -408,7 +465,6 @@ def transactions(team, year):
     df['Date'] = pd.to_datetime(df.Date)
     df['Date'] = df.Date.apply(lambda x: x.strftime("%m/%d/%y"))
 
-    # sheet_name = '{}-transactions-{}'.format(team, year)
     sheet_name = 'Transactions'
     write_to_sheet(df=df, sheet_name=sheet_name)
 
@@ -416,7 +472,7 @@ def boxscore(team):
     """
     Extract box scores from
     """
-    team = team.lower()
+    team = convert_name(name=team, how='full')
     today = datetime.date.today().strftime('%Y-%m-%d')
     i = 0
 
@@ -541,6 +597,7 @@ def boxscore(team):
     p_hdf = p_hdf.loc[p_hdf.Pitching!='']
     p_adf = p_adf.loc[p_adf.Pitching!='']
 
+    # Write to next available cell
     idx += b_adf.shape[0] + 2
     cell_idx = 'A{}'.format(idx)
     write_to_sheet(df=p_hdf,
@@ -560,15 +617,12 @@ def game_preview(team):
     Collect data on upcomming game
     from mlb.com/gameday
     """
+    team = convert_name(name=team, how='full')
     today = datetime.date.today().strftime('%m/%d/%Y')
     m,d,y = today.split('/')
 
     url = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}'\
                                                         .format(today)
-    team = team.lower()
-
-    # res = urlopen(url).read()
-    # schedule_data = json.loads(res.decode('utf-8'))
 
     res = requests.get(url)
     schedule_data = json.loads(res.text)
@@ -663,7 +717,7 @@ def game_preview(team):
            month_{}/day_{}/gid_{}/gamecenter.xml'\
            .format(y, m, d, game_id)\
            .replace(' ', '')
-    print(xml)
+
     # Open xml link and parse pitchers and text blurbs
     res = requests.get(xml).text
     dxml = xd.parse(res)
@@ -755,9 +809,11 @@ def game_preview(team):
                        clean=False)
 
 if __name__ == '__main__':
+    year_ = datetime.date.today().year
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--function', default='all')
-    parser.add_argument('-y', '--year',     default=2017)
+    parser.add_argument('-f', '--function', required=True)
+    parser.add_argument('-y', '--year',     default=year_)
     parser.add_argument('-t', '--team',     default='NYY')
     args = parser.parse_args()
 
