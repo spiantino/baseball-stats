@@ -83,7 +83,6 @@ def convert_name(name, how):
         else:
             return name
 
-
 def fangraphs(state, team, year):
     """
     Scrape data from fangraphs.com
