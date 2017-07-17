@@ -20,7 +20,7 @@ def write_to_sheet(df, sheet_name, start_cell='A1', clean=True):
     print("Writing {} to sheet...".format(sheet_name))
     df = df.fillna('')
     d2g.upload( df=df,
-                gfile='1aoVUZE3dAFEVQDWbOY9YqLNSw5cvJr4l4i16a3FM-aQ',
+                gfile='1_lru5yvSuDpPPVQlaJeBUiGSmhhI1EuUhzVpd7vOgC8',
                 wks_name=sheet_name,
                 row_names=False,
                 start_cell=start_cell,
@@ -81,7 +81,7 @@ def convert_name(name, how):
         if len(name) != 3:
             return full2abbr[name].upper()
         else:
-            return name
+            return name.upper()
 
 def fangraphs(state, team, year):
     """
@@ -369,7 +369,8 @@ def forty_man(team, year):
     df = df.iloc[:-1]
 
     df.rename(columns={'': ' '}, inplace=True)
-    write_to_sheet(df=df, sheet_name='40-Man Roster')
+    # write_to_sheet(df=df, sheet_name='40-Man Roster')
+    write_to_sheet(df=df, sheet_name='{}-roster'.format(team.lower()))
 
 def current_injuries(team, year):
     """
@@ -484,14 +485,16 @@ def boxscore(team):
                       datetime.timedelta(i))
                       .strftime('%Y-%m-%d'))
         y,m,d = yesterday.split('-')
-        print("""Searching for last game... looking at {}"""\
-                                            .format(yesterday))
+
         url = "http://www.baseball-reference.com/boxes/?year={}\
                &month={}\
                &day={}"\
                .format(y,m,d)\
                .replace(' ', '')
         soup = open_url(url)
+
+        date = soup.find('span', {'class' : 'button2 current'}).string
+        print("Searching for last game... looking on {}".format(date))
 
         matches = soup.find_all('table', {'class' : 'teams'})
 
@@ -508,6 +511,7 @@ def boxscore(team):
         return team_search(i)
 
     url = "http://www.baseball-reference.com" + team_search(i)
+
     soup = open_url(url)
 
     teams = [x.string for x in soup.find_all('h2')[:2]]
@@ -521,9 +525,15 @@ def boxscore(team):
     sumstats = [x.string for x in
                 summary.find_all('td', {'class' : 'center'})]
 
-    dfdata = np.array(sumstats).reshape(2, 13)
-    sumcols = ['Team', '1', '2', '3', '4', '5',
-               '6', '7', '8', '9', 'R', 'H', 'E']
+    # Row length will change if game goes past 9 innings
+    row_len = sumstats[1:].index(None) + 1
+
+    dfdata = np.array(sumstats).reshape(2, row_len)
+
+    tr = soup.find('tr')
+    sumcols = [th.string for th in tr.find_all('th')][2:]
+    sumcols.insert(0, 'Team')
+
     sum_df = pd.DataFrame(dfdata, columns=sumcols)
 
     # Insert team names
@@ -535,7 +545,7 @@ def boxscore(team):
     # Extract box-scores
     comment = soup.find_all(string=lambda text: isinstance(text,Comment))
     bat_tables = [x for x in comment if '>Batting</th>' in x]
-    pit_table = [x for x in comment if '>Pitching</th>' in x][0]
+    pit_table  = [x for x in comment if '>Pitching</th>' in x][0]
 
     # Collect home and away batting box score
     b_hdf, b_adf = pd.DataFrame(), pd.DataFrame()
@@ -807,26 +817,77 @@ def game_preview(team):
                        start_cell=cell_idx,
                        clean=False)
 
+def master(team, date):
+    """
+    Populate sheet with: team, opponent,
+    date, home_team, away_team
+    """
+    team = convert_name(team, how='full').capitalize()
+
+    url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}"\
+                                                          .format(date)
+    res = requests.get(url)
+    data = json.loads(res.text)
+
+    for game in data['dates'][0]['games']:
+        away = game['teams']['away']['team']['name']
+        home = game['teams']['home']['team']['name']
+
+        gdate = datetime.datetime.strptime(game['gameDate'][:10], '%Y-%m-%d')
+        gdate = gdate.strftime('%m/%d/%Y')
+
+        # Sometimes data will include games from the day ahead
+        if date == gdate:
+            if team in away or team in home:
+                opp  = away if team in home else home
+                team = away if opp  == home else home
+                dfdata = {
+                          'date'      : date,
+                          'team'      : team,
+                          'opponent'  : opp,
+                          'home_team' : home,
+                          'away_team' : away
+                          }
+                df = pd.DataFrame(dfdata, index=[0])
+                df = df[['date', 'team', 'opponent',
+                         'home_team', 'away_team']]
+                write_to_sheet(df=df, sheet_name='master')
+
+                # Return team names to use in other functions
+                def find_name(team):
+                    t = team.split()[-1].lower()
+                    return t if t not in ['sox', 'jays']\
+                             else ' '.join(team.split()[-2:])
+
+                t1 = find_name(home).lower()
+                t2 = find_name(away).lower()
+                return (t1, t2)
+
+    print("Game not found on date: {}".fomrat(date))
+    return 0
+
 if __name__ == '__main__':
-    year_ = datetime.date.today().year
+    today = datetime.date.today().strftime('%m/%d/%Y')
+    this_year = today.split('/')[-1]
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--function', required=True)
-    parser.add_argument('-y', '--year',     default=year_)
+    parser.add_argument('-f', '--function', default='master')
     parser.add_argument('-t', '--team',     default='NYY')
+    parser.add_argument('-d', '--date',     default=today)
+    parser.add_argument('-y', '--year',     default=this_year)
     args = parser.parse_args()
 
     fns = {
-            'bat_leaders'   : fangraphs,
-            'pit_leaders'   : fangraphs,
-            'pit_logs'      : pitching_logs,
-            'injuries'      : current_injuries,
-            'transactions'  : transactions,
-            'preview'       : game_preview,
-            'boxscore'      : boxscore,
-            'schedule'      : yankees_schedule,
-            'standings'     : standings,
-            'forty_man'     : forty_man
+            'bat_leaders'  : fangraphs,
+            'pit_leaders'  : fangraphs,
+            'pit_logs'     : pitching_logs,
+            'injuries'     : current_injuries,
+            'transactions' : transactions,
+            'preview'      : game_preview,
+            'boxscore'     : boxscore,
+            'schedule'     : yankees_schedule,
+            'standings'    : standings,
+            'forty_man'    : forty_man
            }
 
     def run(fn, team, year):
@@ -843,6 +904,18 @@ if __name__ == '__main__':
         elif arglen == 0:
             fns[fn]()
 
-    run(args.function, args.team, args.year)
+    if args.function == 'master':
+        year_ = args.date.split('/')[-1]
+        t1, t2 = master(args.team, args.date)
+
+        for fn in fns.keys():
+            if fn == 'forty_man':
+                forty_man(t1, year_)
+                forty_man(t2, year_)
+            else:
+                run(fn, args.team, year_)
+    else:
+        run(args.function, args.team, args.year)
+
 
 
