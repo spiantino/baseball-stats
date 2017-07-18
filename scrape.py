@@ -693,7 +693,6 @@ def game_preview(team):
                                ])
                      for x in h_batter_data
                     ]
-        # h_batters_pos = [x['position'] for x in h_batters_pos]
 
         a_batter_data = [all_players['ID'+x] for x in a_batter_ids]
         a_batters = [
@@ -704,16 +703,17 @@ def game_preview(team):
                                ])
                      for x in a_batter_data
                     ]
-        # a_batters_pos = [x['position'] for x in a_batter_data]
 
+        home_col = '{} Batters'.format(home)
+        away_col = '{} Batters'.format(away)
         lineup_data = {
-                       '{} Batters'.format(home) : h_batters,
-                       '{} Batters'.format(away) : a_batters#,
-                       # 'Home Player Positions'   : h_batters_pos,
-                       # 'Away Player Positions'   : a_batters_pos
+                       home_col : h_batters,
+                       away_col : a_batters
                       }
 
         lineup_df = pd.DataFrame(lineup_data)
+        lineup_df = lineup_df[[away_col, home_col]]
+
         lineup = True
     except:
         lineup = False
@@ -763,7 +763,11 @@ def game_preview(team):
     a_blurb = away['report']
 
     # Game blurb
-    blurb = dxml['game']['previews']['mlb']['blurb']
+    try:
+        blurb = dxml['game']['previews']['mlb']['blurb']
+    except:
+        blurb = 'No blurb written yet'
+
     blurb_df = pd.DataFrame([blurb], columns=[' '])
 
     # Starting pitchers
@@ -912,4 +916,3 @@ if __name__ == '__main__':
                 run(fn, args.team, year_)
     else:
         run(args.function, args.team, args.year)
-
