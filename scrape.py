@@ -87,7 +87,7 @@ def fangraphs(state, team, year, all_):
     """
     Scrape data from fangraphs.com
     """
-    team = convert_name(name=team, how='full') if all_==False else 'all'
+    team = convert_name(name=team, how='full') if all_=='off' else 'all'
     team_id = {
                'all'          : 0,
                'angels'       : 1,
@@ -878,7 +878,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--team',     default='NYY')
     parser.add_argument('-d', '--date',     default=today)
     parser.add_argument('-y', '--year',     default=this_year)
-    parser.add_argument('-a', '--all',      default=True)
+    parser.add_argument('-a', '--all',      default=1)
     args = parser.parse_args()
 
     fns = {
@@ -920,3 +920,4 @@ if __name__ == '__main__':
                 run(fn, args.team, year_)
     else:
         run(args.function, args.team, args.year)
+
