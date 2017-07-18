@@ -692,7 +692,7 @@ def game_preview(team):
                                ])
                      for x in h_batter_data
                     ]
-        h_batters_pos = [x['position'] for x in h_batters_pos]
+        h_batters_pos = [x['position'] for x in h_batter_data]
 
         a_batter_data = [all_players['ID'+x] for x in a_batter_ids]
         a_batters = [
@@ -769,7 +769,7 @@ def game_preview(team):
     try:
         blurb = dxml['game']['previews']['mlb']['blurb']
     except:
-        blurb = 'No blurb written yet'
+        blurb = None
 
     blurb_df = pd.DataFrame([blurb], columns=[' '])
 
@@ -787,6 +787,8 @@ def game_preview(team):
     # Weather
     weather = game_data['gameData']['weather']
     weather_df = pd.DataFrame(weather, index=[0])
+    # weather_df = pd.DataFrame([], index=[0])
+
 
     # Write data to sheet
     write_to_sheet(df=sum_df,
@@ -801,8 +803,8 @@ def game_preview(team):
                    start_cell=cell_idx,
                    clean=False)
 
+    idx += 3
     if not weather_df.empty:
-        idx += 3
         cell_idx = 'A{}'.format(idx)
         write_to_sheet(df=weather_df,
                        sheet_name='Game Preview',
@@ -907,15 +909,17 @@ if __name__ == '__main__':
         elif arglen == 0:
             fns[fn]()
 
-    if args.function == 'master':
-        year_ = args.date.split('/')[-1]
-        t1, t2 = master(args.team, args.date)
+    game_preview(args.team)
 
-        for fn in fns.keys():
-            if fn == 'forty_man':
-                forty_man(t1, year_)
-                forty_man(t2, year_)
-            else:
-                run(fn, args.team, year_)
-    else:
-        run(args.function, args.team, args.year)
+    # if args.function == 'master':
+    #     year_ = args.date.split('/')[-1]
+    #     t1, t2 = master(args.team, args.date)
+
+    #     for fn in fns.keys():
+    #         if fn == 'forty_man':
+    #             forty_man(t1, year_)
+    #             forty_man(t2, year_)
+    #         else:
+    #             run(fn, args.team, year_)
+    # else:
+    #     run(args.function, args.team, args.year)
