@@ -688,31 +688,34 @@ def game_preview(team):
         h_batters = [
                      ' '.join([
                                x['name']['first'],
-                               x['name']['last'],
-                               x['position']
+                               x['name']['last']
                                ])
                      for x in h_batter_data
                     ]
+        h_batters_pos = [x['position'] for x in h_batters_pos]
 
         a_batter_data = [all_players['ID'+x] for x in a_batter_ids]
         a_batters = [
                      ' '.join([
                                x['name']['first'],
-                               x['name']['last'],
-                               x['position']
+                               x['name']['last']
                                ])
                      for x in a_batter_data
                     ]
+        a_batters_pos = [x['position'] for x in a_batter_data]
+
 
         home_col = '{} Batters'.format(home)
         away_col = '{} Batters'.format(away)
         lineup_data = {
-                       home_col : h_batters,
-                       away_col : a_batters
+                       home_col     : h_batters,
+                       away_col     : a_batters,
+                       'Home Pos'   : h_batters_pos,
+                       'Away Pos'   : a_batters_pos
                       }
 
         lineup_df = pd.DataFrame(lineup_data)
-        lineup_df = lineup_df[[away_col, home_col]]
+        lineup_df = lineup_df[[away_col, 'Away Pos', home_col, 'Home Pos']]
 
         lineup = True
     except:
