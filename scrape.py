@@ -83,11 +83,11 @@ def convert_name(name, how):
         else:
             return name.upper()
 
-def fangraphs(state, team, year):
+def fangraphs(state, team, year, all_):
     """
     Scrape data from fangraphs.com
     """
-    team = convert_name(name=team, how='full')
+    team = convert_name(name=team, how='full') if all_==False else 'all'
     team_id = {
                'all'          : 0,
                'angels'       : 1,
@@ -825,7 +825,7 @@ def master(team, date):
     team = convert_name(team, how='full').capitalize()
 
     url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}"\
-                                                          .format(date)
+                                                        .format(date)
     res = requests.get(url)
     data = json.loads(res.text)
 
@@ -833,37 +833,40 @@ def master(team, date):
         away = game['teams']['away']['team']['name']
         home = game['teams']['home']['team']['name']
 
-        gdate = datetime.datetime.strptime(game['gameDate'][:10], '%Y-%m-%d')
-        gdate = gdate.strftime('%m/%d/%Y')
+        gdate = datetime.datetime.strptime(game['gameDate'],
+                                           "%Y-%m-%dT%H:%M:%SZ")
+        gdate = gdate.replace(tzinfo=datetime.timezone.utc)\
+                     .astimezone(tz=None)\
+                     .strftime('%m/%d/%Y')
 
-        # Sometimes data will include games from the day ahead
-        if date == gdate:
-            if team in away or team in home:
-                opp  = away if team in home else home
-                team = away if opp  == home else home
-                dfdata = {
-                          'date'      : date,
-                          'team'      : team,
-                          'opponent'  : opp,
-                          'home_team' : home,
-                          'away_team' : away
-                          }
-                df = pd.DataFrame(dfdata, index=[0])
-                df = df[['date', 'team', 'opponent',
-                         'home_team', 'away_team']]
-                write_to_sheet(df=df, sheet_name='master')
+        # print(away, home, gdate, game['gameDate'][:10])
 
-                # Return team names to use in other functions
-                def find_name(team):
-                    t = team.split()[-1].lower()
-                    return t if t not in ['sox', 'jays']\
-                             else ' '.join(team.split()[-2:])
+        if team in away or team in home:
+            opp  = away if team in home else home
+            team = away if opp  == home else home
+            dfdata = {
+                      'date'      : date,
+                      'team'      : team,
+                      'opponent'  : opp,
+                      'home_team' : home,
+                      'away_team' : away
+                      }
+            df = pd.DataFrame(dfdata, index=[0])
+            df = df[['date', 'team', 'opponent',
+                     'away_team', 'home_team']]
+            write_to_sheet(df=df, sheet_name='master')
 
-                t1 = find_name(home).lower()
-                t2 = find_name(away).lower()
-                return (t1, t2)
+            # Return team names to use in other functions
+            def find_name(team):
+                t = team.split()[-1].lower()
+                return t if t not in ['sox', 'jays']\
+                         else ' '.join(team.split()[-2:])
 
-    print("Game not found on date: {}".fomrat(date))
+            t1 = find_name(home).lower()
+            t2 = find_name(away).lower()
+            return (t1, t2)
+
+    print("Game not found on date: {}".format(date))
     return 0
 
 if __name__ == '__main__':
@@ -875,6 +878,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--team',     default='NYY')
     parser.add_argument('-d', '--date',     default=today)
     parser.add_argument('-y', '--year',     default=this_year)
+    parser.add_argument('-a', '--all',      default=True)
     args = parser.parse_args()
 
     fns = {
@@ -894,9 +898,9 @@ if __name__ == '__main__':
         arglen = len(inspect.getargspec(fns[fn])[0])
 
         if fn == 'bat_leaders':
-            fangraphs(state='bat', team=team, year=year)
+            fangraphs(state='bat', team=team, year=year, all_=args.all)
         elif fn =='pit_leaders':
-            fangraphs(state='pit', team=team, year=year)
+            fangraphs(state='pit', team=team, year=year, all_=args.all)
         elif arglen == 2:
             fns[fn](team=team, year=year)
         elif arglen == 1:
@@ -916,6 +920,3 @@ if __name__ == '__main__':
                 run(fn, args.team, year_)
     else:
         run(args.function, args.team, args.year)
-
-
-
