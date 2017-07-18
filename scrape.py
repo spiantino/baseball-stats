@@ -833,14 +833,6 @@ def master(team, date):
         away = game['teams']['away']['team']['name']
         home = game['teams']['home']['team']['name']
 
-        gdate = datetime.datetime.strptime(game['gameDate'],
-                                           "%Y-%m-%dT%H:%M:%SZ")
-        gdate = gdate.replace(tzinfo=datetime.timezone.utc)\
-                     .astimezone(tz=None)\
-                     .strftime('%m/%d/%Y')
-
-        # print(away, home, gdate, game['gameDate'][:10])
-
         if team in away or team in home:
             opp  = away if team in home else home
             team = away if opp  == home else home
