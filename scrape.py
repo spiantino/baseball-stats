@@ -878,7 +878,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--team',     default='NYY')
     parser.add_argument('-d', '--date',     default=today)
     parser.add_argument('-y', '--year',     default=this_year)
-    parser.add_argument('-a', '--all',      default=1)
+    parser.add_argument('-a', '--all',      default='on')
     args = parser.parse_args()
 
     fns = {
