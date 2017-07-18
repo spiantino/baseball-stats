@@ -621,18 +621,18 @@ def boxscore(team):
                    start_cell=cell_idx,
                    clean=False)
 
-def game_preview(team):
+def game_preview(team, date):
     """
     Collect data on upcomming game
     from mlb.com/gameday
     """
     team = convert_name(name=team, how='full')
-    today = datetime.date.today().strftime('%m/%d/%Y')
-    m,d,y = today.split('/')
+    # today = datetime.date.today().strftime('%m/%d/%Y')
+    # m,d,y = today.split('/')
+    m,d,y = date.split('/')
 
     url = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}'\
-                                                        .format(today)
-
+                                                        .format(date)
     res = requests.get(url)
     schedule_data = json.loads(res.text)
 
@@ -909,17 +909,17 @@ if __name__ == '__main__':
         elif arglen == 0:
             fns[fn]()
 
-    game_preview(args.team)
+    if args.function == 'master':
+        year_ = args.date.split('/')[-1]
+        t1, t2 = master(args.team, args.date)
 
-    # if args.function == 'master':
-    #     year_ = args.date.split('/')[-1]
-    #     t1, t2 = master(args.team, args.date)
-
-    #     for fn in fns.keys():
-    #         if fn == 'forty_man':
-    #             forty_man(t1, year_)
-    #             forty_man(t2, year_)
-    #         else:
-    #             run(fn, args.team, year_)
-    # else:
-    #     run(args.function, args.team, args.year)
+        for fn in fns.keys():
+            if fn == 'forty_man':
+                forty_man(t1, year_)
+                forty_man(t2, year_)
+            elif fn == 'preview':
+                game_preview(args.team, args.date)
+            else:
+                run(fn, args.team, year_)
+    else:
+        run(args.function, args.team, args.year)
