@@ -24,7 +24,7 @@ class ApiController():
         service = discovery.build('drive', 'v3', http=self._http)
         data = service.files().export(fileId=self._slidesID,
                                        mimeType='application/pdf').execute()
-        with open('test.pdf', 'wb') as pdf:
+        with open('output.pdf', 'wb') as pdf:
             pdf.write(data)
 
     def refresh(self):
@@ -60,9 +60,8 @@ class ApiController():
             if charts:
                 for chart in charts:
                     reqs = [{'refreshSheetsChart' : chart}]
-                    print(reqs)
                     service.presentations()\
-                           .batchUpdate(body={'requests':reqs},
+                           .batchUpdate(body={'requests' : reqs},
                                         presentationId=self._slidesID)\
                            .execute()
 
