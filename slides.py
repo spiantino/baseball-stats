@@ -48,18 +48,23 @@ class ApiController():
                              .pages()\
                              .get(presentationId=self._slidesID,
                                   pageObjectId=id_,
-                                  fields='pageElements.objectId')\
+                                  fields='pageElements')\
                              .execute()['pageElements']
 
-            for obj in objects:
-                try:
-                    reqs = [{'refreshSheetsChart' : obj}]
+            # Extract chart object ID's
+            charts = [{'objectId' : x['objectId']}
+                      for x in objects
+                      if 'sheetsChart' in x.keys()]
+
+            # Refresh charts one at a time
+            if charts:
+                for chart in charts:
+                    reqs = [{'refreshSheetsChart' : chart}]
+                    print(reqs)
                     service.presentations()\
                            .batchUpdate(body={'requests':reqs},
                                         presentationId=self._slidesID)\
                            .execute()
-                except:
-                    continue
 
 if __name__ == '__main__':
 
