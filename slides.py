@@ -1,7 +1,7 @@
-# from __future__ import print_function
+from __future__ import print_function
 
 import os
-import requests
+import sys
 import httplib2
 
 from apiclient import discovery
@@ -9,32 +9,8 @@ from oauth2client import client, tools
 from oauth2client.file import Storage
 
 SLIDESID = '1ZughGrRUSmcI77RiBrh6Fk1UOI31ksJVxM2UCg9HggY'
-SCOPES = 'https://www.googleapis.com/auth/presentations'
-
-
-# def save_pdf():
-#     """
-#     Save slides as pdf
-#     """
-#     driveAPI = discovery.build('drive', 'v3', http=http)
-#     data = driveAPI.files().export(fileId=SLIDESID,
-#                                    mimeType='application/pdf').execute()
-#     with open('test.pdf', 'wb') as pdf:
-#         pdf.write(data)
-
-# def refresh():
-#     """
-#     Refresh slides using
-#     refreshSheetsChart method
-#     """
-#     slidesAPI = discovery.build('slides', 'v1', http=http)
-#     slidesAPI.presentations()
-#     # presentation = slidesAPI.presentations()\
-#     #                         .get(presentationId=SLIDESID)\
-#     #                         .execute()
-#     # print(type(presentation))
-#     # slides = presentation.get('slides')
-#     # print(slides)
+SCOPES = ('https://www.googleapis.com/auth/presentations',
+          'https://www.googleapis.com/auth/drive.readonly')
 
 class ApiController():
     def __init__(self, slidesID, http):
@@ -45,8 +21,8 @@ class ApiController():
         """
         Save slides as pdf
         """
-        driveAPI = discovery.build('drive', 'v3', http=self._http)
-        data = driveAPI.files().export(fileId=self._slidesID,
+        service = discovery.build('drive', 'v3', http=self._http)
+        data = service.files().export(fileId=self._slidesID,
                                        mimeType='application/pdf').execute()
         with open('test.pdf', 'wb') as pdf:
             pdf.write(data)
@@ -56,12 +32,38 @@ class ApiController():
         Refresh slides using
         refreshSheetsChart method
         """
-        slidesAPI = discovery.build('slides', 'v1', http=self._http)
-        slidesAPI.presentations()
+        service = discovery.build('slides', 'v1', http=self._http)
 
+        # Collect page ID's
+        pages = service.presentations()\
+                       .get(presentationId=self._slidesID,
+                            fields='slides.objectId')\
+                       .execute()['slides']
+
+        page_ids = [v for x in pages for v in x.values()]
+
+        # Get object ID's from pages
+        for id_ in page_ids:
+            objects = service.presentations()\
+                             .pages()\
+                             .get(presentationId=self._slidesID,
+                                  pageObjectId=id_,
+                                  fields='pageElements.objectId')\
+                             .execute()['pageElements']
+
+            for obj in objects:
+                try:
+                    reqs = [{'refreshSheetsChart' : obj}]
+                    service.presentations()\
+                           .batchUpdate(body={'requests':reqs},
+                                        presentationId=self._slidesID)\
+                           .execute()
+                except:
+                    continue
 
 if __name__ == '__main__':
 
+    # Authentication
     auth_path = os.path.join(os.path.expanduser("~"), ".oauth", "drive.json")
     store = Storage(auth_path)
     creds = store.get()
@@ -72,6 +74,11 @@ if __name__ == '__main__':
 
     http = creds.authorize(httplib2.Http())
 
-    # Create API object
+    # Create API controller object
     api = ApiController(slidesID=SLIDESID, http=http)
-    api.save_pdf()
+
+    if sys.argv[1] in ['r', 'refresh']:
+        api.refresh()
+
+    elif sys.argv[1] in ['s', 'save', 'pdf']:
+        api.save_pdf()
