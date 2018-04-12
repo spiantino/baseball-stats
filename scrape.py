@@ -132,47 +132,23 @@ def fangraphs(state, team, year, all_):
              .format(state, year, tid)\
              .replace(' ', '')
 
-    # Find parameters for POST request
     soup = open_url(url)
 
-    params = {'__EVENTTARGET' : 'LeaderBoard1$cmdCSV'}
+    # Extract column headers
+    thead = soup.find('thead')
+    cols = [x.text for x in thead.find_all('th')]
 
-    rcbInput = soup.find_all('input', {'class' : 'rcbInput'})
-    for inp in rcbInput:
-        params.update({inp['id']   : inp['value']})
-        params.update({inp['name'] : inp['value']})
+    # Extract stats from table bdoy
+    tbody = soup.find_all('tbody')[-1]
+    all_rows = tbody.find_all('tr')
+    all_row_data = [x.find_all('td') for x in all_rows]
 
-    elems = ['__VIEWSTATE',
-             '__VIEWSTATEGENERATOR',
-             '__EVENTVALIDATION',
-             'LeaderBoard1_rcbLeague_Input']
+    df_data = []
+    for row in all_row_data:
+        row_data = [x.text for x in row]
+        df_data.append(row_data)
 
-    moreInput = [soup.find('input', {'id' : elem}) for elem in elems]
-    for inp in moreInput:
-        params.update({inp['id'] : inp['value']})
-
-    # Send POST request to retrieve csv data
-    res = requests.post(url, data=params).text
-    res = res.replace('\ufeff', '#,')
-    res = res.replace('"', '')
-    res = res.replace('\r\n', ',1,')
-
-    data = res.split(',')[:-2]
-
-    row_len = 22 if state=='bat' else 20
-    row_len += 1 if team=='all' else 0
-
-    data = np.array(data).reshape(-1, row_len)
-
-    cols, dfdata = data[:1].reshape(-1,), data[1:]
-    df = pd.DataFrame(dfdata, columns=cols)
-
-    df['#'] = df.index + 1
-    df = df.iloc[:, :-1]
-
-    state = 'Batting' if state=='bat' else 'Pitching'
-    sheet_name = '{} Leaderboard'.format(state)
-    write_to_sheet(df=df, sheet_name=sheet_name)
+    df = pd.DataFrame(df_data, columns=cols)
 
 def standings():
     """
