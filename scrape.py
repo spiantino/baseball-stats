@@ -16,17 +16,6 @@ def open_url(url):
     page = requests.get(url)
     return BeautifulSoup(page.text, "html.parser")
 
-def write_to_sheet(df, sheet_name, start_cell='A1', clean=True):
-    print("Writing {} to sheet...".format(sheet_name))
-    df = df.fillna('')
-    d2g.upload( df=df,
-                gfile='1_lru5yvSuDpPPVQlaJeBUiGSmhhI1EuUhzVpd7vOgC8',
-                wks_name=sheet_name,
-                row_names=False,
-                start_cell=start_cell,
-                clean=clean
-                )
-
 def convert_name(name, how):
     """
     Convert between abbreviation
@@ -195,10 +184,10 @@ def standings():
                         2: {0: 33, 1: 41}
                       }
             cell_idx = 'A{}'.format(pad_map[i][j])
-            write_to_sheet(df=df,
-                           sheet_name='Division Standings',
-                           start_cell=cell_idx,
-                           clean=clean)
+            # write_to_sheet(df=df,
+            #                sheet_name='Division Standings',
+            #                start_cell=cell_idx,
+            #                clean=clean)
 
     # Scrape full league standings
     comment = soup.find_all(string=lambda text: isinstance(text,Comment))
@@ -216,47 +205,45 @@ def standings():
     cols, dfdata = data[:1].reshape(-1,), data[1:]
     standings = pd.DataFrame(dfdata, columns=cols)
 
+    print(standings)
+
     # Write output to sheet
-    write_to_sheet(df=standings, sheet_name='League Standings')
+    # write_to_sheet(df=standings, sheet_name='League Standings')
 
 def yankees_schedule():
     """
     Scrape yankees schedule with results
     from baseball-reference.com
     """
-    url = "http://www.baseball-reference.com/teams/NYY/2017-schedule-scores.shtml"
+    url = "http://www.baseball-reference.com/teams/NYY/2018-schedule-scores.shtml"
 
     soup = open_url(url)
 
-    table = soup.find('div', {'class': 'table_outer_container'})
-    ths = table.find_all('th')
+    table = soup.find('table', {'id' : 'team_schedule'})
 
+    # Extract schedule columns
+    thead = table.find('thead')
+    cols = [x.text.replace('\xa0', 'Field') for x in thead.find_all('th')]
+
+    # Extract schedule data
+    tbody = soup.find('tbody')
+    trows = tbody.find_all('tr')
+
+    # Throw out rows that are duplicates of column headers
+    trows = [x for x in trows if 'Gm#' not in x.text]
+
+    # Extract schedule data one row at a time
     data = []
-    for item in table.find_all(lambda tag: tag.has_attr('data-stat')):
-        data.append(item.text)
+    for row in trows:
+      row_data = [x.text for x in
+                  row.find_all(lambda tag: tag.has_attr('data-stat'))]
+      data.append(row_data)
 
-    # Extract games that have already been played
-    current = next((x for x in data if x and
-                    x.startswith("Game Preview")), None)
+    # Split up schedule into past and future games
+    past   = [x for x in data if x[2] == 'boxscore']
+    future = [x for x in data if x[2] == 'preview']
 
-    idx = data.index(current) - 7
-    already_played = np.array(data[:idx]).reshape([-1, 20])
-    ap_cols = already_played[:1].reshape(-1,)
-    ap_data = already_played[1:]
-
-    df_ap = pd.DataFrame(ap_data, columns=ap_cols)
-    df_ap = df_ap.loc[df_ap['Gm#'] != 'Gm#']
-    df_ap['Streak'] = df_ap.Streak.apply(lambda x: "'{}".format(x))
-
-    # Extract upcomming games schedule
-    upcomming = np.array(data[idx:]).reshape([-1, 9])
-    up_cols = ['Gm#', 'Date', '', 'Tm', ' ', 'Opp', '  ', '   ', 'D/N']
-
-    df_up = pd.DataFrame(upcomming, columns=up_cols)
-    df_up = df_up.loc[df_up['Gm#'] != 'Gm#']
-
-    write_to_sheet(df=df_ap, sheet_name='Schedule Played')
-    write_to_sheet(df=df_up, sheet_name='Schedule Upcoming')
+    # df_past = pd.DataFrame(past, columns=cols)
 
 def pitching_logs(team, year):
     """
@@ -268,51 +255,21 @@ def pitching_logs(team, year):
 
     soup = open_url(url)
 
+    table = soup.find_all('div', {'class' : 'table_outer_container'})[-1]
+
+    # Extract column headers
+    cols = [x.text for x in table.find_all('th', {'scope' : 'col'})]
+
+    # Extract body of pitching logs table
+    tbody = table.find('tbody')
+    trows = tbody.find_all('tr')
     data = []
-    for item in soup.find_all(lambda tag: tag.has_attr('data-stat')):
-        data.append(item.text)
+    for row in trows:
+        row_data = [x.text for x in
+                    row.find_all(lambda tag: tag.has_attr('data-stat'))]
+        data.append(row_data)
 
-    # Slice to only capture relevant data
-    data = data[data.index('Rk'): ]
-
-    # Add None columns to match shape
-    flags = ['May', 'Jun', 'Jul', 'Aug', 'September/October']
-    for month in flags:
-        try:
-            idx = data.index(month)
-            for i in range(idx+1, idx+3):
-                data.insert(i, None)
-        except:
-            continue
-
-    data =  np.array(data).reshape(-1, 34)
-    cols = data[:1].reshape(-1,)
-    dfdata = data[1:]
-
-    df = pd.DataFrame(dfdata, columns=cols)
-    df = df.loc[~df.Rk.isin(flags)]
-
-    # Split pitchers into different columns
-    pit_lists = df.iloc[:,-1].apply(lambda x: x.split(',')).tolist()
-    max_len = max([len(x) for x in pit_lists])
-
-    # Remove combined column
-    df = df.iloc[:,:-1]
-
-    # Add padding to make shapes match
-    for l in pit_lists:
-        pad = max_len - len(l)
-        for _ in range(pad):
-            l.append(None)
-
-    # Add pitchers to new columns
-    pitchers = np.array(pit_lists).T
-    for i in range(0, max_len):
-        colname = 'Pitcher_{}'.format(i+1)
-        df.loc[:,colname] = pitchers[i]
-
-    sheet_name = 'Pitching Logs'
-    write_to_sheet(df=df, sheet_name=sheet_name)
+    df = pd.DataFrame(data, columns=cols)
 
 def forty_man(team, year):
     """
@@ -326,27 +283,20 @@ def forty_man(team, year):
     soup = open_url(url)
     table = soup.find('table', {'id' : 'the40man'})
 
+    # Extract column headers
+    thead = table.find('thead')
+    cols = [x.text for x in thead.find_all('th')]
+
+    # Extract body of fort man table
+    tbody = table.find('tbody')
+    trows = tbody.find_all('tr')
     data = []
-    for item in table.find_all(lambda tag: tag.has_attr('data-stat')):
-        data.append(item.text)
+    for row in trows:
+        row_data = [x.text for x in
+                    row.find_all(lambda tag: tag.has_attr('data-stat'))]
+      data.append(row_data)
 
-    data = np.array(data).reshape(-1, 14)
-    cols = data[:1].reshape(-1,).tolist()
-    dfdata = data[1:]
-
-    # Make blank cols unique (move this to write_to_sheet function?)
-    i=1
-    for col in cols:
-        if col == '':
-            cols[cols.index(col)] = ' ' * i
-            i +=1
-
-    df = pd.DataFrame(dfdata, columns=cols)
-    df = df.iloc[:-1]
-
-    df.rename(columns={'': ' '}, inplace=True)
-    # write_to_sheet(df=df, sheet_name='40-Man Roster')
-    write_to_sheet(df=df, sheet_name='{}-roster'.format(team.lower()))
+    df = pd.DataFrame(data, columns=cols)
 
 def current_injuries(team, year):
     """
@@ -359,21 +309,25 @@ def current_injuries(team, year):
     soup = open_url(url)
 
     # Data is stored in html comment
-    comment = soup.find_all(string=lambda text: isinstance(text,Comment))
+    comment = soup.find_all(string=lambda text: isinstance(text, Comment))
     comment_html = [x for x in comment if 'Injuries Table' in x][-1].string
 
     table = BeautifulSoup(comment_html, "html.parser")
 
+    # Extract column headers
+    thead = table.find('thead')
+    cols = [x.text for x in thead.find_all('th')]
+
+    # Extract body from injuries table
+    tbody = table.find('tbody')
+    trows = tbody.find_all('tr')
     data = []
-    for item in table.find_all(lambda tag: tag.has_attr('data-stat')):
-        data.append(item.text)
+    for row in trows:
+        row_data = [x.text for x in
+                    row.find_all(lambda tag: tag.has_attr('data-stat'))]
+        data.append(row_data)
 
-    data = np.array(data).reshape(-1, 4)
-    cols = data[:1].reshape(-1,).tolist()
-    dfdata = data[1:]
-
-    df = pd.DataFrame(dfdata, columns=cols)
-    write_to_sheet(df=df, sheet_name='Current Injuries')
+    df = pd.DataFrame(data, columns=cols)
 
 def transactions(team, year):
     """
@@ -444,89 +398,84 @@ def transactions(team, year):
     sheet_name = 'Transactions'
     write_to_sheet(df=df, sheet_name=sheet_name)
 
-def boxscore(team):
+def boxscores():
     """
-    Extract box scores from
+    Extract all boxscores
     """
-    team = convert_name(name=team, how='full')
-    today = datetime.date.today().strftime('%Y-%m-%d')
-    i = 0
+    yesterday = ((datetime.date.today() -
+                  datetime.timedelta(i))
+                  .strftime('%Y-%m-%d'))
 
-    def team_search(i):
-        """
-        Search through previous days
-        until match is found
-        """
-        yesterday = ((datetime.date.today() -
-                      datetime.timedelta(i))
-                      .strftime('%Y-%m-%d'))
-        y,m,d = yesterday.split('-')
-
-        url = "http://www.baseball-reference.com/boxes/?year={}\
-               &month={}\
-               &day={}"\
-               .format(y,m,d)\
-               .replace(' ', '')
-        soup = open_url(url)
-
-        date = soup.find('span', {'class' : 'button2 current'}).string
-        print("Searching for last game... looking on {}".format(date))
-
-        matches = soup.find_all('table', {'class' : 'teams'})
-
-        for match in matches:
-            teams = [a.string.lower() for a in match.find_all('a', href=True)]
-
-            # Search for team and if game is finished
-            if all(x in ' '.join(teams) for x in ['final', team]):
-                box_url = match.find_all('a', href=True)
-                return box_url[1]['href']
-
-        # If not found, search through the previous day
-        i+=1
-        return team_search(i)
-
-    url = "http://www.baseball-reference.com" + team_search(i)
+    url = "http://www.baseball-reference.com/boxes/?year={}\
+           &month={}\
+           &day={}"\
+           .format(y,m,d)\
+           .replace(' ', '')
 
     soup = open_url(url)
 
-    teams = [x.string for x in soup.find_all('h2')[:2]]
+    game_urls = [x.a['href'] for x in
+                 soup.find_all('td', {'class' : 'right gamelink'})]
 
-    # Extract summary table
-    summary = soup.find('table', {
-                                  'class' :
-                                  'linescore nohover stats_table no_freeze'
-                                  }
-                        )
-    sumstats = [x.string for x in
-                summary.find_all('td', {'class' : 'center'})]
+    # Collect boxscore stats on each game
+    for game in game_urls:
+        url = 'http://www.baseball-reference.com' + game
+        soup = open_url(url)
 
-    # Row length will change if game goes past 9 innings
-    row_len = sumstats[1:].index(None) + 1
+        # Extract summary stats
+        summary = soup.find('table', {'class' : 'linescore'})
 
-    dfdata = np.array(sumstats).reshape(2, row_len)
+        thead = summary.find('thead')
+        cols = [x.text for x in thead.find_all('th')][1:]
 
-    tr = soup.find('tr')
-    sumcols = [th.string for th in tr.find_all('th')][2:]
-    sumcols.insert(0, 'Team')
+        tbody = summary.find('tbody')
+        trows = tbody.find_all('tr')
 
-    sum_df = pd.DataFrame(dfdata, columns=sumcols)
+        data = []
+        for row in trows:
+            row_data = [x.text for x in row.find_all('td')][1:]
+            data.append(row_data)
 
-    # Insert team names
-    sum_df.loc[:,'Team'] = teams
-    write_to_sheet(df=sum_df,
-                   sheet_name='Boxscore',
-                   clean=True)
+        # Store HOME and AWAY team names
+        away, home = [x[0] for x in data]
 
-    # Extract box-scores
-    comment = soup.find_all(string=lambda text: isinstance(text,Comment))
-    bat_tables = [x for x in comment if '>Batting</th>' in x]
-    pit_table  = [x for x in comment if '>Pitching</th>' in x][0]
+        df = pd.DataFrame(data, columns=cols)
 
-    # Collect home and away batting box score
-    b_hdf, b_adf = pd.DataFrame(), pd.DataFrame()
-    for table in bat_tables:
-        box = BeautifulSoup(table, "html.parser")
+        # Extract batting box score
+        comment = soup.find_all(string=lambda text: isinstance(text,Comment))
+        bat_tables = [x for x in comment if '>Batting</th>' in x]
+
+        totals = []
+        bat_data = []
+        for table in bat_tables:
+            bat = BeautifulSoup(table, "html.parser")
+
+            # Extract column headers
+            thead = bat.find('thead')
+            cols = [x for x in thead.find('tr').text.split('\n') if x]
+
+            # Extract Team Totals
+            tfoots = bat.find_all('tfoot')
+            for foot in tfoots:
+                row_data = [x.text for x in
+                            foot.find_all(lambda tag: tag.has_attr('data-stat'))]
+                totals.append(row_data)
+
+            # Extract stats on individual batters
+            tbody = bat.find('tbody')
+            trows = tbody.find_all('tr')
+            for row in trows:
+                try:
+                    player = row.find('a').text
+                except:
+                    continue
+                stats = [x.text for x in row.find_all(lambda tag: tag.has_attr('data-stat'))]
+                stats[0] = player
+                bat_data.append(stats)
+
+        # Specify away/home team on totals data
+        totals[0][0] = away
+        totals[1][0] = home
 
         data = []
         for item in box.find_all(lambda tag: tag.has_attr('data-stat')):
@@ -534,68 +483,38 @@ def boxscore(team):
         players = [x.string for x in box.find_all('a', href=True)]
         players.append('Team Totals')
 
-        data = np.array(data).reshape(-1, 22)
-        cols = data[:1].reshape(-1,)
-        dfdata = data[1:]
+        # Extract pitching box score
+        pit_tables  = [x for x in comment if '>Pitching</th>' in x][0]
+        pit = BeautifulSoup(pit_tables, "html.parser")
 
-        df = pd.DataFrame(dfdata, columns=cols)
-        df = df.dropna(axis=0)
-        df = df.loc[df.Batting!='']
-        df.loc[:,'Batting'] = players
+        # Extract column headers
+        thead = pit.find('thead')
+        cols = [x for x in thead.find('tr').text.split('\n') if x]
 
-        # Assign data frame to home or away
-        if b_hdf.empty:
-            b_hdf = df
-        else:
-            b_adf = df
+        # Extract Team Totals
+        totals = []
+        tfoots = pit.find_all('tfoot')
+        for foot in tfoots:
+            row_data = [x.text for x in
+                        foot.find_all(lambda tag: tag.has_attr('data-stat'))]
+            totals.append(row_data)
 
-    # Write to next available cell
-    idx = sum_df.shape[0] + 3
-    cell_idx = 'A{}'.format(idx)
-    write_to_sheet(df=b_hdf,
-                   sheet_name='Boxscore',
-                   start_cell=cell_idx,
-                   clean=False)
+        # Specify away/home team on totals data
+        totals[0][0] = away
+        totals[1][0] = home
 
-    idx += b_hdf.shape[0] + 2
-    cell_idx = 'A{}'.format(idx)
-    write_to_sheet(df=b_adf,
-                   sheet_name='Boxscore',
-                   start_cell=cell_idx,
-                   clean=False)
+        df = pd.DataFrame(totals, columns=cols)
 
-    # Collect home and away pitching box score
-    box = BeautifulSoup(pit_table, "html.parser")
-
-    data = []
-    for item in box.find_all(lambda tag: tag.has_attr('data-stat')):
-        data.append(item.text)
-
-    data = np.array(data).reshape(-1, 25)
-    cols = data[:1].reshape(-1,)
-    dfdata = data[1:]
-    df = pd.DataFrame(dfdata, columns=cols)
-
-    # Split df in two then concatenate
-    idx2 = df.Pitching.tolist().index('Pitching')
-    p_hdf, p_adf = df.iloc[:idx2], df.iloc[idx2+1:]
-    p_hdf = p_hdf.loc[p_hdf.Pitching!='']
-    p_adf = p_adf.loc[p_adf.Pitching!='']
-
-    # Write to next available cell
-    idx += b_adf.shape[0] + 2
-    cell_idx = 'A{}'.format(idx)
-    write_to_sheet(df=p_hdf,
-                   sheet_name='Boxscore',
-                   start_cell=cell_idx,
-                   clean=False)
-
-    idx += p_hdf.shape[0] + 2
-    cell_idx = 'A{}'.format(idx)
-    write_to_sheet(df=p_adf,
-                   sheet_name='Boxscore',
-                   start_cell=cell_idx,
-                   clean=False)
+        # Extract stats on individual pitchers
+        pit_data = []
+        tbodies = pit.find_all('tbody')
+        for tbody in tbodies:
+            trows = tbody.find_all('tr')
+            for row in trows:
+                player = row.find('th').text.split(',')[0]
+                stats  = [x.text for x in row.find_all('td')]
+                stats.insert(0, player)
+                pit_data.append(stats)
 
 def game_preview(team, date):
     """
@@ -612,195 +531,175 @@ def game_preview(team, date):
     res = requests.get(url)
     schedule_data = json.loads(res.text)
 
-    data = schedule_data['dates'][0]['games']
+    games_data = schedule_data['dates'][0]['games']
 
-    # Get game link
-    match_data = [
-                 x for x in data
-                 if team in
-                 x['teams']['home']['team']['name'].lower().split()
-                 or team in
-                 x['teams']['away']['team']['name'].lower().split()
-                ]
+    # Gather all game urls
+    game_urls = [game['link'] for game in games_data]
 
-    # Exit if game is not found
-    if not match_data:
-        print('Game preview not found')
-        return
+    # Collect data on all upcoming games
+    for url in game_urls:
+        game_url = 'https://statsapi.mlb.com' + link
+        res = requests.get(game_url).text
+        game_data = json.loads(res)
 
-    # Collect sumamry data
-    away = match_data[0]['teams']['away']['team']['name']
-    home = match_data[0]['teams']['home']['team']['name']
-    a_rec = match_data[0]['teams']['away']['leagueRecord']
-    h_rec = match_data[0]['teams']['home']['leagueRecord']
+        # Store record with Date at highest level
+        date = game_data['gameData']['datetime']['originalDate']
 
-    a_win, a_loss, a_pct = a_rec['wins'], a_rec['losses'], a_rec['pct']
-    h_win, h_loss, h_pct = h_rec['wins'], h_rec['losses'], h_rec['pct']
+        post_to_db = {date: game_data}
 
-    sum_df = pd.DataFrame({
-                           'Teams'  : [home, away],
-                           'Wins'   : [h_win, a_win],
-                           'Losses' : [h_loss, a_loss],
-                           'Pct'    : [h_pct, a_pct]
-                         })
-    sum_df = sum_df[['Teams', 'Wins', 'Losses', 'Pct']]
+        # Post games data to database
 
-    # Open game url
-    game_url = 'https://statsapi.mlb.com' + match_data[0]['link']
-    res = requests.get(game_url)
-    game_data = json.loads(res.text)
+    # # Get game link
+    # match_data = [
+    #              x for x in games_data
+    #              if team in
+    #              x['teams']['home']['team']['name'].lower().split()
+    #              or team in
+    #              x['teams']['away']['team']['name'].lower().split()
+    #             ]
 
-    # Find batting lineups. Skip if not yet available
-    try:
-        h_batter_ids = game_data['liveData']['boxscore']\
-                                ['teams']['home']['battingOrder']
+    # # Exit if game is not found
+    # if not match_data:
+    #     print('Game preview not found')
+    #     return
 
-        a_batter_ids = game_data['liveData']['boxscore']\
-                                ['teams']['away']['battingOrder']
+    # # Collect sumamry data
+    # away = match_data[0]['teams']['away']['team']['name']
+    # home = match_data[0]['teams']['home']['team']['name']
+    # a_rec = match_data[0]['teams']['away']['leagueRecord']
+    # h_rec = match_data[0]['teams']['home']['leagueRecord']
 
-        all_players = game_data['liveData']['players']['allPlayers']
+    # a_win, a_loss, a_pct = a_rec['wins'], a_rec['losses'], a_rec['pct']
+    # h_win, h_loss, h_pct = h_rec['wins'], h_rec['losses'], h_rec['pct']
 
-        h_batter_data = [all_players['ID'+x] for x in h_batter_ids]
-        h_batters = [
-                     ' '.join([
-                               x['name']['first'],
-                               x['name']['last']
-                               ])
-                     for x in h_batter_data
-                    ]
-        h_batters_pos = [x['position'] for x in h_batter_data]
+    # sum_df = pd.DataFrame({
+    #                        'Teams'  : [home, away],
+    #                        'Wins'   : [h_win, a_win],
+    #                        'Losses' : [h_loss, a_loss],
+    #                        'Pct'    : [h_pct, a_pct]
+    #                      })
+    # sum_df = sum_df[['Teams', 'Wins', 'Losses', 'Pct']]
 
-        a_batter_data = [all_players['ID'+x] for x in a_batter_ids]
-        a_batters = [
-                     ' '.join([
-                               x['name']['first'],
-                               x['name']['last']
-                               ])
-                     for x in a_batter_data
-                    ]
-        a_batters_pos = [x['position'] for x in a_batter_data]
+    # # Open game url
+    # game_url = 'https://statsapi.mlb.com' + match_data[0]['link']
+    # res = requests.get(game_url)
+    # game_data = json.loads(res.text)
 
+    # # Find batting lineups. Skip if not yet available
+    # try:
+    #     h_batter_ids = game_data['liveData']['boxscore']\
+    #                             ['teams']['home']['battingOrder']
 
-        home_col = '{} Batters'.format(home)
-        away_col = '{} Batters'.format(away)
-        lineup_data = {
-                       home_col     : h_batters,
-                       away_col     : a_batters,
-                       'Home Pos'   : h_batters_pos,
-                       'Away Pos'   : a_batters_pos
-                      }
+    #     a_batter_ids = game_data['liveData']['boxscore']\
+    #                             ['teams']['away']['battingOrder']
 
-        lineup_df = pd.DataFrame(lineup_data)
-        lineup_df = lineup_df[[away_col, 'Away Pos', home_col, 'Home Pos']]
+    #     all_players = game_data['liveData']['players']['allPlayers']
 
-        lineup = True
-    except:
-        lineup = False
+    #     h_batter_data = [all_players['ID'+x] for x in h_batter_ids]
+    #     h_batters = [
+    #                  ' '.join([
+    #                            x['name']['first'],
+    #                            x['name']['last']
+    #                            ])
+    #                  for x in h_batter_data
+    #                 ]
+    #     h_batters_pos = [x['position'] for x in h_batter_data]
 
-    # Find xml link to gamecenter data
-    game_id = game_data['gameData']['game']['id']
-    game_id = re.sub(r'[/-]', '_', game_id)
-
-    xml = 'http://gd2.mlb.com/components/game/mlb/year_{}/\
-           month_{}/day_{}/gid_{}/gamecenter.xml'\
-           .format(y, m, d, game_id)\
-           .replace(' ', '')
-
-    # Open xml link and parse pitchers and text blurbs
-    res = requests.get(xml).text
-    dxml = xd.parse(res)
-
-    home = dxml['game']['probables']['home']
-    away = dxml['game']['probables']['away']
-
-    # Pitcher names
-    h_pit = ' '.join([
-                      home['useName'],
-                      home['lastName'],
-                      home['throwinghand']
-                     ])
-
-    a_pit = ' '.join([
-                      away['useName'],
-                      away['lastName'],
-                      away['throwinghand']
-                     ])
-
-    # Pitcher stats
-    hp_win  = home['wins']
-    hp_loss = home['losses']
-    hp_era  = home['era']
-    hp_so   = home['so']
-
-    ap_win  = away['wins']
-    ap_loss = away['losses']
-    ap_era  = away['era']
-    ap_so   = away['so']
-
-    # Pitcher blurbs
-    h_blurb = home['report']
-    a_blurb = away['report']
-
-    # Game blurb
-    try:
-        blurb = dxml['game']['previews']['mlb']['blurb']
-    except:
-        blurb = None
-
-    blurb_df = pd.DataFrame([blurb], columns=[' '])
-
-    # Starting pitchers
-    pit_df   = pd.DataFrame({
-                             'Pitcher' : [h_pit, a_pit],
-                             'Wins'    : [hp_win, ap_win],
-                             'Losses'  : [hp_loss, ap_loss],
-                             'ERA'     : [hp_era, ap_era],
-                             'SO'      : [hp_so, ap_so],
-                             'Blurb'   : [h_blurb, a_blurb]
-                            })
-    pit_df = pit_df[['Pitcher', 'Wins', 'Losses', 'ERA', 'SO', 'Blurb']]
-
-    # Weather
-    weather = game_data['gameData']['weather']
-    weather_df = pd.DataFrame(weather, index=[0])
-    # weather_df = pd.DataFrame([], index=[0])
+    #     a_batter_data = [all_players['ID'+x] for x in a_batter_ids]
+    #     a_batters = [
+    #                  ' '.join([
+    #                            x['name']['first'],
+    #                            x['name']['last']
+    #                            ])
+    #                  for x in a_batter_data
+    #                 ]
+    #     a_batters_pos = [x['position'] for x in a_batter_data]
 
 
-    # Write data to sheet
-    write_to_sheet(df=sum_df,
-                   sheet_name='Game Preview',
-                   start_cell='A1',
-                   clean=True)
+    #     home_col = '{} Batters'.format(home)
+    #     away_col = '{} Batters'.format(away)
+    #     lineup_data = {
+    #                    home_col     : h_batters,
+    #                    away_col     : a_batters,
+    #                    'Home Pos'   : h_batters_pos,
+    #                    'Away Pos'   : a_batters_pos
+    #                   }
 
-    idx = sum_df.shape[0] + 2
-    cell_idx = 'A{}'.format(idx)
-    write_to_sheet(df=blurb_df,
-                   sheet_name='Game Preview',
-                   start_cell=cell_idx,
-                   clean=False)
+    #     lineup_df = pd.DataFrame(lineup_data)
+    #     lineup_df = lineup_df[[away_col, 'Away Pos', home_col, 'Home Pos']]
 
-    idx += 3
-    if not weather_df.empty:
-        cell_idx = 'A{}'.format(idx)
-        write_to_sheet(df=weather_df,
-                       sheet_name='Game Preview',
-                       start_cell=cell_idx,
-                       clean=False)
+    #     lineup = True
+    # except:
+    #     lineup = False
 
-    idx += 3
-    cell_idx = 'A{}'.format(idx)
-    write_to_sheet(df=pit_df,
-                   sheet_name='Game Preview',
-                   start_cell=cell_idx,
-                   clean=False)
+    # # Find xml link to gamecenter data
+    # game_id = game_data['gameData']['game']['id']
+    # game_id = re.sub(r'[/-]', '_', game_id)
 
-    if lineup:
-        idx += pit_df.shape[0] + 2
-        cell_idx = 'A{}'.format(idx)
-        write_to_sheet(df=lineup_df,
-                       sheet_name='Game Preview',
-                       start_cell=cell_idx,
-                       clean=False)
+    # xml = 'http://gd2.mlb.com/components/game/mlb/year_{}/\
+    #        month_{}/day_{}/gid_{}/gamecenter.xml'\
+    #        .format(y, m, d, game_id)\
+    #        .replace(' ', '')
+
+    # # Open xml link and parse pitchers and text blurbs
+    # res = requests.get(xml).text
+    # dxml = xd.parse(res)
+
+    # home = dxml['game']['probables']['home']
+    # away = dxml['game']['probables']['away']
+
+    # # Pitcher names
+    # h_pit = ' '.join([
+    #                   home['useName'],
+    #                   home['lastName'],
+    #                   home['throwinghand']
+    #                  ])
+
+    # a_pit = ' '.join([
+    #                   away['useName'],
+    #                   away['lastName'],
+    #                   away['throwinghand']
+    #                  ])
+
+    # # Pitcher stats
+    # hp_win  = home['wins']
+    # hp_loss = home['losses']
+    # hp_era  = home['era']
+    # hp_so   = home['so']
+
+    # ap_win  = away['wins']
+    # ap_loss = away['losses']
+    # ap_era  = away['era']
+    # ap_so   = away['so']
+
+    # # Pitcher blurbs
+    # h_blurb = home['report']
+    # a_blurb = away['report']
+
+    # # Game blurb
+    # try:
+    #     blurb = dxml['game']['previews']['mlb']['blurb']
+    # except:
+    #     blurb = None
+
+    # blurb_df = pd.DataFrame([blurb], columns=[' '])
+
+    # # Starting pitchers
+    # pit_df   = pd.DataFrame({
+    #                          'Pitcher' : [h_pit, a_pit],
+    #                          'Wins'    : [hp_win, ap_win],
+    #                          'Losses'  : [hp_loss, ap_loss],
+    #                          'ERA'     : [hp_era, ap_era],
+    #                          'SO'      : [hp_so, ap_so],
+    #                          'Blurb'   : [h_blurb, a_blurb]
+    #                         })
+    # pit_df = pit_df[['Pitcher', 'Wins', 'Losses', 'ERA', 'SO', 'Blurb']]
+
+    # # Weather
+    # weather = game_data['gameData']['weather']
+    # weather_df = pd.DataFrame(weather, index=[0])
+    # # weather_df = pd.DataFrame([], index=[0])
+
 
 def master(team, date):
     """
