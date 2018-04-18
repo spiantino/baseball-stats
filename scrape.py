@@ -1,8 +1,6 @@
 from pymongo import MongoClient
 from bs4 import BeautifulSoup, Comment
 from tqdm import tqdm
-import pandas as pd
-import numpy as np
 import requests
 import argparse
 import json
@@ -120,7 +118,7 @@ def fangraphs(state, team, year, all_):
     url = """http://www.fangraphs.com/leaders.aspx?pos=all&stats={0}\
              &lg=all&qual=0&type=8&season={1}\
              &month=0&season1={1}\
-             &ind=0&team={2}&page=1_50"""\
+             &ind=0&team={2}&page=1_1000"""\
              .format(state, year, tid)\
              .replace(' ', '')
 
@@ -135,21 +133,24 @@ def fangraphs(state, team, year, all_):
     all_rows = tbody.find_all('tr')
     all_row_data = [x.find_all('td') for x in all_rows]
 
-    for row in all_row_data:
+    for row in tqdm(all_row_data):
         row_data = [x.text for x in row]
         player = row_data[1]
         db_data = {k:v for k,v in zip(cols, row_data)}
 
-        # Identify rank as batting or pitching
-        new_key = '{}_rank'.format(state)
-        db_data[new_key] = db_data.pop('#')
+        # Rename common keys with batting or pitching prefixes
+        rank = '{}_rank'.format(state)
+        db_data[rank] = db_data.pop('#')
 
-        # Add year
-        db_data.update({'Year' : year})
+        war = '{}_WAR'.format(state)
+        db_data[war] = db_data.pop('WAR')
+
+        games = '{}_G'.format(state)
+        db_data[games] = db_data.pop('G')
 
         # Insert row into database
-        db.Players.update({'Name': player, 'Year': year},
-                           db_data, upsert=True)
+        db.Players.update({'Name': player},
+                          {'$set' : {year : db_data}}, upsert=True)
 
 
 def standings():
@@ -302,14 +303,17 @@ def forty_man(team, year):
                         {'$push': {db_array : db_data}})
 
 
-def current_injuries(team, year):
+def current_injuries(team):
     """
     Extract current injuries table
     from baseball-reference.com
     """
+    current_year = datetime.date.today().strftime('%Y')
+
     team = convert_name(name=team, how='abbr')
+
     url = "http://www.baseball-reference.com/teams/{}/{}.shtml"\
-                                            .format(team, year)
+                                            .format(team, current_year)
     soup = open_url(url)
 
     # Data is stored in html comment
@@ -403,17 +407,22 @@ def transactions(team, year):
                     {'$push' : {db_array : j}})
 
 
-def boxscores():
+def boxscores(date):
     """
     Extract all boxscores
     """
 
     # Get yesterday's date and boxscores
-    yesterday = ((datetime.date.today() -
-                  datetime.timedelta(1))
-                  .strftime('%Y-%m-%d'))
+    today = datetime.date.today().strftime('%m/%d/%Y')
 
-    y, m, d = yesterday.split('-')
+    # If date arg is today (default), look for yesterdays boxes
+    if date == today:
+        date = ((datetime.date.today() -
+                      datetime.timedelta(1))
+                      .strftime('%Y-%m-%d'))
+        y, m, d = date.split('-')
+    else:
+        y, m, d = date.split('-')
 
     url = "http://www.baseball-reference.com/boxes/?year={}\
            &month={}\
@@ -439,9 +448,9 @@ def boxscores():
         gid = game.split('/')[-1].split('.')[0]
         db.Games.update({'home' : home,
                          'away' : away,
-                         'date' : yesterday},
+                         'date' : date},
                         {'$set' : {'gid' : gid,
-                                   'date' : yesterday,
+                                   'date' : date,
                                    'home' : home,
                                    'away' : away}}, upsert=True)
 
@@ -459,7 +468,6 @@ def boxscores():
         for row in trows:
             row_data = [x.text for x in row.find_all('td')][1:]
             db_data  = {k:v for k,v in zip(cols, row_data)}
-            team = row_data[0]
             db.Games.update({'gid' : gid},
                             {'$push': {'summary' : db_data}})
 
@@ -468,7 +476,7 @@ def boxscores():
         bat_tables = [x for x in comment if '>Batting</th>' in x]
 
         for table in zip(teams, bat_tables):
-            team = table[0]
+            team = table[0].replace('.', '')
             bat = BeautifulSoup(table[1], "html.parser")
 
             # Extract column headers
@@ -511,7 +519,7 @@ def boxscores():
         # Extract Team Totals
         tfoots = pit.find_all('tfoot')
         for foot in zip(teams, tfoots):
-            team = foot[0]
+            team = foot[0].replace('.', '')
             row_data = [x.text for x in
                         foot[1].find_all(lambda tag:
                                                 tag.has_attr('data-stat'))]
@@ -523,7 +531,7 @@ def boxscores():
         # Extract stats on individual pitchers
         tbodies = pit.find_all('tbody')
         for tbody in zip(teams, tbodies):
-            team = tbody[0]
+            team = tbody[0].replace('.', '')
             trows = tbody[1].find_all('tr')
             for row in trows:
                 player = row.find('th').text.split(',')[0]
@@ -542,7 +550,6 @@ def game_preview(team):
     """
 
     date = datetime.date.today().strftime('%Y-%m-%d')
-    date = '2018-04-16'
 
     url = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}'\
                                                         .format(date)
@@ -579,49 +586,49 @@ def game_preview(team):
                          {'$push' : {'preview' : game_data}}, upsert=True)
 
 
-def master(team, date):
-    """
-    Populate sheet with: team, opponent,
-    date, home_team, away_team
-    """
-    team = convert_name(team, how='full').capitalize()
+# def master(team, date):
+#     """
+#     Populate sheet with: team, opponent,
+#     date, home_team, away_team
+#     """
+#     team = convert_name(team, how='full').capitalize()
 
-    url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}"\
-                                                        .format(date)
-    res = requests.get(url)
-    data = json.loads(res.text)
+#     url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}"\
+#                                                         .format(date)
+#     res = requests.get(url)
+#     data = json.loads(res.text)
 
-    for game in data['dates'][0]['games']:
-        away = game['teams']['away']['team']['name']
-        home = game['teams']['home']['team']['name']
+#     for game in data['dates'][0]['games']:
+#         away = game['teams']['away']['team']['name']
+#         home = game['teams']['home']['team']['name']
 
-        if team in away or team in home:
-            opp  = away if team in home else home
-            team = away if opp  == home else home
-            dfdata = {
-                      'date'      : date,
-                      'team'      : team,
-                      'opponent'  : opp,
-                      'home_team' : home,
-                      'away_team' : away
-                      }
-            df = pd.DataFrame(dfdata, index=[0])
-            df = df[['date', 'team', 'opponent',
-                     'away_team', 'home_team']]
-            write_to_sheet(df=df, sheet_name='master')
+#         if team in away or team in home:
+#             opp  = away if team in home else home
+#             team = away if opp  == home else home
+#             dfdata = {
+#                       'date'      : date,
+#                       'team'      : team,
+#                       'opponent'  : opp,
+#                       'home_team' : home,
+#                       'away_team' : away
+#                       }
+#             df = pd.DataFrame(dfdata, index=[0])
+#             df = df[['date', 'team', 'opponent',
+#                      'away_team', 'home_team']]
+#             write_to_sheet(df=df, sheet_name='master')
 
-            # Return team names to use in other functions
-            def find_name(team):
-                t = team.split()[-1].lower()
-                return t if t not in ['sox', 'jays']\
-                         else ' '.join(team.split()[-2:])
+#             # Return team names to use in other functions
+#             def find_name(team):
+#                 t = team.split()[-1].lower()
+#                 return t if t not in ['sox', 'jays']\
+#                          else ' '.join(team.split()[-2:])
 
-            t1 = find_name(home).lower()
-            t2 = find_name(away).lower()
-            return (t1, t2)
+#             t1 = find_name(home).lower()
+#             t2 = find_name(away).lower()
+#             return (t1, t2)
 
-    print("Game not found on date: {}".format(date))
-    return 0
+#     print("Game not found on date: {}".format(date))
+#     return 0
 
 if __name__ == '__main__':
     today = datetime.date.today().strftime('%m/%d/%Y')
@@ -648,13 +655,15 @@ if __name__ == '__main__':
             'forty_man'    : forty_man
            }
 
-    def run(fn, team, year):
+    def run(fn, team, year, date):
         arglen = len(inspect.getargspec(fns[fn])[0])
 
         if fn == 'bat_leaders':
             fangraphs(state='bat', team=team, year=year, all_=args.all)
         elif fn =='pit_leaders':
             fangraphs(state='pit', team=team, year=year, all_=args.all)
+        elif fn == 'boxscores':
+            boxscores(date=date)
         elif arglen == 2:
             fns[fn](team=team, year=year)
         elif arglen == 1:
@@ -675,4 +684,4 @@ if __name__ == '__main__':
             else:
                 run(fn, args.team, year_)
     else:
-        run(args.function, args.team, args.year)
+        run(args.function, args.team, args.year, args.date)
