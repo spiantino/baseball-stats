@@ -73,47 +73,49 @@ def convert_name(name, how):
             return name.upper()
 
 
-def fangraphs(state, team, year, all_):
+def fangraphs(state, year):
     """
     Scrape data from fangraphs.com
     """
-    team = convert_name(name=team, how='full') if all_=='off' else 'all'
-    team_id = {
-               'all'          : 0,
-               'angels'       : 1,
-               'astros'       : 21,
-               'athletics'    : 10,
-               'blue jays'    : 14,
-               'braves'       : 16,
-               'brewers'      : 23,
-               'cardinals'    : 28,
-               'cubs'         : 17,
-               'diamondbacks' : 15,
-               'dodgers'      : 22,
-               'giants'       : 30,
-               'indians'      : 5,
-               'mariners'     : 11,
-               'marlins'      : 20,
-               'mets'         : 25,
-               'nationals'    : 24,
-               'orioles'      : 2,
-               'padres'       : 29,
-               'phillies'     : 26,
-               'pirates'      : 27,
-               'rangers'      : 13,
-               'rays'         : 12,
-               'red sox'      : 3,
-               'reds'         : 18,
-               'rockies'      : 19,
-               'royals'       : 7,
-               'tigers'       : 6,
-               'twins'        : 8,
-               'white sox'    : 4,
-               'yankees'      : 9
-               }
+    # team = convert_name(name=team, how='full') if all_=='off' else 'all'
+    # team_id = {
+    #            'all'          : 0,
+    #            'angels'       : 1,
+    #            'astros'       : 21,
+    #            'athletics'    : 10,
+    #            'blue jays'    : 14,
+    #            'braves'       : 16,
+    #            'brewers'      : 23,
+    #            'cardinals'    : 28,
+    #            'cubs'         : 17,
+    #            'diamondbacks' : 15,
+    #            'dodgers'      : 22,
+    #            'giants'       : 30,
+    #            'indians'      : 5,
+    #            'mariners'     : 11,
+    #            'marlins'      : 20,
+    #            'mets'         : 25,
+    #            'nationals'    : 24,
+    #            'orioles'      : 2,
+    #            'padres'       : 29,
+    #            'phillies'     : 26,
+    #            'pirates'      : 27,
+    #            'rangers'      : 13,
+    #            'rays'         : 12,
+    #            'red sox'      : 3,
+    #            'reds'         : 18,
+    #            'rockies'      : 19,
+    #            'royals'       : 7,
+    #            'tigers'       : 6,
+    #            'twins'        : 8,
+    #            'white sox'    : 4,
+    #            'yankees'      : 9
+    #            }
 
-    team = team.lower()
-    tid = team_id[team]
+    # team = team.lower()
+    # tid = team_id[team]
+
+    tid = 0 # Scrape all teams for now, add individual teams later if needed
 
     url = """http://www.fangraphs.com/leaders.aspx?pos=all&stats={0}\
              &lg=all&qual=0&type=8&season={1}\
@@ -161,6 +163,27 @@ def standings():
     url = "http://www.baseball-reference.com/leagues/MLB-standings.shtml"
     soup = open_url(url)
 
+    # Scrape division identifier data
+    div_data, gb_data = {}, {}
+    divs = ['E', 'C', 'W']
+    for div in divs:
+        table = soup.find_all('div', {'id' : 'div_standings_{}'.format(div)})
+
+        trows = [x.find_all('tr') for x in table]
+        trows_flat = [x for y in trows for x in y]
+
+        teams_html = [x.find('a') for x in trows_flat if x.find('a')]
+        team_names = [x['href'].split('/')[2] for x in teams_html]
+
+        gbs = [x.find('td', {'data-stat' : 'games_back'}).text
+               for x in trows_flat if x.find('td')]
+
+        div_dict = {k : div for k in team_names}
+        div_data.update(div_dict)
+
+        gb_dict  = {k : v for k,v in zip(team_names, gbs)}
+        gb_data.update(gb_dict)
+
     # Scrape full league standings
     comment = soup.find_all(string=lambda text: isinstance(text, Comment))
     comment_html = [x for x in comment if '<td' in x][-1].string
@@ -183,6 +206,12 @@ def standings():
         if row_data[0]:
             team = row_data[1]
             db_data = {k:v for k,v in zip(cols, row_data)}
+
+            # Add division and gb information
+            division = div_data[team]
+            games_behind = gb_data[team]
+            db_data.update({'div' : division})
+            db_data.update({'gb' : games_behind})
 
             # Insert row into database
             db.Teams.update({'Tm' : team}, db_data, upsert=True)
@@ -485,7 +514,8 @@ def boxscores(date):
 
             # Extract Team Totals
             tfoot = bat.find('tfoot')
-            row_data = [x.text for x in tfoot.find_all(lambda tag: tag.has_attr('data-stat'))]
+            row_data = [x.text for x in
+                        tfoot.find_all(lambda tag: tag.has_attr('data-stat'))]
             db_data = {k:v for k,v in zip(cols, row_data)}
             db_array = '{}.batting'.format(team)
             db.Games.update({'gid' : gid},
@@ -543,7 +573,7 @@ def boxscores(date):
                                 {'$push' : {db_array : db_data}})
 
 
-def game_preview(team):
+def game_preview():
     """
     Collect data on upcomming game
     from mlb.com/gameday
