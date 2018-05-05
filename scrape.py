@@ -37,7 +37,7 @@ def convert_name(name, how):
                   'mariners'     : 'sea',
                   'marlins'      : 'mia',
                   'mets'         : 'nym',
-                  'nationals'    : 'was',
+                  'nationals'    : 'wsn',
                   'orioles'      : 'bal',
                   'padres'       : 'sdp',
                   'phillies'     : 'phi',
@@ -150,6 +150,13 @@ def fangraphs(state, year):
         games = '{}_G'.format(state)
         db_data[games] = db_data.pop('G')
 
+        # Store type as numeric if possible
+        for key in db_data.keys():
+            try:
+                db_data[key] = float(db_data[key])
+            except:
+                continue
+
         # Insert row into database
         db.Players.update({'Name': player},
                           {'$set' : {year : db_data}}, upsert=True)
@@ -208,7 +215,7 @@ def standings():
             db_data = {k:v for k,v in zip(cols, row_data)}
 
             # Add division and gb information
-            division = div_data[team]
+            division = '{}-{}'.format(db_data['Lg'], div_data[team])
             games_behind = gb_data[team]
             db_data.update({'div' : division})
             db_data.update({'gb' : games_behind})
@@ -613,105 +620,85 @@ def game_preview():
         db.Games.update({'home' : home,
                          'away' : away,
                          'date' : date},
-                         {'$push' : {'preview' : game_data}}, upsert=True)
+                        {'$set': {'preview' : []}})
+        db.Games.update({'home' : home,
+                         'away' : away,
+                         'date' : date},
+                         {'$push' : {'preview' : game_data}})
 
 
-# def master(team, date):
-#     """
-#     Populate sheet with: team, opponent,
-#     date, home_team, away_team
-#     """
-#     team = convert_name(team, how='full').capitalize()
+def league_elo():
+    """
+    – Rank
+    – Team
+    – Rating
+    – Playoffs %
+    – Division %
+    – World Series %
+    """
+    url = 'https://projects.fivethirtyeight.com/2018-mlb-predictions/'
+    soup = open_url(url)
 
-#     url = "https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}"\
-#                                                         .format(date)
-#     res = requests.get(url)
-#     data = json.loads(res.text)
+    tbody = soup.find('tbody')
+    trows = tbody.find_all('tr')
 
-#     for game in data['dates'][0]['games']:
-#         away = game['teams']['away']['team']['name']
-#         home = game['teams']['home']['team']['name']
+    cols = ['elo_rating',
+            'playoff_pct',
+            'division_pct',
+            'worldseries_pct']
 
-#         if team in away or team in home:
-#             opp  = away if team in home else home
-#             team = away if opp  == home else home
-#             dfdata = {
-#                       'date'      : date,
-#                       'team'      : team,
-#                       'opponent'  : opp,
-#                       'home_team' : home,
-#                       'away_team' : away
-#                       }
-#             df = pd.DataFrame(dfdata, index=[0])
-#             df = df[['date', 'team', 'opponent',
-#                      'away_team', 'home_team']]
-#             write_to_sheet(df=df, sheet_name='master')
+    for row in trows:
+        team = row['data-str']
+        rating = float(row.find('td', {'class' : 'num rating'})['data-val'])
+        pcts = [float(x['data-val'])
+                for x in row.find_all('td', {'class': 'pct'})]
 
-#             # Return team names to use in other functions
-#             def find_name(team):
-#                 t = team.split()[-1].lower()
-#                 return t if t not in ['sox', 'jays']\
-#                          else ' '.join(team.split()[-2:])
+        row_data = [rating] + pcts
+        db_data  = {k:v for k,v in zip(cols, row_data)}
 
-#             t1 = find_name(home).lower()
-#             t2 = find_name(away).lower()
-#             return (t1, t2)
+        # Clear existing elo document
+        tm = convert_name(name=team, how='abbr')
+        db.Teams.update({'Tm' : tm}, {'$set': {'elo' : []}})
 
-#     print("Game not found on date: {}".format(date))
-#     return 0
+        db.Teams.update({'Tm' : tm},
+                        {'$push': {'elo' : db_data}})
+
+
+
 
 if __name__ == '__main__':
-    today = datetime.date.today().strftime('%m/%d/%Y')
-    this_year = today.split('/')[-1]
+    game_preview()
+    # fangraphs('pit', '2018')
+    # league_elo()
+    # forty_man(team='NYY', year=2018)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-f', '--function', default='master')
-    parser.add_argument('-t', '--team',     default='NYY')
-    parser.add_argument('-d', '--date',     default=today)
-    parser.add_argument('-y', '--year',     default=this_year)
-    parser.add_argument('-a', '--all',      default='on')
-    args = parser.parse_args()
+    # def run(fn, team, year, date):
+    #     arglen = len(inspect.getargspec(fns[fn])[0])
 
-    fns = {
-            'bat_leaders'  : fangraphs,
-            'pit_leaders'  : fangraphs,
-            'pit_logs'     : pitching_logs,
-            'injuries'     : current_injuries,
-            'transactions' : transactions,
-            'preview'      : game_preview,
-            'boxscores'    : boxscores,
-            'schedule'     : yankees_schedule,
-            'standings'    : standings,
-            'forty_man'    : forty_man
-           }
+    #     if fn == 'bat_leaders':
+    #         fangraphs(state='bat', year=year)
+    #     elif fn =='pit_leaders':
+    #         fangraphs(state='pit',  year=year)
+    #     elif fn == 'boxscores':
+    #         boxscores(date=date)
+    #     elif arglen == 2:
+    #         fns[fn](team=team, year=year)
+    #     elif arglen == 1:
+    #         fns[fn](team=team)
+    #     elif arglen == 0:
+    #         fns[fn]()
 
-    def run(fn, team, year, date):
-        arglen = len(inspect.getargspec(fns[fn])[0])
+    # if args.function == 'master':
+    #     year_ = args.date.split('/')[-1]
+    #     t1, t2 = master(args.team, args.date)
 
-        if fn == 'bat_leaders':
-            fangraphs(state='bat', team=team, year=year, all_=args.all)
-        elif fn =='pit_leaders':
-            fangraphs(state='pit', team=team, year=year, all_=args.all)
-        elif fn == 'boxscores':
-            boxscores(date=date)
-        elif arglen == 2:
-            fns[fn](team=team, year=year)
-        elif arglen == 1:
-            fns[fn](team=team)
-        elif arglen == 0:
-            fns[fn]()
-
-    if args.function == 'master':
-        year_ = args.date.split('/')[-1]
-        t1, t2 = master(args.team, args.date)
-
-        for fn in fns.keys():
-            if fn == 'forty_man':
-                forty_man(t1, year_)
-                forty_man(t2, year_)
-            elif fn == 'preview':
-                game_preview(args.team, args.date)
-            else:
-                run(fn, args.team, year_)
-    else:
-        run(args.function, args.team, args.year, args.date)
+    #     for fn in fns.keys():
+    #         if fn == 'forty_man':
+    #             forty_man(t1, year_)
+    #             forty_man(t2, year_)
+    #         elif fn == 'preview':
+    #             game_preview(args.team, args.date)
+    #         else:
+    #             run(fn, args.team, year_)
+    # else:
+    #     run(args.function, args.team, args.year, args.date)
