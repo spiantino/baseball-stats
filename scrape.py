@@ -62,7 +62,7 @@ def convert_name(name, how):
 
     elif how == 'full':
         if len(name) == 3:
-            return abbr2full[name]
+            return abbr2full[name].upper()
         else:
             return name
 
@@ -587,6 +587,7 @@ def game_preview():
     """
 
     date = datetime.date.today().strftime('%Y-%m-%d')
+    date = '2018-05-08'
 
     url = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}'\
                                                         .format(date)
@@ -606,25 +607,26 @@ def game_preview():
         game_data = json.loads(res)
 
         # Check if game has already started (json is structured differently)
-        state = game_data['gameData']['status']['abstractGameState']
+        state = game_data['gameData']['status']['detailedState']
 
         # Get HOME and AWAY team names
-        if state == 'Preview':
-            home = game_data['gameData']['teams']['home']['name']
-            away = game_data['gameData']['teams']['away']['name']
+        if state == 'Scheduled':
+            home = game_data['gameData']['teams']['home']['abbreviation']
+            away = game_data['gameData']['teams']['away']['abbreviation']
         else:
-            home = game_data['gameData']['teams']['home']['name']['full']
-            away = game_data['gameData']['teams']['away']['name']['full']
+            home = game_data['gameData']['teams']['home']['name']['abbrev']
+            away = game_data['gameData']['teams']['away']['name']['abbrev']
 
         # Push to database
         db.Games.update({'home' : home,
                          'away' : away,
                          'date' : date},
-                        {'$set': {'preview' : []}})
+                        {'$set': {'preview': []}})
+
         db.Games.update({'home' : home,
                          'away' : away,
                          'date' : date},
-                         {'$push' : {'preview' : game_data}})
+                         {'$push': {'preview': game_data}}, upsert=True)
 
 
 def league_elo():
@@ -668,6 +670,7 @@ def league_elo():
 
 if __name__ == '__main__':
     game_preview()
+    # fangraphs('bat', '2018')
     # fangraphs('pit', '2018')
     # league_elo()
     # forty_man(team='NYY', year=2018)
