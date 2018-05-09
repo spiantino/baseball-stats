@@ -587,7 +587,6 @@ def game_preview():
     """
 
     date = datetime.date.today().strftime('%Y-%m-%d')
-    date = '2018-05-08'
 
     url = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}'\
                                                         .format(date)
@@ -669,9 +668,9 @@ def league_elo():
 
 
 if __name__ == '__main__':
-    game_preview()
+    # game_preview()
     # fangraphs('bat', '2018')
-    # fangraphs('pit', '2018')
+    fangraphs('pit', '2018')
     # league_elo()
     # forty_man(team='NYY', year=2018)
 

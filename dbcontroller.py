@@ -1,5 +1,6 @@
 from pymongo import MongoClient
 import datetime
+import re
 
 from scrape import convert_name # move this to utils file
 
@@ -14,8 +15,8 @@ class DBController:
         """
         Query player object by name
         """
-        player = ' '.join([x.capitalize() for x in player.split()])
-        return self._db.Players.find_one({'Name' : player})
+        return self._db.Players.find_one({'Name' :
+                                          re.compile(player, re.IGNORECASE)})
 
     def get_player_war(self, player, type, year):
         """
@@ -50,6 +51,13 @@ class DBController:
         """
         abbr = convert_name(team, how='abbr')
         return self._db.Teams.find_one({'Tm' : abbr})
+
+    def get_teams(self, *teams):
+        """
+        Return docs for specified teams
+        """
+        teams = [convert_name(team, how='abbr') for team in teams]
+        return self._db.Teams.find({'Tm' : {'$in' : teams}})
 
     def get_all_teams(self):
         """
@@ -126,11 +134,11 @@ class DBController:
         sort_key = '{}.HR'.format(year)
         return self._db.Players.find({}).sort(sort_key, -1)
 
-    def get_starters_or_relievers(self, kind, year):
+    def get_starters_or_relievers(self, role, year):
         """
         Return list of  starter or reliver object ids
         """
-        cond    = '$lt' if kind=='reliever' else '$gt'
+        cond    = '$lt' if role=='reliever' else '$gt'
         gp      = '{}.pit_G'.format(year)
         war_val = '${}.pit_WAR'.format(year)
         gp_val  = '${}.pit_G'.format(year)
@@ -146,15 +154,16 @@ class DBController:
                                             ])
         return [x['_id'] for x in objs]
 
-    def get_top_n_pitchers(self, kind, year, by, ascending, n):
+    def get_top_n_pitchers(self, role, year, stat, ascending, n):
         """
-        Return top n pitchers by stat
+        Return top n pitchers sorted by stat
 
         kind: 'starter' or 'reliever'
-        by: 'pit_WAR', 'ERA', or any other stat
+        stat: 'pit_WAR', 'ERA', or any other stat
         """
-        sort_key = '{}.{}'.format(year, by)
-        ids = self.get_starters_or_relievers(kind=kind, year=year)
+        stat = 'pit_WAR' if stat == 'WAR' else stat
+        sort_key = '{}.{}'.format(year, stat)
+        ids = self.get_starters_or_relievers(role, year=year)
         sort_direction = 1 if ascending else -1
 
         res = self._db.Players.find({'_id' : {'$in' : ids}})\
