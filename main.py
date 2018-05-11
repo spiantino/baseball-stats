@@ -255,16 +255,98 @@ def bullpen(data, year):
 
     return (away_df, home_df)
 
-# def game_history(*teams):
-#     # Trigger scrape for each game where detailed state not "final" ?
-#     hist = list(dbc.get_matchup_history(*teams))
+def game_history(home, away):
+    home = dbc.get_team(home)['Schedule']
+    away = dbc.get_team(away)['Schedule']
 
-#     df_data = []
-#     for game in hist:
-#         date = game['date']
-#     time = game['preview'][0]['gameData']['datetime']['time']
-#     tzone = game['preview'][0]['gameData']['datetime']['timeZone']
-#     game_time = ' '.join((time, tzone))
+    res = []
+    cols = ['Date', 'Time', 'Opp', 'Result', 'Score']
+    for team in [home, away]:
+        df = pd.DataFrame(team)
+        df = df.loc[df['']=='boxscore']
+
+        df['Opp'] = df[['Field', 'Opp']].apply(lambda x:' '.join((x[0], x[1]))
+                                                           .strip(), axis=1)
+
+        df['Score'] = df[['R', 'RA']].apply(lambda x:''.join((x[0],'-',x[1])),
+                                                                     axis=1)
+
+        df = df.rename({'W/L' : 'Result'}, axis=1)
+        df = df[cols]
+        res.append(df)
+
+    return res
+
+
+def get_past_game_dates(team):
+    """
+    Find dates for last 10 games
+    """
+    data = dbc.get_team(team)['Schedule']
+    df = pd.DataFrame(data)
+    df = df.loc[df['']=='boxscore']
+
+    year = datetime.date.today().strftime('%Y')
+    def format_date(x, y):
+        _, m, d = x.split()
+        df_date = '{} {} {}'.format(m, d, y)
+        return datetime.datetime.strptime(df_date, '%b %d %Y')
+
+    df['Dates'] = df.Date.apply(lambda x: str(format_date(x, y=year).date()))
+    return df.Dates.values
+
+
+def pitcher_history(team):
+    """
+    A Teams pitcher history
+    for previous 10 games
+    """
+    dates = get_past_game_dates(team)
+    games = dbc.get_team_game_preview(team, date)
+
+    cols = ['Date', 'Opponent', 'Pitcher', 'IP', 'Hits', 'Runs',
+            'ER', 'Walks', 'Strikeouts', 'Home Runs', 'Score']
+    df_data = []
+    for game in games:
+        away, home = game['away'], game['home']
+        side = 'home' if team==home else 'away'
+        opp_side = set({'home', 'away'} - {side}).pop()
+
+        date = game['date']
+        opp = game[opp_side]
+
+        data = game['preview'][0]['liveData']['boxscore']['teams'][side]
+
+        pit_id = 'ID' + data['pitchers'][0]
+        pit_obj = data['players'][pit_id]
+
+        name = ' '.join((pit_obj['name']['first'],
+                         pit_obj['name']['last']))
+
+        pit_data = pit_obj['gameStats']['pitching']
+
+        ip    = pit_data['inningsPitched']
+        er    = pit_data['earnedRuns']
+        hr    = pit_data['homeRuns']
+        hits  = pit_data['hits']
+        runs  = pit_data['runs']
+        walks = pit_data['baseOnBalls']
+        strko = pit_data['strikeOuts']
+
+        tscore = game['preview'][0]['liveData']['linescore'][side]['runs']
+        oscore = game['preview'][0]['liveData']['linescore'][opp_side]['runs']
+
+        score = '{}-{}'.format(tscore, oscore)
+
+        df_data.append([date, opp, name, ip, hits, runs,
+                        er, walks, strko, hr, score])
+
+
+def chart_gb():
+    # chart for games behind
+    pass
+
+
 
 def standings(home, away):
     teams = list(dbc.get_teams(home, away))
@@ -403,32 +485,79 @@ if __name__ == '__main__':
         home = game_data['home']
         away = game_data['away']
     except:
-        # throw error (no game found for that team/date)
         raise ValueError("NO GAME FOUND")
 
     # game_state = data['preview'][0]['gameData']['status']['detailedState']
-    summary   = summary_table(data=game_data, year=year)
-    starters  = rosters(who='starters', data=game_data, year=year)
-    bench     = rosters(who='bench', data=game_data, year=year)
-    bullpen   = bullpen(data=game_data, year=year)
-    standings = standings(home, away)
-    bat_df = leaderboards(kind='bat', stat='WAR', n=10, role='starter')
-    pit_df = leaderboards(kind='pit', stat='WAR', n=10, role='starter')
-    era_df = leaderboards(kind='pit', stat='ERA', n=10, role='starter')
-    rel_df = leaderboards(kind='pit', stat='WAR', n=10, role='reliever')
-    hr_df  = leaderboards(kind='bat', stat='HR',  n=10, role='starter')
+    # summary   = summary_table(data=game_data, year=year)
+    # starters  = rosters(who='starters', data=game_data, year=year)
+    # bench     = rosters(who='bench', data=game_data, year=year)
+    # bullpen   = bullpen(data=game_data, year=year)
+    # standings = standings(home, away)
+    history = game_history(home, away)
+    # bat_df = leaderboards(kind='bat', stat='WAR', n=10, role='starter')
+    # pit_df = leaderboards(kind='pit', stat='WAR', n=10, role='starter')
+    # era_df = leaderboards(kind='pit', stat='ERA', n=10, role='starter')
+    # rel_df = leaderboards(kind='pit', stat='WAR', n=10, role='reliever')
+    # hr_df  = leaderboards(kind='bat', stat='HR',  n=10, role='starter')
     elo = elo()
 
-    print(summary)
-    print(starters)
-    print(bench)
-    print(bullpen)
-    print(standings)
-    print(bat_df)
-    print(pit_df)
-    print(era_df)
-    print(rel_df)
-    print(hr_df)
-    print(elo)
+    # print(summary)
+    # print(starters)
+    # print(bench)
+    # print(bullpen)
+    # print(standings)
+    print(history[0])
+    print(history[1])
+    # print(bat_df)
+    # print(pit_df)
+    # print(era_df)
+    # print(rel_df)
+    # print(hr_df)
+    # print(elo)
+
+    import jinja2
+    import os
+    import subprocess
+    import shutil
+    from jinja2 import Template
+    latex_jinja_env = jinja2.Environment(
+                        block_start_string = '\BLOCK{',
+                        block_end_string = '}',
+                        variable_start_string = '\VAR{',
+                        variable_end_string = '}',
+                        comment_start_string = '\#{',
+                        comment_end_string = '}',
+                        line_statement_prefix = '%%',
+                        line_comment_prefix = '%#',
+                        trim_blocks = True,
+                        autoescape = False,
+                        loader = jinja2.FileSystemLoader(os.path.abspath('.'))
+    )
+    template = latex_jinja_env.get_template('template.tex')
+    # render = template.render(elo=elo.to_latex())
+
+    def compile_pdf_from_template(template, insert_variables, out_path):
+        """Render a template file and compile it to pdf"""
+
+        rendered_template = template.render(**insert_variables)
+        build_d = os.path.join(os.path.dirname(os.path.realpath(out_path)), '.build')
+        print(build_d)
+        if not os.path.exists(build_d):  # create the build directory if not exisiting
+            os.makedirs(build_d)
+
+        temp_out = os.path.join(build_d, "tmp")
+        with open(temp_out+'.tex', "w") as f:  # saves tex_code to output file
+            f.write(rendered_template)
+
+        # subprocess.check_call(['pdflatex', '{}/{}.tex'.format(build_d,
+                                                              # temp_out)])
+
+
+        os.system('pdflatex -output-directory {} {}'.format(build_d, temp_out+'.tex'))
+        shutil.copy2(temp_out+".pdf", os.path.relpath(out_path))
+
+    compile_pdf_from_template(template, {'elo': elo.to_latex(index=False)}, out_path='./test.pdf')
+
+
 
 

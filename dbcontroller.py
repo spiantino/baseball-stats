@@ -68,10 +68,9 @@ class DBController:
     def get_games_by_date(self, date):
         """
         Query all game objects by given date
-
-        !!! format input date to %Y-%m-%d
         """
         return self._db.Games.find({'date' : date})
+
 
     def get_all_game_previews(self):
         """
@@ -86,21 +85,24 @@ class DBController:
         """
         Query game preview for specific team
         """
-        abbr =  convert_name(team, how='abbr')
-        # if state == 'Scheduled':
-        #     home = 'preview.gameData.teams.home.abbreviation'
-        #     away = 'preview.gameData.teams.away.abbreviation'
-        # else:
-        #     home = 'preview.gameData.teams.home.name.abbrev'
-        #     away = 'preview.gameData.teams.away.name.abbrev'
-
+        abbr = convert_name(team, how='abbr')
         return self._db.Games.find({'date' : date,
+                                    '$or' : [{'home' : abbr},
+                                             {'away' : abbr}]})
+
+    def get_team_game_previews(self, team, dates):
+        """
+        Query game preview for team given list of dates
+        """
+        abbr = convert_name(team, how='abbr')
+        return self._db.Games.find({'date' : {'$in' : dates},
                                     '$or' : [{'home' : abbr},
                                              {'away' : abbr}]})
 
     def get_matchup_history(self, *teams):
         """
-        Return matchup history between two teams
+        Return game data between two teams
+        Queries the Games collection
         """
         abbrA = convert_name(teams[0], how='abbr')
         abbrB = convert_name(teams[1], how='abbr')
@@ -110,12 +112,16 @@ class DBController:
                                              {'home' : abbrB,
                                               'away' : abbrA}]})
 
-    def get_game_history(self, team):
-        """
-        Return game histories of one team
-        """
-        pass
-
+    # def get_game_history(self, team):
+    #     """
+    #     Return game histories
+    #     Queries the Schedule doc from Teams collection
+    #     """
+    #     abbr = convert_name(team, how='abbr')
+    #     return dbc._db.Teams.aggregate([{'$match': {'Tm' : abbr}},
+    #                                     {'$project':
+    #                                                 {'_id'      : 0,
+    #                                                  'Schedule' : 1}}])
 
     def get_top_n_leaders(self, kind, stat, year, n):
         """
@@ -183,6 +189,17 @@ class DBController:
                                               'Playoff%'     : playoff,
                                               'Division%'    : division,
                                               'WorldSeries%' : worldser}}])
+
+    def get_pitching_results(self, team, date):
+        """
+        Get starting pitcher stats
+        """
+        abbr = convert_name(team, how='abbr')
+        return self._db.Teams.aggregate({'$match' : {}})
+
+
+
+
 
 
 

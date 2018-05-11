@@ -223,13 +223,13 @@ def standings():
             # Insert row into database
             db.Teams.update({'Tm' : team}, db_data, upsert=True)
 
-
-def yankees_schedule():
+def schedule(team):
     """
     Scrape yankees schedule with results
     from baseball-reference.com
     """
-    url = "http://www.baseball-reference.com/teams/NYY/2018-schedule-scores.shtml"
+    name = convert_name(team, how='abbr')
+    url = "http://www.baseball-reference.com/teams/{}/2018-schedule-scores.shtml".format(name)
 
     soup = open_url(url)
     table = soup.find('table', {'id' : 'team_schedule'})
@@ -247,26 +247,26 @@ def yankees_schedule():
     trows = [x for x in trows if 'Gm#' not in x.text]
 
     # Clear existing Schedule document
-    db.Teams.update({'Tm' : 'NYY'}, {'$set': {'Schedule' : []}})
+    db.Teams.update({'Tm' : name}, {'$set': {'Schedule' : []}})
 
     # Extract schedule data one row at a time
     for row in trows:
         row_data = [x.text for x in
                     row.find_all(lambda tag: tag.has_attr('data-stat'))]
 
-        # Past games
+        # Past game
         if row_data[2] == 'boxscore':
             game_num = row_data[0]
             db_data = {k:v for k,v in zip(cols, row_data)}
 
-        # Upcoming games
+        # Upcoming game
         elif row_data[2] == 'preview':
             row_data = row_data[:7]
             game_num = row_data[0]
             db_data = {k:v for k,v in zip(upcoming_cols, row_data)}
 
         # Insert row into database
-        db.Teams.update({'Tm' : 'NYY'},
+        db.Teams.update({'Tm' : name},
                         {'$push': {'Schedule': db_data}})
 
 
@@ -442,12 +442,19 @@ def transactions(team, year):
     db.Teams.update({'Tm' : team},
                     {'$push' : {db_array : j}})
 
+def boxscores(year):
+    url = 'https://www.baseball-reference.com/leagues/MLB/{}-schedule.shtml'.format(year)
+
+    soup = open_url(url)
+
+    boxes = [x for x in soup.find_all('a', href=True) if x.text=='Boxscore']
+    previews = [x for x in soup.find_all('a', href=True) if x.text=='Preview']
+
 
 def boxscores(date):
     """
     Extract all boxscores
     """
-
     # Get yesterday's date and boxscores
     today = datetime.date.today().strftime('%m/%d/%Y')
 
@@ -668,9 +675,11 @@ def league_elo():
 
 
 if __name__ == '__main__':
+    boxscores('2018-05-06')
+    # schedule('red sox')
     # game_preview()
     # fangraphs('bat', '2018')
-    fangraphs('pit', '2018')
+    # fangraphs('pit', '2018')
     # league_elo()
     # forty_man(team='NYY', year=2018)
 
