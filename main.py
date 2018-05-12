@@ -6,19 +6,8 @@ import unidecode
 from collections import defaultdict
 
 from dbcontroller import DBController
-from scrape import convert_name
+from utils import combine_dicts_in_list
 
-
-def combine_dicts_in_list(list_of_dicts):
-    """
-    !!! Move to utils file
-    Convert db format into df format
-    """
-    data = defaultdict(list)
-    for d in list_of_dicts:
-        for k, v in d.items():
-            data[k].append(v)
-    return data
 
 def summary_table(data, year):
     current_year = datetime.date.today().strftime('%Y')

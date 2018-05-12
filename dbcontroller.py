@@ -2,7 +2,7 @@ from pymongo import MongoClient
 import datetime
 import re
 
-from scrape import convert_name # move this to utils file
+from utils import convert_name
 
 class DBController:
     def __init__(self, address='localhost', port=27017, db='mlbDB'):
@@ -190,15 +190,35 @@ class DBController:
                                               'Division%'    : division,
                                               'WorldSeries%' : worldser}}])
 
-    def get_pitching_results(self, team, date):
+    # def get_pitching_results(self, team, date):
+    #     """
+    #     Get starting pitcher stats
+    #     """
+    #     abbr = convert_name(team, how='abbr')
+    #     return self._db.Teams.aggregate({'$match' : {}})
+
+    def get_past_game_dates(self):
         """
-        Get starting pitcher stats
+        Return set of all date values in Games collection
         """
-        abbr = convert_name(team, how='abbr')
-        return self._db.Teams.aggregate({'$match' : {}})
+        data = list(self._db.Games.aggregate([{'$project':
+                                                  {'_id' : 0,
+                                                  'date' : 1}}]))
+        dates = set([x['date'] for x in data])
+        return dates
 
-
-
+    def get_missing_array_dates(self, array):
+        """
+        Return dates form docs in Game collection
+        where no 'preview' array exists
+        """
+        data =  self._db.Games.aggregate([{'$match':
+                                              {array : {'$exists' : False}}},
+                                          {'$project':
+                                              {'_id' : 0,
+                                               'date' : 1}}])
+        dates = set([x['date'] for x in data])
+        return dates
 
 
 
