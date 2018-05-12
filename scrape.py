@@ -390,6 +390,9 @@ def boxscores(date, dbc=dbc):
     Extract all boxscores
     """
 
+    # Delete games with postponed status to avoid conflict
+    dbc.delete_duplicate_game_docs()
+
     year = datetime.date.today().strftime('%Y')
 
     if date == 'all':
@@ -544,7 +547,11 @@ def game_previews(dbc=dbc):
     Collect data on upcomming game
     from mlb.com/gameday
     """
-    dates = find_missing_dates(dbc=dbc)
+    dates = set(find_missing_dates(dbc=dbc))
+    outdated = set(dbc.find_outdated_game_dates())
+
+    dates = dates.union(outdated)
+    dates = sorted(list(dates))
 
     url_string = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}'
 

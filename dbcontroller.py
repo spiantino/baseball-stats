@@ -220,8 +220,36 @@ class DBController:
         dates = set([x['date'] for x in data])
         return dates
 
+    def find_outdated_game_dates(self):
+        """
+        Return dates where games have not been updated
+        """
+        state = 'preview.gameData.status.detailedState'
+        old = self._db.Games.find({state : {'$nin' : ['Final', 'Scheduled']}})
+        return set([x['date'] for x in old])
 
+    def find_duplicate_game_docs(self):
+        """
+        Find documents with the same gid.
+        This happens when a game is postponed
+        and played at a later date.
+        """
+        gids = self._db.Games.aggregate([{'$group':
+                                             {'_id'   : '$gid',
+                                              'count' : {'$sum' : 1}}},
+                                         {'$match':
+                                             {'count': {'$gt' : 1}}}])
+        return [x['_id'] for x in gids]
 
+    def delete_duplicate_game_docs(self):
+        """
+        Postponed-status games should appear first.
+        If neccesary, compare dates before delete.
+        """
+        gids = self.find_duplicate_game_docs()
+        for gid in gids:
+            delete = list(self._db.Games.find({'gid' : gid}))[0]['_id']
+            self._db.Games.remove(delete)
 
 
 
