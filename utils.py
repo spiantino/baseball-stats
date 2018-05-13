@@ -82,6 +82,8 @@ def find_missing_dates(dbc):
     """
     Find dates between start of season and yesterday
     where no Games docs have been recorded for that date
+    !!! return all_dates and do set operations elsewhere,
+    so that dbc doesn't need to be used here
     """
     dates = dbc.get_past_game_dates()
 
