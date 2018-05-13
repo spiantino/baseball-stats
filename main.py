@@ -18,16 +18,16 @@ def summary_table(data, year):
 
     try:
         home_name_full = data['preview'][0]['gameData']\
-                             ['teams']['home']['name']
-
-        away_name_full = data['preview'][0]['gameData']\
-                             ['teams']['away']['name']
-    except:
-        home_name_full = data['preview'][0]['gameData']\
                              ['teams']['home']['name']['full']
 
         away_name_full = data['preview'][0]['gameData']\
                              ['teams']['away']['name']['full']
+    except:
+        home_name_full = data['preview'][0]['gameData']\
+                             ['teams']['home']['name']
+
+        away_name_full = data['preview'][0]['gameData']\
+                             ['teams']['away']['name']
 
     try:
         home_rec = data['preview'][0]['gameData']['teams']\
@@ -60,7 +60,13 @@ def summary_table(data, year):
     stadium  = data['preview'][0]['gameData']['venue']['name']
 
     # Forecast
-    # Summary Text - where is this located?
+    try:
+        forecast = data['preview'][0]['gameData']['weather']
+        condition = forecast['condition']
+        temp = forecast['temp']
+        wind = forecast['wind']
+    except:
+        condition, temp, wind = 'N/A', 'N/A', 'N/A'
 
     # Starting pitchers
     try:    # Game state: scheduled
@@ -105,8 +111,8 @@ def summary_table(data, year):
         away_pit_hand = away_pit_data['rightLeft']
         home_pit_hand = home_pit_data['rightLeft']
 
-    away_pit_stats = dbc.get_player(away_pit_name)[year]
-    home_pit_stats = dbc.get_player(home_pit_name)[year]
+    away_pit_stats = dbc.get_player(away_pit_name)[year]['pit']
+    home_pit_stats = dbc.get_player(home_pit_name)[year]['pit']
 
     pit_cols = ['Name', 'pit_WAR', 'W', 'L', 'ERA',
                 'IP', 'K/9', 'BB/9', 'HR/9', 'GB%']
@@ -128,7 +134,8 @@ def summary_table(data, year):
     pit_df = pd.DataFrame([away_pit_data, home_pit_data])
     pit_df = pit_df[pit_cols].rename({'pit_WAR' : 'WAR'}, axis='columns')
 
-    return pit_df
+    return (game_number, title, condition, temp, wind, pit_df)
+
 
 def rosters(who, data, year):
     live_data = data['preview'][0]['liveData']['boxscore']
@@ -173,7 +180,7 @@ def rosters(who, data, year):
             try:
                 decoded = unidecode.unidecode(name)
                 war_stats = dbc.get_player_war(player=decoded,
-                                               type='batter',
+                                               kind='batter',
                                                year=year)
                 war  = war_stats['war']
                 off  = war_stats['off']
@@ -225,7 +232,7 @@ def bullpen(data, year):
 
             # Query stats from Players collection
             decoded = unidecode.unidecode(name)
-            pitstats = dbc.get_player(decoded)[year]
+            pitstats = dbc.get_player(decoded)[year]['pit']
             war = pitstats['pit_WAR']
             sv  = pitstats['SV']
             era = pitstats['ERA']
@@ -270,6 +277,7 @@ def game_history(home, away):
 def get_past_game_dates(team):
     """
     Find dates for last 10 games
+    !!! move to dbcontroller
     """
     data = dbc.get_team(team)['Schedule']
     df = pd.DataFrame(data)
@@ -291,7 +299,8 @@ def pitcher_history(team):
     for previous 10 games
     """
     dates = get_past_game_dates(team)
-    games = dbc.get_team_game_preview(team, date)
+    games = dbc.get_team_game_previews(team, dates)
+    print(dates)
 
     cols = ['Date', 'Opponent', 'Pitcher', 'IP', 'Hits', 'Runs',
             'ER', 'Walks', 'Strikeouts', 'Home Runs', 'Score']
@@ -329,7 +338,8 @@ def pitcher_history(team):
 
         df_data.append([date, opp, name, ip, hits, runs,
                         er, walks, strko, hr, score])
-
+    df = pd.DataFrame(df_data)
+    print(df)
 
 def chart_gb():
     # chart for games behind
@@ -338,33 +348,48 @@ def chart_gb():
 
 
 def standings(home, away):
-    teams = list(dbc.get_teams(home, away))
-    standings_cols = ['Tm', 'W', 'L', 'last10', 'gb',
-                      'div', 'Strk', 'Home', 'Road', 'W-L%']
-    df = pd.DataFrame(teams)[standings_cols]
-    df = df.sort_values(by='W-L%', ascending=False)
+    # teams = list(dbc.get_teams(home, away))
+    home_div = dbc.get_team(home)['div']
+    away_div = dbc.get_team(away)['div']
 
-    # Find home/away win %
-    def win_percent(x):
-        w, l = x.split('-')
-        total = int(w) + int(l)
-        percent = float(w) / total
-        return round(percent, 3)
+    divh = list(dbc.get_teams_by_division(home_div))
+    diva = list(dbc.get_teams_by_division(away_div))
 
-    df['home_rec'] = df.Home.apply(lambda x: win_percent(x))
-    df['away_rec'] = df.Road.apply(lambda x: win_percent(x))
+    divh_data = combine_dicts_in_list(divh)
+    diva_data = combine_dicts_in_list(diva)
 
-    # Rename team column to division value
-    div = df.iloc[0]['div']
-    df = df.rename(columns={'Tm' : div})
+    df_results = []
+    for teams in [divh_data, diva_data]:
+        standings_cols = ['Tm', 'W', 'L', 'last10', 'gb',
+                          'div', 'Strk', 'Home', 'Road', 'W-L%']
+        df = pd.DataFrame(teams)[standings_cols]
+        df = df.sort_values(by='W-L%', ascending=False)
+        # Find home/away win %
+        def win_percent(x):
+            w, l = x.split('-')
+            total = int(w) + int(l)
+            percent = float(w) / total
+            return round(percent, 3)
 
-    # Drop unused cols
-    df.drop('div',  axis=1, inplace=True)
-    df.drop('W-L%', axis=1, inplace=True)
-    df.drop('Home', axis=1, inplace=True)
-    df.drop('Road', axis=1, inplace=True)
+        df['home_rec'] = df.Home.apply(lambda x: win_percent(x))
+        df['away_rec'] = df.Road.apply(lambda x: win_percent(x))
 
-    return df
+        # Rename team column to division value
+        div = df.iloc[0]['div']
+        df = df.rename(columns={'Tm' : div})
+
+        # Drop unused cols
+        df.drop('div',  axis=1, inplace=True)
+        df.drop('W-L%', axis=1, inplace=True)
+        df.drop('Home', axis=1, inplace=True)
+        df.drop('Road', axis=1, inplace=True)
+        df_results.append(df)
+
+    # If divisions are the same, just return one dataframe
+    if divh == diva:
+        df_results.pop()
+
+    return df_results
 
 
 def leaderboards(kind, stat, n, role='starter'):
@@ -468,6 +493,7 @@ if __name__ == '__main__':
 
     # Query upcomming game and populate data
     game = dbc.get_team_game_preview(team=args.team, date=args.date)
+    game = dbc.get_team_game_preview(team=args.team, date='2018-04-20')
 
     try:
         game_data = list(game)[0]
@@ -476,76 +502,77 @@ if __name__ == '__main__':
     except:
         raise ValueError("NO GAME FOUND")
 
-    # game_state = data['preview'][0]['gameData']['status']['detailedState']
-    # summary   = summary_table(data=game_data, year=year)
-    # starters  = rosters(who='starters', data=game_data, year=year)
-    # bench     = rosters(who='bench', data=game_data, year=year)
-    # bullpen   = bullpen(data=game_data, year=year)
-    # standings = standings(home, away)
+    summary   = summary_table(data=game_data, year=year)
+    starters  = rosters(who='starters', data=game_data, year=year)
+    bench     = rosters(who='bench', data=game_data, year=year)
+    bullpen   = bullpen(data=game_data, year=year)
+    standings = standings(home, away)
     history = game_history(home, away)
-    # bat_df = leaderboards(kind='bat', stat='WAR', n=10, role='starter')
-    # pit_df = leaderboards(kind='pit', stat='WAR', n=10, role='starter')
-    # era_df = leaderboards(kind='pit', stat='ERA', n=10, role='starter')
-    # rel_df = leaderboards(kind='pit', stat='WAR', n=10, role='reliever')
-    # hr_df  = leaderboards(kind='bat', stat='HR',  n=10, role='starter')
+    bat_df = leaderboards(kind='bat', stat='WAR', n=10, role='starter')
+    pit_df = leaderboards(kind='pit', stat='WAR', n=10, role='starter')
+    era_df = leaderboards(kind='pit', stat='ERA', n=10, role='starter')
+    rel_df = leaderboards(kind='pit', stat='WAR', n=10, role='reliever')
+    hr_df  = leaderboards(kind='bat', stat='HR',  n=10, role='starter')
     elo = elo()
+    # pitcher_history = pitcher_history(team=args.team)
 
-    # print(summary)
-    # print(starters)
-    # print(bench)
-    # print(bullpen)
-    # print(standings)
+    print(summary)
+    print(starters)
+    print(bench)
+    print(bullpen)
+    for table in standings:
+        print(table)
     print(history[0])
     print(history[1])
-    # print(bat_df)
-    # print(pit_df)
-    # print(era_df)
-    # print(rel_df)
-    # print(hr_df)
-    # print(elo)
+    print(bat_df)
+    print(pit_df)
+    print(era_df)
+    print(rel_df)
+    print(hr_df)
+    print(elo)
 
-    import jinja2
-    import os
-    import subprocess
-    import shutil
-    from jinja2 import Template
-    latex_jinja_env = jinja2.Environment(
-                        block_start_string = '\BLOCK{',
-                        block_end_string = '}',
-                        variable_start_string = '\VAR{',
-                        variable_end_string = '}',
-                        comment_start_string = '\#{',
-                        comment_end_string = '}',
-                        line_statement_prefix = '%%',
-                        line_comment_prefix = '%#',
-                        trim_blocks = True,
-                        autoescape = False,
-                        loader = jinja2.FileSystemLoader(os.path.abspath('.'))
-    )
-    template = latex_jinja_env.get_template('template.tex')
-    # render = template.render(elo=elo.to_latex())
+    # import jinja2
+    # import os
+    # import subprocess
+    # import shutil
+    # from jinja2 import Template
+    # latex_jinja_env = jinja2.Environment(
+    #                     block_start_string = '\BLOCK{',
+    #                     block_end_string = '}',
+    #                     variable_start_string = '\VAR{',
+    #                     variable_end_string = '}',
+    #                     comment_start_string = '\#{',
+    #                     comment_end_string = '}',
+    #                     line_statement_prefix = '%%',
+    #                     line_comment_prefix = '%#',
+    #                     trim_blocks = True,
+    #                     autoescape = False,
+    #                     loader = jinja2.FileSystemLoader(os.path.abspath('.'))
+    # )
+    # template = latex_jinja_env.get_template('template.tex')
+    # # render = template.render(elo=elo.to_latex())
 
-    def compile_pdf_from_template(template, insert_variables, out_path):
-        """Render a template file and compile it to pdf"""
+    # def compile_pdf_from_template(template, insert_variables, out_path):
+    #     """Render a template file and compile it to pdf"""
 
-        rendered_template = template.render(**insert_variables)
-        build_d = os.path.join(os.path.dirname(os.path.realpath(out_path)), '.build')
-        print(build_d)
-        if not os.path.exists(build_d):  # create the build directory if not exisiting
-            os.makedirs(build_d)
+    #     rendered_template = template.render(**insert_variables)
+    #     build_d = os.path.join(os.path.dirname(os.path.realpath(out_path)), '.build')
+    #     print(build_d)
+    #     if not os.path.exists(build_d):  # create the build directory if not exisiting
+    #         os.makedirs(build_d)
 
-        temp_out = os.path.join(build_d, "tmp")
-        with open(temp_out+'.tex', "w") as f:  # saves tex_code to output file
-            f.write(rendered_template)
+    #     temp_out = os.path.join(build_d, "tmp")
+    #     with open(temp_out+'.tex', "w") as f:  # saves tex_code to output file
+    #         f.write(rendered_template)
 
-        # subprocess.check_call(['pdflatex', '{}/{}.tex'.format(build_d,
-                                                              # temp_out)])
+    #     # subprocess.check_call(['pdflatex', '{}/{}.tex'.format(build_d,
+    #                                                           # temp_out)])
 
 
-        os.system('pdflatex -output-directory {} {}'.format(build_d, temp_out+'.tex'))
-        shutil.copy2(temp_out+".pdf", os.path.relpath(out_path))
+    #     os.system('pdflatex -output-directory {} {}'.format(build_d, temp_out+'.tex'))
+    #     shutil.copy2(temp_out+".pdf", os.path.relpath(out_path))
 
-    compile_pdf_from_template(template, {'elo': elo.to_latex(index=False)}, out_path='./test.pdf')
+    # compile_pdf_from_template(template, {'elo': elo.to_latex(index=False)}, out_path='./test.pdf')
 
 
 
