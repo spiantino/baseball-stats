@@ -178,8 +178,8 @@ def schedule(team):
 
     # Extract schedule columns
     thead = table.find('thead')
-    cols = [x.text.replace('\xa0', 'Field') for x in thead.find_all('th')]
-    upcoming_cols = cols[:6] + ['Date']
+    cols = [x.text.replace('\xa0', 'Field').replace('.', '') for x in thead.find_all('th')]
+    upcoming_cols = cols[:6] + ['Time']
 
     # Extract schedule data
     tbody = soup.find('tbody')
