@@ -486,7 +486,7 @@ if __name__ == '__main__':
 
     # # Gather game previews
     # print("Gathering game preivews...")
-    # scrape.game_preview()
+    # scrape.game_previews()
 
     # Create database controller object
     dbc = DBController()
