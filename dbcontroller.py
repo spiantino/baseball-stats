@@ -2,7 +2,7 @@ from pymongo import MongoClient
 import datetime
 import re
 
-from utils import convert_name
+from utils import convert_name, find_earlier_date
 
 class DBController:
     def __init__(self, url="mongodb://alex:Q8b5^SR5Oh@ds123110-a0.mlab.com:23110,ds123110-a1.mlab.com:23110/heroku_kcpx1gp1?replicaSet=rs-ds123110", db='heroku_kcpx1gp1'):
@@ -258,12 +258,15 @@ class DBController:
 
     def delete_duplicate_game_docs(self):
         """
-        Postponed-status games should appear first.
-        If neccesary, compare dates before delete.
+        Delete duplicate document with earlier dates
         """
         gids = self.find_duplicate_game_docs()
         for gid in gids:
-            delete = list(self._db.Games.find({'gid' : gid}))[0]['_id']
+            games = list(self._db.Games.aggregate([{'$match':
+                                                       {'gid' : gid}},
+                                                   {'$project':
+                                                       {'date': 1}}]))
+            delete = find_earlier_date(games)
             self._db.Games.remove(delete)
 
 
