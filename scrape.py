@@ -445,8 +445,9 @@ def boxscores(date, dbc=dbc):
         # Find mlb game id and resolve double headers
         id_ = game.split('.')[0][-1]
         idx = int(id_) - 1 if id_ != 0 else 0
-
         existing = list(dbc.get_team_game_preview(away, date))
+        if len(existing) == 1:
+            idx = 0
         gid = existing[idx]['gid']
 
         # Extract summary stats
@@ -647,10 +648,10 @@ def league_elo():
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    # game_previews()
+    game_previews()
 
     print("Scraping past boxscores...")
-    # boxscores(date='all')
+    boxscores(date='all')
 
     print("Scraping batter and pitcher leaderboards")
     # fangraphs('bat', year)
