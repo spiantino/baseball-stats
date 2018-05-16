@@ -18,21 +18,34 @@ class DBController:
         return self._db.Players.find_one({'Name' :
                                           re.compile(player, re.IGNORECASE)})
 
-    def get_player_war(self, player, type, year):
+    def get_pitchers_by_game(self, team, date):
+        """
+        Return team pitcher data from Games collection
+        """
+        abbr = convert_name(team, how='abbr')
+        pitch = '{}.pitching'.format(team)
+        return self._db.Games.aggregate([{'$match':
+                                             {'$and': [{'date':  date},
+                                             {'$or':  [{'home' : abbr},
+                                                       {'away' : abbr}]}]}},
+                                         {'$project': {'_id' : 0,
+                                                       pitch : 1}}])
+
+    def get_player_war(self, player, kind, year):
         """
         Return WAR stats for player
         """
-        if type == 'batter':
-            war  = '${}.bat_WAR'.format(year)
-            off  = '${}.Off'.format(year)
-            def_ = '${}.Def'.format(year)
+        if kind == 'batter':
+            war  = '${}.bat.bat_WAR'.format(year)
+            off  = '${}.bat.Off'.format(year)
+            def_ = '${}.bat.Def'.format(year)
             res = self._db.Players.aggregate([{'$match': {'Name' : player}},
                                               {'$project': {'_id' : 0,
                                                             'war' : war,
                                                             'off' : off,
                                                             'def' : def_}}])
-        elif type == 'pitcher':
-            war = '${}.pit_WAR'.format(year)
+        elif kind == 'pitcher':
+            war = '${}.pit.pit_WAR'.format(year)
             res = self._db.Players.aggregate([{'$match': {'Name' : player}},
                                               {'$project': {'_id' : 0,
                                                             'war' : war}}])
@@ -71,7 +84,6 @@ class DBController:
         """
         return self._db.Games.find({'date' : date})
 
-
     def get_all_game_previews(self):
         """
         Query all games for current day
@@ -98,6 +110,9 @@ class DBController:
         return self._db.Games.find({'date' : {'$in' : dates},
                                     '$or' : [{'home' : abbr},
                                              {'away' : abbr}]})
+
+    def get_teams_by_division(self, div):
+        return self._db.Teams.find({'div' : div})
 
     def get_matchup_history(self, *teams):
         """
@@ -128,27 +143,27 @@ class DBController:
         Query top 10 batting or pitching leaderboard
         """
         if stat in ['WAR', 'rank', 'G']:
-            sort_key = '{}.{}_{}'.format(year, kind, stat)
+            sort_key = '{0}.{1}.{1}_{2}'.format(year, kind, stat)
         else:
-            sort_key = '{}.{}'.format(year, stat)
+            sort_key = '{}.{}.{}'.format(year, kind, stat)
 
         lb = self._db.Players.find({}).sort(sort_key, -1).limit(n)
 
-        return [x[str(year)] for x in lb]
+        return [x[str(year)][kind] for x in lb]
 
     def get_top_n_homerun_leaders(self, year, n):
-        sort_key = '{}.HR'.format(year)
+        sort_key = '{}.bat.HR'.format(year)
         return self._db.Players.find({}).sort(sort_key, -1)
 
-    def get_starters_or_relievers(self, role, year):
+    def get_starters_or_relievers(self, role, kind, year):
         """
         Return list of  starter or reliver object ids
         """
         cond    = '$lt' if role=='reliever' else '$gt'
-        gp      = '{}.pit_G'.format(year)
-        war_val = '${}.pit_WAR'.format(year)
-        gp_val  = '${}.pit_G'.format(year)
-        gs_val  = '${}.GS'.format(year)
+        gp      = '{}.{}.pit_G'.format(year, kind)
+        war_val = '${}.{}.pit_WAR'.format(year, kind)
+        gp_val  = '${}.{}.pit_G'.format(year, kind)
+        gs_val  = '${}.{}.GS'.format(year, kind)
 
         objs = self._db.Players.aggregate([{'$match' : {gp: {'$gt':  0}}},
                                            {'$project':
@@ -168,13 +183,13 @@ class DBController:
         stat: 'pit_WAR', 'ERA', or any other stat
         """
         stat = 'pit_WAR' if stat == 'WAR' else stat
-        sort_key = '{}.{}'.format(year, stat)
-        ids = self.get_starters_or_relievers(role, year=year)
+        sort_key = '{}.pit.{}'.format(year, stat)
+        ids = self.get_starters_or_relievers(role=role, year=year, kind='pit')
         sort_direction = 1 if ascending else -1
 
         res = self._db.Players.find({'_id' : {'$in' : ids}})\
                               .sort(sort_key, sort_direction).limit(n)
-        return [x[str(year)] for x in res]
+        return [x[str(year)]['pit'] for x in res]
 
     def get_elo_stats(self):
         rating   = '$elo.elo_rating'
@@ -209,7 +224,7 @@ class DBController:
 
     def get_missing_array_dates(self, array):
         """
-        Return dates form docs in Game collection
+        Return dates from docs in Game collection
         where no 'preview' array exists
         """
         data =  self._db.Games.aggregate([{'$match':
@@ -238,7 +253,7 @@ class DBController:
                                              {'_id'   : '$gid',
                                               'count' : {'$sum' : 1}}},
                                          {'$match':
-                                             {'count': {'$gt' : 1}}}])
+                                             {'count' : {'$gt' : 1}}}])
         return [x['_id'] for x in gids]
 
     def delete_duplicate_game_docs(self):
