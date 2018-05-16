@@ -654,22 +654,22 @@ if __name__ == '__main__':
     boxscores(date='all')
 
     print("Scraping batter and pitcher leaderboards")
-    # fangraphs('bat', year)
-    # fangraphs('pit', year)
+    fangraphs('bat', year)
+    fangraphs('pit', year)
 
     print("Scraping league elo and division standings")
     league_elo()
-    # standings()
+    standings()
 
-    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
-    #          'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
-    #          'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
-    #          'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
-    #          'col', 'kcr', 'det', 'min', 'chw', 'nyy']
-    # for team in tqdm(teams):
-    #     schedule(team)
-    #     forty_man(team, year)
-    #     pitching_logs(team, year)
-    #     current_injuries(team)
-    #     transactions(team, year)
+    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
+             'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
+             'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
+             'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
+             'col', 'kcr', 'det', 'min', 'chw', 'nyy']
+    for team in tqdm(teams):
+        schedule(team)
+        forty_man(team, year)
+        pitching_logs(team, year)
+        current_injuries(team)
+        transactions(team, year)

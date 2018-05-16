@@ -5,8 +5,16 @@ import re
 from utils import convert_name, find_earlier_date
 
 class DBController:
-    def __init__(self, url="mongodb://alex:Q8b5^SR5Oh@ds123110-a0.mlab.com:23110,ds123110-a1.mlab.com:23110/heroku_kcpx1gp1?replicaSet=rs-ds123110", db='heroku_kcpx1gp1'):
-        self._client = MongoClient(url)
+    def __init__(self, test=False):
+        if test:
+            address='localhost'
+            port=27017
+            db='mlbDB'
+            self._client = MongoClient(address, port)
+        else:
+            url="mongodb://alex:Q8b5^SR5Oh@ds123110-a0.mlab.com:23110,ds123110-a1.mlab.com:23110/heroku_kcpx1gp1?replicaSet=rs-ds123110"
+            db='heroku_kcpx1gp1'
+            self._client = MongoClient(url)
         self._db = self._client[db]
         self._current_year = datetime.date.today().strftime('%Y')
         self._current_day  = datetime.date.today().strftime('%Y-%m-%d')

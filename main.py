@@ -59,6 +59,8 @@ def summary_table(data, year):
     am_or_pm = data['preview'][0]['gameData']['datetime']['ampm']
     stadium  = data['preview'][0]['gameData']['venue']['name']
 
+    details = '{}{} {}'.format(game_time, am_or_pm, stadium)
+
     # Forecast
     try:
         forecast = data['preview'][0]['gameData']['weather']
@@ -134,7 +136,7 @@ def summary_table(data, year):
     pit_df = pd.DataFrame([away_pit_data, home_pit_data])
     pit_df = pit_df[pit_cols].rename({'pit_WAR' : 'WAR'}, axis='columns')
 
-    return (game_number, title, condition, temp, wind, pit_df)
+    return (game_number, title, details, condition, temp, wind, pit_df)
 
 
 def rosters(who, data, year):
@@ -204,8 +206,6 @@ def rosters(who, data, year):
 
 def bullpen(data, year):
     """
-    Change try/except clause to check if player pos is pitcher
-    once position data is in Players collections
     """
     live_data = data['preview'][0]['liveData']['boxscore']
 
@@ -232,17 +232,22 @@ def bullpen(data, year):
 
             # Query stats from Players collection
             decoded = unidecode.unidecode(name)
-            pitstats = dbc.get_player(decoded)[year]['pit']
-            war = pitstats['pit_WAR']
-            sv  = pitstats['SV']
-            era = pitstats['ERA']
-            ip  = pitstats['IP']
-            k9  = pitstats['K/9']
-            bb9 = pitstats['BB/9']
-            hr9 = pitstats['HR/9']
-            gb  = pitstats['GB%']
-            df_data.append([decoded, num, war, sv, era,
-                        ip, k9, bb9, hr9, gb])
+
+            try:
+                pitstats = dbc.get_player(decoded)[year]['pit']
+                war = pitstats['pit_WAR']
+                sv  = pitstats['SV']
+                era = pitstats['ERA']
+                ip  = pitstats['IP']
+                k9  = pitstats['K/9']
+                bb9 = pitstats['BB/9']
+                hr9 = pitstats['HR/9']
+                gb  = pitstats['GB%']
+                df_data.append([decoded, num, war, sv, era,
+                            ip, k9, bb9, hr9, gb])
+            except:
+                print("{} not in Players collection".format(decoded))
+
         df = pd.DataFrame(df_data, columns=df_cols)
         return df
 
@@ -274,7 +279,7 @@ def game_history(home, away):
     return res
 
 
-def get_past_game_dates(team):
+def get_past_game_dates(team, n=10):
     """
     Find dates for last 10 games
     !!! move to dbcontroller
@@ -290,7 +295,8 @@ def get_past_game_dates(team):
         return datetime.datetime.strptime(df_date, '%b %d %Y')
 
     df['Dates'] = df.Date.apply(lambda x: str(format_date(x, y=year).date()))
-    return df.Dates.values
+    dates = sorted(df.Dates.values, reverse=True)[:n]
+    return dates
 
 
 def pitcher_history(team):
@@ -300,10 +306,9 @@ def pitcher_history(team):
     """
     dates = get_past_game_dates(team)
     games = dbc.get_team_game_previews(team, dates)
-    print(dates)
 
     cols = ['Date', 'Opponent', 'Pitcher', 'IP', 'Hits', 'Runs',
-            'ER', 'Walks', 'Strikeouts', 'Home Runs', 'Score']
+            'ER', 'Walks', 'Strikeouts', 'Home Runs', 'GSc']
     df_data = []
     for game in games:
         away, home = game['away'], game['home']
@@ -331,15 +336,19 @@ def pitcher_history(team):
         walks = pit_data['baseOnBalls']
         strko = pit_data['strikeOuts']
 
-        tscore = game['preview'][0]['liveData']['linescore'][side]['runs']
-        oscore = game['preview'][0]['liveData']['linescore'][opp_side]['runs']
-
-        score = '{}-{}'.format(tscore, oscore)
+        # Find GSc from BR data
+        decoded = unidecode.unidecode(name)
+        pitchers = list(dbc.get_pitchers_by_game(team, date))
+        all_pits = pitchers[0][team]['pitching']
+        pit_stats = [x for x in all_pits if decoded in x.values()][0]
+        gsc = pit_stats['GSc']
 
         df_data.append([date, opp, name, ip, hits, runs,
-                        er, walks, strko, hr, score])
-    df = pd.DataFrame(df_data)
-    print(df)
+                        er, walks, strko, hr, gsc])
+    df = pd.DataFrame(df_data, columns=cols)
+    df = df.sort_values(by='Date', ascending=False)
+    return df
+
 
 def chart_gb():
     # chart for games behind
@@ -514,7 +523,7 @@ if __name__ == '__main__':
     rel_df = leaderboards(kind='pit', stat='WAR', n=10, role='reliever')
     hr_df  = leaderboards(kind='bat', stat='HR',  n=10, role='starter')
     elo = elo()
-    # pitcher_history = pitcher_history(team=args.team)
+    pitcher_history = pitcher_history(team=args.team)
 
     print(summary)
     print(starters)
@@ -530,6 +539,7 @@ if __name__ == '__main__':
     print(rel_df)
     print(hr_df)
     print(elo)
+    print(pitcher_history)
 
     # import jinja2
     # import os
