@@ -115,8 +115,8 @@ def summary_table(data, year):
         away_pit_hand = away_pit_data['rightLeft']
         home_pit_hand = home_pit_data['rightLeft']
 
-    away_pit_stats = dbc.get_player(away_pit_name)[year]['pit']
-    home_pit_stats = dbc.get_player(home_pit_name)[year]['pit']
+    away_pit_stats = dbc.get_player(away_pit_name)['fg']['pit'][year]
+    home_pit_stats = dbc.get_player(home_pit_name)['fg']['pit'][year]
 
     pit_cols = ['Team', 'R/L', '#', 'Name', 'pit_WAR', 'W', 'L', 'ERA',
                 'IP', 'K/9', 'BB/9', 'HR/9', 'GB%']
@@ -242,7 +242,7 @@ def bullpen(data, year):
             decoded = unidecode.unidecode(name)
 
             try:
-                pitstats = dbc.get_player(decoded)[year]['pit']
+                pitstats = dbc.get_player(decoded)['fg']['pit'][year]
                 war = pitstats['pit_WAR']
                 sv  = pitstats['SV']
                 era = pitstats['ERA']
@@ -365,7 +365,6 @@ def chart_gb():
 
 
 def standings(home, away):
-    # teams = list(dbc.get_teams(home, away))
     home_div = dbc.get_team(home)['div']
     away_div = dbc.get_team(away)['div']
 
@@ -375,8 +374,14 @@ def standings(home, away):
     divh_data = combine_dicts_in_list(divh)
     diva_data = combine_dicts_in_list(diva)
 
+    # If divisions are the same, just return one dataframe
+    if divh == diva:
+        divs = [divh_data]
+    else:
+        divs = [divh_data, diva_data]
+
     df_results = []
-    for teams in [divh_data, diva_data]:
+    for teams in divs:
         standings_cols = ['Tm', 'W', 'L', 'last10', 'gb',
                           'div', 'Strk', 'Home', 'Road', 'W-L%']
         df = pd.DataFrame(teams)[standings_cols]
@@ -401,10 +406,6 @@ def standings(home, away):
         df.drop('Home', axis=1, inplace=True)
         df.drop('Road', axis=1, inplace=True)
         df_results.append(df)
-
-    # If divisions are the same, just return one dataframe
-    if divh == diva:
-        df_results.pop()
 
     return df_results
 

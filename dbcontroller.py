@@ -5,7 +5,7 @@ import re
 from utils import convert_name, find_earlier_date
 
 class DBController:
-    def __init__(self, test=False):
+    def __init__(self, test=True):
         if test:
             address='localhost'
             port=27017
@@ -44,16 +44,16 @@ class DBController:
         Return WAR stats for player
         """
         if kind == 'batter':
-            war  = '${}.bat.bat_WAR'.format(year)
-            off  = '${}.bat.Off'.format(year)
-            def_ = '${}.bat.Def'.format(year)
+            war  = '$fg.bat.{}.bat_WAR'.format(year)
+            off  = '$fg.bat.{}.Off'.format(year)
+            def_ = '$fg.bat.{}.Def'.format(year)
             res = self._db.Players.aggregate([{'$match': {'Name' : player}},
                                               {'$project': {'_id' : 0,
                                                             'war' : war,
                                                             'off' : off,
                                                             'def' : def_}}])
         elif kind == 'pitcher':
-            war = '${}.pit.pit_WAR'.format(year)
+            war = '$fg.pit.{}.pit_WAR'.format(year)
             res = self._db.Players.aggregate([{'$match': {'Name' : player}},
                                               {'$project': {'_id' : 0,
                                                             'war' : war}}])
@@ -157,7 +157,7 @@ class DBController:
 
         lb = self._db.Players.find({}).sort(sort_key, -1).limit(n)
 
-        return [x[str(year)][kind] for x in lb]
+        return [x['fg'][kind][str(year)] for x in lb]
 
     def get_top_n_homerun_leaders(self, year, n):
         sort_key = '{}.bat.HR'.format(year)
@@ -168,10 +168,10 @@ class DBController:
         Return list of  starter or reliver object ids
         """
         cond    = '$lt' if role=='reliever' else '$gt'
-        gp      = '{}.{}.pit_G'.format(year, kind)
-        war_val = '${}.{}.pit_WAR'.format(year, kind)
-        gp_val  = '${}.{}.pit_G'.format(year, kind)
-        gs_val  = '${}.{}.GS'.format(year, kind)
+        gp      = 'fg.{}.{}.pit_G'.format(kind, year)
+        war_val = '$fg.{}.{}.pit_WAR'.format(kind, year)
+        gp_val  = '$fg.{}.{}.pit_G'.format(kind, year)
+        gs_val  = '$fg.{}.{}.GS'.format(kind, year)
 
         objs = self._db.Players.aggregate([{'$match' : {gp: {'$gt':  0}}},
                                            {'$project':
@@ -191,13 +191,13 @@ class DBController:
         stat: 'pit_WAR', 'ERA', or any other stat
         """
         stat = 'pit_WAR' if stat == 'WAR' else stat
-        sort_key = '{}.pit.{}'.format(year, stat)
+        sort_key = 'fg.pit.{}.{}'.format(year, stat)
         ids = self.get_starters_or_relievers(role=role, year=year, kind='pit')
         sort_direction = 1 if ascending else -1
 
         res = self._db.Players.find({'_id' : {'$in' : ids}})\
                               .sort(sort_key, sort_direction).limit(n)
-        return [x[str(year)]['pit'] for x in res]
+        return [x['fg']['pit'][str(year)] for x in res]
 
     def get_elo_stats(self):
         rating   = '$elo.elo_rating'

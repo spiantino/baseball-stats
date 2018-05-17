@@ -100,7 +100,7 @@ def fangraphs(state, year):
                 continue
 
         # Insert row into database
-        db_path = '{}.{}'.format(year, state)
+        db_path = 'fg.{}.{}'.format(state, year)
         db.Players.update({'Name': player},
                           {'$set' : {db_path : db_data}}, upsert=True)
 
@@ -253,8 +253,8 @@ def forty_man(team, year):
     baseball-reference.com
     """
     team = convert_name(name=team, how='abbr')
-    url = "http://www.baseball-reference.com/teams/{}/{}-roster.shtml"\
-                                                    .format(team, year)
+    base = "http://www.baseball-reference.com"
+    url = base + "/teams/{}/{}-roster.shtml".format(team, year)
     soup = open_url(url)
 
     table = soup.find('table', {'id' : 'the40man'})
@@ -273,13 +273,43 @@ def forty_man(team, year):
                     {'$set': {db_array : []}})
 
     # Extract forty-man roster and push to database
-    for row in trows:
+    for row in tqdm(trows):
         row_data = [x.text for x in
                     row.find_all(lambda tag: tag.has_attr('data-stat'))]
         db_data = {k:v for k,v in zip(cols, row_data)}
         db.Teams.update({'Tm' : team},
                         {'$push': {db_array : db_data}})
 
+        # Scrape each player page
+        name = db_data['Name']
+        id_ = row.find('a')['href']
+        brID = id_.split('=')[-1]
+
+        url = base + id_
+        redirect = requests.get(url).url
+        soup = open_url(redirect)
+
+        table = soup.find('div', {'class' : 'table_outer_container'})
+
+        thead = table.find('thead')
+        pcols = [x.text for x in thead.find_all('th')]
+        pit_or_bat = table.find('caption').text
+
+        tbody  = table.find('tbody')
+        ptrows = tbody.find_all('tr')
+
+        # Push to Players collection
+        for prow in ptrows:
+            if prow.find('th', {'data-stat' : 'year_ID'}).text:
+                prow_data = [x.text for x in prow.find_all(lambda tag:
+                                              tag.has_attr('data-stat'))]
+                pdb_data = {k:v for k,v in zip(pcols, prow_data)}
+                pdb_array = 'br.{}.{}'.format(pit_or_bat, pdb_data['Year'])
+
+                db.Players.update({'Name' : name},
+                                  {'$set' : {'brID' : brID,
+                                             pdb_array : pdb_data}},
+                                                         upsert=True)
 
 def current_injuries(team):
     """
@@ -644,32 +674,39 @@ def league_elo():
         db.Teams.update({'Tm' : tm},
                         {'$push': {'elo' : db_data}})
 
+def players():
+    """
+    !!! Make this helper function inside forty_man() ?
+    Player stats from baseball-reference.com
+    """
+    pass
+
 
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    game_previews()
+    # game_previews()
 
-    print("Scraping past boxscores...")
-    boxscores(date='all')
+    # print("Scraping past boxscores...")
+    # boxscores(date='all')
 
     print("Scraping batter and pitcher leaderboards")
     fangraphs('bat', year)
     fangraphs('pit', year)
 
-    print("Scraping league elo and division standings")
-    league_elo()
-    standings()
+    # print("Scraping league elo and division standings")
+    # league_elo()
+    # standings()
 
-    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
     teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
              'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
              'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
              'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
              'col', 'kcr', 'det', 'min', 'chw', 'nyy']
     for team in tqdm(teams):
-        schedule(team)
+    #     schedule(team)
+    #     pitching_logs(team, year)
+    #     current_injuries(team)
+    #     transactions(team, year)
         forty_man(team, year)
-        pitching_logs(team, year)
-        current_injuries(team)
-        transactions(team, year)
