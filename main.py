@@ -1,12 +1,14 @@
-import scrape
+
 import argparse
 import datetime
 import pandas as pd
 import unidecode
-from collections import defaultdict
+import scrape
 
+from collections import defaultdict
 from dbcontroller import DBController
 from utils import combine_dicts_in_list
+from latex import Latex
 
 
 def summary_table(data, year):
@@ -116,27 +118,33 @@ def summary_table(data, year):
     away_pit_stats = dbc.get_player(away_pit_name)[year]['pit']
     home_pit_stats = dbc.get_player(home_pit_name)[year]['pit']
 
-    pit_cols = ['Name', 'pit_WAR', 'W', 'L', 'ERA',
+    pit_cols = ['Team', 'R/L', '#', 'Name', 'pit_WAR', 'W', 'L', 'ERA',
                 'IP', 'K/9', 'BB/9', 'HR/9', 'GB%']
 
     away_pit_data = {k:v for k,v in away_pit_stats.items() if k in pit_cols}
 
     home_pit_data = {k:v for k,v in home_pit_stats.items() if k in pit_cols}
 
-    away_pit_data['Name'] = '{} {} {} {}'.format(away_abbr,
-                                                 away_pit_hand,
-                                                 away_pit_num,
-                                                 away_pit_name)
+    away_pit_data['Team'] = away_abbr
+    away_pit_data['Name'] = away_pit_name
+    away_pit_data['R/L'] = away_pit_hand
+    away_pit_data['#'] = away_pit_num
 
-    home_pit_data['Name'] = '{} {} {} {}'.format(home_abbr,
-                                                 home_pit_hand,
-                                                 home_pit_num,
-                                                 home_pit_name)
+    home_pit_data['Team'] = home_abbr
+    home_pit_data['Name'] = home_pit_name
+    home_pit_data['R/L'] = home_pit_hand
+    home_pit_data['#'] = home_pit_num
 
     pit_df = pd.DataFrame([away_pit_data, home_pit_data])
     pit_df = pit_df[pit_cols].rename({'pit_WAR' : 'WAR'}, axis='columns')
 
-    return (game_number, title, details, condition, temp, wind, pit_df)
+    return {'game' : game_number, 
+            'title' : title, 
+            'details' : details,
+            'condition' : condition, 
+            'temp' : temp, 
+            'wind' : wind, 
+            'pit_df': pit_df}
 
 
 def rosters(who, data, year):
@@ -502,7 +510,6 @@ if __name__ == '__main__':
 
     # Query upcomming game and populate data
     game = dbc.get_team_game_preview(team=args.team, date=args.date)
-    game = dbc.get_team_game_preview(team=args.team, date='2018-04-20')
 
     try:
         game_data = list(game)[0]
@@ -525,64 +532,70 @@ if __name__ == '__main__':
     elo = elo()
     pitcher_history = pitcher_history(team=args.team)
 
-    print(summary)
-    print(starters)
-    print(bench)
-    print(bullpen)
+    # print(summary)
+    # print(starters)
+    # print(bench)
+    # print(bullpen)
+    # for table in standings:
+    #     print(table)
+    # print(history[0])
+    # print(history[1])
+    # print(bat_df)
+    # print(pit_df)
+    # print(era_df)
+    # print(rel_df)
+    # print(hr_df)
+    # print(elo)
+    # print(pitcher_history)
+
+    l = Latex("{}-{}.tex".format(args.team, args.date))
+    l.header()
+    l.title(summary)
+    l.add_section("{} Lineup".format(away))
+    l.add_table(starters[0])
+    l.add_subsection("{} Bench".format(away))
+    l.add_table(bench[0])
+    l.add_subsection("{} Bullpen".format(away))
+    l.add_table(bullpen[0])
+
+    l.add_section("{} Lineup".format(home))
+    l.add_table(starters[1])
+    l.add_subsection("{} Bench".format(home))
+    l.add_table(bench[1])
+    l.add_subsection("{} Bullpen".format(home))
+    l.add_table(bullpen[1])
+
+    l.add_section("{} Recent Starts".format(args.team))
+    l.add_table(pitcher_history)
+    
+    l.add_section("Standings")
     for table in standings:
-        print(table)
-    print(history[0])
-    print(history[1])
-    print(bat_df)
-    print(pit_df)
-    print(era_df)
-    print(rel_df)
-    print(hr_df)
-    print(elo)
-    print(pitcher_history)
+        l.add_table(table)
+    l.add_subsection("{} Game Log".format(away))
+    l.add_table(history[0])
+    l.add_subsection("{} Game Log".format(home))
+    l.add_table(history[1])
 
-    # import jinja2
-    # import os
-    # import subprocess
-    # import shutil
-    # from jinja2 import Template
-    # latex_jinja_env = jinja2.Environment(
-    #                     block_start_string = '\BLOCK{',
-    #                     block_end_string = '}',
-    #                     variable_start_string = '\VAR{',
-    #                     variable_end_string = '}',
-    #                     comment_start_string = '\#{',
-    #                     comment_end_string = '}',
-    #                     line_statement_prefix = '%%',
-    #                     line_comment_prefix = '%#',
-    #                     trim_blocks = True,
-    #                     autoescape = False,
-    #                     loader = jinja2.FileSystemLoader(os.path.abspath('.'))
-    # )
-    # template = latex_jinja_env.get_template('template.tex')
-    # # render = template.render(elo=elo.to_latex())
+    l.add_section("Batting Leaderboards")
+    l.add_subsection("WAR")
+    l.add_table(bat_df)
+    l.add_subsection("HR")
+    l.add_table(hr_df)
+    
+    l.add_section("Pitching Leaderboards")
+    l.add_subsection("WAR")
+    l.add_table(pit_df)
+    l.add_subsection("WAR - Relivers")
+    l.add_table(rel_df)
+    l.add_subsection("ERA")
+    l.add_table(era_df)
 
-    # def compile_pdf_from_template(template, insert_variables, out_path):
-    #     """Render a template file and compile it to pdf"""
+    l.add_section("ELO Ratings")
+    l.add_table(elo)
 
-    #     rendered_template = template.render(**insert_variables)
-    #     build_d = os.path.join(os.path.dirname(os.path.realpath(out_path)), '.build')
-    #     print(build_d)
-    #     if not os.path.exists(build_d):  # create the build directory if not exisiting
-    #         os.makedirs(build_d)
+    l.footer()
+    l.make_pdf()
 
-    #     temp_out = os.path.join(build_d, "tmp")
-    #     with open(temp_out+'.tex', "w") as f:  # saves tex_code to output file
-    #         f.write(rendered_template)
-
-    #     # subprocess.check_call(['pdflatex', '{}/{}.tex'.format(build_d,
-    #                                                           # temp_out)])
-
-
-    #     os.system('pdflatex -output-directory {} {}'.format(build_d, temp_out+'.tex'))
-    #     shutil.copy2(temp_out+".pdf", os.path.relpath(out_path))
-
-    # compile_pdf_from_template(template, {'elo': elo.to_latex(index=False)}, out_path='./test.pdf')
 
 
 
