@@ -3,6 +3,8 @@ import argparse
 import datetime
 import pandas as pd
 import unidecode
+import matplotlib.pyplot as plt
+import matplotlib.dates as dates
 import scrape
 
 from collections import defaultdict
@@ -39,7 +41,7 @@ def summary_table(data, year):
                        ['away']['record']['leagueRecord']
     except:
         home_rec = data['preview'][0]['gameData']\
-                       ['teams']['away']['record']
+                       ['teams']['home']['record']
 
         away_rec = data['preview'][0]['gameData']\
                        ['teams']['away']['record']
@@ -138,12 +140,12 @@ def summary_table(data, year):
     pit_df = pd.DataFrame([away_pit_data, home_pit_data])
     pit_df = pit_df[pit_cols].rename({'pit_WAR' : 'WAR'}, axis='columns')
 
-    return {'game' : game_number, 
-            'title' : title, 
+    return {'game' : game_number,
+            'title' : title,
             'details' : details,
-            'condition' : condition, 
-            'temp' : temp, 
-            'wind' : wind, 
+            'condition' : condition,
+            'temp' : temp,
+            'wind' : wind,
             'pit_df': pit_df}
 
 
@@ -358,10 +360,69 @@ def pitcher_history(team):
     return df
 
 
-def chart_gb():
-    # chart for games behind
-    pass
+def games_behind_data(home, away):
+    """
+    Get Games Behind data form a team's
+    Schedule array in the Teams collection
+    """
+    gbh = dbc.get_games_behind_history(home)
+    gba = dbc.get_games_behind_history(away)
 
+    gbh_data = combine_dicts_in_list(gbh)
+    gba_data = combine_dicts_in_list(gba)
+
+    gbh_df = pd.DataFrame(gbh_data)
+    gba_df = pd.DataFrame(gba_data)
+
+    def find_date(x):
+        months = {'Jan' : 'Janurary',
+                  'Feb' : 'February',
+                  'Mar' : 'March',
+                  'Apr' : 'April',
+                  'May' : 'May',
+                  'Jun' : 'June',
+                  'Jul' : 'July',
+                  'Aug' : 'August',
+                  'Sep' : 'September',
+                  'Oct' : 'October',
+                  'Nov' : 'November',
+                  'Dec' : 'December'}
+        m = months[x.split()[1]].strip()
+        d = x.split()[2].strip()
+        y = datetime.date.today().strftime('%Y')
+        datestr = '{} {} {}'.format(m,d,y)
+        return datetime.datetime.strptime(datestr, '%B %d %Y')
+
+    gbh_df['Date'] = gbh_df.Date.apply(lambda x: find_date(x))
+    gba_df['Date'] = gba_df.Date.apply(lambda x: find_date(x))
+
+    # Drop duplicate rows (double headers)
+    gbh_df = gbh_df.drop_duplicates()
+    gba_df = gba_df.drop_duplicates()
+
+    def fill_missing_dates(df):
+        df = df.set_index('Date')
+        start, end = df.index[0], df.index[-1]
+        idx = pd.date_range(start, end)
+        df = df.reindex(idx, fill_value=None)
+        df = df.fillna(method='ffill')
+        df = df.reset_index().rename(columns={'index' : 'Date'})
+        return df
+
+    dfh = fill_missing_dates(gbh_df)
+    dfa = fill_missing_dates(gba_df)
+
+    # Normalize games behind column
+    def norm_gb(x):
+        return 0 if x.split()[0] in ['up', 'Tied'] else x
+
+    dfh['GB'] = dfh.GB.apply(lambda x: norm_gb(x))
+    dfa['GB'] = dfa.GB.apply(lambda x: norm_gb(x))
+
+    # Make plots
+    h_plot = plt.plot(dfh['Date'], dfh['GB'])
+    a_plot = plt.plot(dfa['Date'], dfa['GB'])
+     return [h_plot, a_plot]
 
 
 def standings(home, away):
@@ -550,6 +611,7 @@ if __name__ == '__main__':
     # print(pitcher_history)
 
     l = Latex("{}-{}.tex".format(args.team, args.date))
+    l.add_input('test.pgf')
     l.header()
     l.title(summary)
     l.add_section("{} Lineup".format(away))
@@ -568,7 +630,7 @@ if __name__ == '__main__':
 
     l.add_section("{} Recent Starts".format(args.team))
     l.add_table(pitcher_history)
-    
+
     l.add_section("Standings")
     for table in standings:
         l.add_table(table)
@@ -582,7 +644,7 @@ if __name__ == '__main__':
     l.add_table(bat_df)
     l.add_subsection("HR")
     l.add_table(hr_df)
-    
+
     l.add_section("Pitching Leaderboards")
     l.add_subsection("WAR")
     l.add_table(pit_df)

@@ -135,16 +135,21 @@ class DBController:
                                              {'home' : abbrB,
                                               'away' : abbrA}]})
 
-    # def get_game_history(self, team):
-    #     """
-    #     Return game histories
-    #     Queries the Schedule doc from Teams collection
-    #     """
-    #     abbr = convert_name(team, how='abbr')
-    #     return dbc._db.Teams.aggregate([{'$match': {'Tm' : abbr}},
-    #                                     {'$project':
-    #                                                 {'_id'      : 0,
-    #                                                  'Schedule' : 1}}])
+    def get_games_behind_history(self, team):
+        """
+        Queries the Schedule doc from Teams collection
+        Returns the Date and Games Behind values
+        """
+        abbr = convert_name(team, how='abbr')
+        res = self._db.Teams.aggregate([{'$match': {'Tm' : abbr}},
+                                        {'$unwind': '$Schedule'},
+                                        {'$project':
+                                            {'_id' : 0,
+                                             'Date' : '$Schedule.Date',
+                                             'GB': '$Schedule.GB'}}])
+        hist = [x for x in list(res) if 'GB' in x.keys()]
+        return hist
+
 
     def get_top_n_leaders(self, kind, stat, year, n):
         """
