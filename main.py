@@ -422,7 +422,7 @@ def games_behind_data(home, away):
     # Make plots
     h_plot = plt.plot(dfh['Date'], dfh['GB'])
     a_plot = plt.plot(dfa['Date'], dfa['GB'])
-     return [h_plot, a_plot]
+    return [h_plot, a_plot]
 
 
 def standings(home, away):
