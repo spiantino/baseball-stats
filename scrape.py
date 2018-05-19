@@ -165,6 +165,7 @@ def standings():
             # Insert row into database
             db.Teams.update({'Tm' : team}, db_data, upsert=True)
 
+
 def schedule(team):
     """
     Scrape yankees schedule with results
@@ -310,6 +311,7 @@ def forty_man(team, year):
                                   {'$set' : {'brID' : brID,
                                              pdb_array : pdb_data}},
                                                          upsert=True)
+
 
 def current_injuries(team):
     """
@@ -472,13 +474,42 @@ def boxscores(date, dbc=dbc):
         home = convert_name(home, how='abbr')
         teams = (away, home)
 
+        # # Find mlb game id and resolve double headers
+        # id_ = game.split('.')[0][-1]
+        # idx = int(id_) - 1 if id_ != 0 else 0
+        # existing = list(dbc.get_team_game_preview(away, date))
+        # if len(existing) == 1:
+        #     idx = 0
+        # gid = existing[idx]['gid']
+
         # Find mlb game id and resolve double headers
         id_ = game.split('.')[0][-1]
         idx = int(id_) - 1 if id_ != 0 else 0
-        existing = list(dbc.get_team_game_preview(away, date))
-        if len(existing) == 1:
-            idx = 0
-        gid = existing[idx]['gid']
+        games = list(dbc.get_team_game_preview(away, date))
+
+        if len(games) > 1:
+            times = [''.join(
+                        (game['preview'][0]['gameData']['datetime']['time'],
+                         game['preview'][0]['gameData']['datetime']['ampm']))
+                     for game in games]
+
+            # Convert strings to datetime
+            dts = [datetime.datetime.strptime(x, '%I:%M%p') for x in times]
+
+            # Add indices
+            dts_with_idx = zip(dts, range(len(times)))
+
+            # Sort by earliest time
+            times_ordered = sorted(dts_with_idx, key=lambda x: x[0])
+
+            # Get index of the correct game
+            gidx = times_ordered[idx][1]
+
+        else:   # Not a double header
+            gidx = 0
+
+        gid = games[gidx]['gid']
+
 
         # Extract summary stats
         summary = soup.find('table', {'class' : 'linescore'})
@@ -673,13 +704,6 @@ def league_elo():
 
         db.Teams.update({'Tm' : tm},
                         {'$push': {'elo' : db_data}})
-
-def players():
-    """
-    !!! Make this helper function inside forty_man() ?
-    Player stats from baseball-reference.com
-    """
-    pass
 
 
 if __name__ == '__main__':
