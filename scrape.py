@@ -273,44 +273,44 @@ def forty_man(team, year):
     db.Teams.update({'Tm' : team},
                     {'$set': {db_array : []}})
 
-    # Extract forty-man roster and push to database
-    for row in tqdm(trows):
-        row_data = [x.text for x in
-                    row.find_all(lambda tag: tag.has_attr('data-stat'))]
-        db_data = {k:v for k,v in zip(cols, row_data)}
-        db.Teams.update({'Tm' : team},
-                        {'$push': {db_array : db_data}})
+    # # Extract forty-man roster and push to database
+    # for row in tqdm(trows):
+    #     row_data = [x.text for x in
+    #                 row.find_all(lambda tag: tag.has_attr('data-stat'))]
+    #     db_data = {k:v for k,v in zip(cols, row_data)}
+    #     db.Teams.update({'Tm' : team},
+    #                     {'$push': {db_array : db_data}})
 
-        # Scrape each player page
-        name = db_data['Name']
-        id_ = row.find('a')['href']
-        brID = id_.split('=')[-1]
+    #     # Scrape each player page
+    #     name = db_data['Name']
+    #     id_ = row.find('a')['href']
+    #     brID = id_.split('=')[-1]
 
-        url = base + id_
-        redirect = requests.get(url).url
-        soup = open_url(redirect)
+    #     url = base + id_
+    #     redirect = requests.get(url).url
+    #     soup = open_url(redirect)
 
-        table = soup.find('div', {'class' : 'table_outer_container'})
+    #     table = soup.find('div', {'class' : 'table_outer_container'})
 
-        thead = table.find('thead')
-        pcols = [x.text for x in thead.find_all('th')]
-        pit_or_bat = table.find('caption').text
+    #     thead = table.find('thead')
+    #     pcols = [x.text for x in thead.find_all('th')]
+    #     pit_or_bat = table.find('caption').text
 
-        tbody  = table.find('tbody')
-        ptrows = tbody.find_all('tr')
+    #     tbody  = table.find('tbody')
+    #     ptrows = tbody.find_all('tr')
 
-        # Push to Players collection
-        for prow in ptrows:
-            if prow.find('th', {'data-stat' : 'year_ID'}).text:
-                prow_data = [x.text for x in prow.find_all(lambda tag:
-                                              tag.has_attr('data-stat'))]
-                pdb_data = {k:v for k,v in zip(pcols, prow_data)}
-                pdb_array = 'br.{}.{}'.format(pit_or_bat, pdb_data['Year'])
+    #     # Push to Players collection
+    #     for prow in ptrows:
+    #         if prow.find('th', {'data-stat' : 'year_ID'}).text:
+    #             prow_data = [x.text for x in prow.find_all(lambda tag:
+    #                                           tag.has_attr('data-stat'))]
+    #             pdb_data = {k:v for k,v in zip(pcols, prow_data)}
+    #             pdb_array = 'br.{}.{}'.format(pit_or_bat, pdb_data['Year'])
 
-                db.Players.update({'Name' : name},
-                                  {'$set' : {'brID' : brID,
-                                             pdb_array : pdb_data}},
-                                                         upsert=True)
+    #             db.Players.update({'Name' : name},
+    #                               {'$set' : {'brID' : brID,
+    #                                          pdb_array : pdb_data}},
+    #                                                      upsert=True)
 
 
 def current_injuries(team):
@@ -474,42 +474,16 @@ def boxscores(date, dbc=dbc):
         home = convert_name(home, how='abbr')
         teams = (away, home)
 
-        # # Find mlb game id and resolve double headers
-        # id_ = game.split('.')[0][-1]
-        # idx = int(id_) - 1 if id_ != 0 else 0
-        # existing = list(dbc.get_team_game_preview(away, date))
-        # if len(existing) == 1:
-        #     idx = 0
-        # gid = existing[idx]['gid']
-
         # Find mlb game id and resolve double headers
-        id_ = game.split('.')[0][-1]
-        idx = int(id_) - 1 if id_ != 0 else 0
+        url_id = int(game.split('.')[0][-1])
         games = list(dbc.get_team_game_preview(away, date))
-
-        if len(games) > 1:
-            times = [''.join(
-                        (game['preview'][0]['gameData']['datetime']['time'],
-                         game['preview'][0]['gameData']['datetime']['ampm']))
-                     for game in games]
-
-            # Convert strings to datetime
-            dts = [datetime.datetime.strptime(x, '%I:%M%p') for x in times]
-
-            # Add indices
-            dts_with_idx = zip(dts, range(len(times)))
-
-            # Sort by earliest time
-            times_ordered = sorted(dts_with_idx, key=lambda x: x[0])
-
-            # Get index of the correct game
-            gidx = times_ordered[idx][1]
-
-        else:   # Not a double header
-            gidx = 0
-
-        gid = games[gidx]['gid']
-
+        gnums = [int(game['preview'][0]['gameData']['game']['gameNumber'])
+                                                       for game in games]
+        try:
+            idx = gnums.index(url_id) if url_id > 0 else 0
+        except:
+            idx = 0
+        gid = games[idx]['gid']
 
         # Extract summary stats
         summary = soup.find('table', {'class' : 'linescore'})
@@ -714,23 +688,23 @@ if __name__ == '__main__':
     # print("Scraping past boxscores...")
     # boxscores(date='all')
 
-    print("Scraping batter and pitcher leaderboards")
-    fangraphs('bat', year)
-    fangraphs('pit', year)
+    # print("Scraping batter and pitcher leaderboards")
+    # fangraphs('bat', year)
+    # fangraphs('pit', year)
 
     # print("Scraping league elo and division standings")
-    # league_elo()
+    league_elo()
     # standings()
 
     # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
-             'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
-             'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
-             'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
-             'col', 'kcr', 'det', 'min', 'chw', 'nyy']
-    for team in tqdm(teams):
+    # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
+    #          'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
+    #          'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
+    #          'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
+    #          'col', 'kcr', 'det', 'min', 'chw', 'nyy']
+    # for team in tqdm(teams):
     #     schedule(team)
     #     pitching_logs(team, year)
     #     current_injuries(team)
     #     transactions(team, year)
-        forty_man(team, year)
+    #     forty_man(team, year)
