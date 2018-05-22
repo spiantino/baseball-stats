@@ -588,7 +588,6 @@ def game_previews(dbc=dbc):
 
     dates = dates.union(outdated)
     dates = sorted(list(dates))
-
     url_string = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}'
 
     urls = [(date, url_string.format(date)) for date in dates]
@@ -602,18 +601,32 @@ def game_previews(dbc=dbc):
         games_data = schedule_data['dates'][0]['games']
 
         # Gather all game urls
-        links = [(date, game['link']) for game in games_data]
-        game_urls += links
+        gdata = [(date, game['link'], game['status']['detailedState'])
+                                              for game in games_data]
+        # Only collect data on scheduled games (not postponed or other)
+        valid_states = ['Scheduled',
+                        'Pre-Game',
+                        'Warmup'
+                        'In Progress',
+                        'Final']
+        valid_games = [game for game in gdata if game[2] in valid_states]
+        game_urls += valid_games
+
+        # Remove postponed game docs from database
+        all_urls   = [g[1] for g in gdata]
+        valid_urls = [g[1] for g in valid_games]
+        invalid_urls = list(set(all_urls) - set(valid_urls))
+        invalid_gids  = [url.split('/')[4] for url in invalid_urls]
+        invalid_games = dbc.query_by_gids(invalid_gids)
+        if invalid_games.count():
+            dbc.remove_games(invalid_gids)
 
     # Collect data on all upcoming games
     print("Collecting game data on past and upcoming games...")
-    for date, url in tqdm(game_urls):
+    for date, url, state in tqdm(game_urls):
         game_url = 'https://statsapi.mlb.com' + url
         res = requests.get(game_url).text
         game_data = json.loads(res)
-
-        # Check if game has already started
-        state = game_data['gameData']['status']['detailedState']
 
         # Get HOME and AWAY team names
         if state == 'Scheduled':
@@ -622,6 +635,9 @@ def game_previews(dbc=dbc):
         else:
             home = game_data['gameData']['teams']['home']['name']['abbrev']
             away = game_data['gameData']['teams']['away']['name']['abbrev']
+
+        # Change game state to match state on the preview page
+        game_data['gameData']['status']['detailedState'] = state
 
         home = convert_name(home, how='abbr')
         away = convert_name(away, how='abbr')
@@ -683,7 +699,7 @@ def league_elo():
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    # game_previews()
+    game_previews()
 
     # print("Scraping past boxscores...")
     # boxscores(date='all')
@@ -693,7 +709,7 @@ if __name__ == '__main__':
     # fangraphs('pit', year)
 
     # print("Scraping league elo and division standings")
-    league_elo()
+    # league_elo()
     # standings()
 
     # print("Scraping schedule, roster, pitch logs, injuries, transactions...")

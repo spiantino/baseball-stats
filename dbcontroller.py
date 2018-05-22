@@ -150,7 +150,6 @@ class DBController:
         hist = [x for x in list(res) if 'GB' in x.keys()]
         return hist
 
-
     def get_top_n_leaders(self, kind, stat, year, n):
         """
         Query top 10 batting or pitching leaderboard
@@ -244,16 +243,24 @@ class DBController:
                                               {array : {'$exists' : False}}},
                                           {'$project':
                                               {'_id' : 0,
-                                               'date' : 1}}])
+                                               'date': 1}}])
         dates = set([x['date'] for x in data])
         return dates
 
+    # def delete_postponed_game_docs(self):
+    #     """529995
+    #     Delete Game doc if game has been postponed
+    #     but game state has not changed from "Scheduled"
+    #     """
+
+
     def find_outdated_game_dates(self):
         """
-        Return dates where games have not been updated
+        Return dates where games have not been updated.
+        Delete games that are postponed but state hasn't changed.
         """
         state = 'preview.gameData.status.detailedState'
-        old = self._db.Games.find({state : {'$nin' : ['Final', 'Scheduled']}})
+        old = self._db.Games.find({state : {'$nin' : ['Final']}})
         return set([x['date'] for x in old])
 
     def find_duplicate_game_docs(self):
@@ -282,5 +289,12 @@ class DBController:
             delete = find_earlier_date(games)
             self._db.Games.remove(delete)
 
+    def query_by_gids(self, gids):
+        """
+        Return Game docs given list of gids
+        """
+        return self._db.Games.find({'gid' : {'$in': gids}})
 
+    def remove_games(self, remove_this):
+        self._db.Games.remove({'gid': {'$in': remove_this}})
 

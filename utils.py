@@ -115,18 +115,19 @@ def combine_dicts_in_list(list_of_dicts):
             data[k].append(v)
     return data
 
+
 def find_earlier_date(list_with_dates):
-  """
-  Return object id that contains the earlier date
-  Input list contains dicts with '_id' and 'date' keys
-  """
-  id1 = list_with_dates[0]['_id']
-  id2 = list_with_dates[1]['_id']
+    """
+    Return object id that contains the earlier date
+    Input list contains dicts with '_id' and 'date' keys
+    """
+    id1 = list_with_dates[0]['_id']
+    id2 = list_with_dates[1]['_id']
 
-  date1 = list_with_dates[0]['date']
-  date2 = list_with_dates[1]['date']
+    date1 = list_with_dates[0]['date']
+    date2 = list_with_dates[1]['date']
 
-  date1 = datetime.datetime.strptime(date1, '%Y-%m-%d')
-  date2 = datetime.datetime.strptime(date2, '%Y-%m-%d')
+    date1 = datetime.datetime.strptime(date1, '%Y-%m-%d')
+    date2 = datetime.datetime.strptime(date2, '%Y-%m-%d')
 
-  return id1 if date1 < date2 else id2
+    return id1 if date1 < date2 else id2
