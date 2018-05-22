@@ -266,27 +266,24 @@ def bullpen(data, year):
 
     return (away_df, home_df)
 
-def game_history(home, away):
-    home = dbc.get_team(home)['Schedule']
-    away = dbc.get_team(away)['Schedule']
 
-    res = []
+def game_history(team):
+    sched = dbc.get_team(team)['Schedule']
+
     cols = ['Date', 'Time', 'Opp', 'Result', 'Score']
-    for team in [home, away]:
-        df = pd.DataFrame(team)
-        df = df.loc[df['']=='boxscore']
+    df = pd.DataFrame(sched)
+    df = df.loc[df['']=='boxscore']
 
-        df['Opp'] = df[['Field', 'Opp']].apply(lambda x:' '.join((x[0], x[1]))
-                                                           .strip(), axis=1)
+    df['Opp'] = df[['Field', 'Opp']].apply(lambda x:' '.join((x[0], x[1]))
+                                                       .strip(), axis=1)
 
-        df['Score'] = df[['R', 'RA']].apply(lambda x:''.join((x[0],'-',x[1])),
-                                                                     axis=1)
+    df['Score'] = df[['R', 'RA']].apply(lambda x:''.join((x[0],'-',x[1])),
+                                                                 axis=1)
 
-        df = df.rename({'W/L' : 'Result'}, axis=1)
-        df = df[cols]
-        res.append(df)
+    df = df.rename({'W/L' : 'Result'}, axis=1)
+    df = df[cols]
 
-    return res
+    return df
 
 
 def get_past_game_dates(team, n=10):
@@ -585,7 +582,8 @@ if __name__ == '__main__':
     bench     = rosters(who='bench', data=game_data, year=year)
     bullpen   = bullpen(data=game_data, year=year)
     standings = standings(home, away)
-    history = game_history(home, away)
+    ahistory = game_history(away)
+    hhistory = game_history(home)
     bat_df = leaderboards(kind='bat', stat='WAR', n=10, role='starter')
     pit_df = leaderboards(kind='pit', stat='WAR', n=10, role='starter')
     era_df = leaderboards(kind='pit', stat='ERA', n=10, role='starter')
@@ -611,7 +609,6 @@ if __name__ == '__main__':
     # print(pitcher_history)
 
     l = Latex("{}-{}.tex".format(args.team, args.date))
-    l.add_input('test.pgf')
     l.header()
     l.title(summary)
     l.add_section("{} Lineup".format(away))
@@ -635,9 +632,9 @@ if __name__ == '__main__':
     for table in standings:
         l.add_table(table)
     l.add_subsection("{} Game Log".format(away))
-    l.add_table(history[0])
+    l.add_table(ahistory)
     l.add_subsection("{} Game Log".format(home))
-    l.add_table(history[1])
+    l.add_table(hhistory)
 
     l.add_section("Batting Leaderboards")
     l.add_subsection("WAR")
