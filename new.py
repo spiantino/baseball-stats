@@ -43,7 +43,7 @@ if __name__ == '__main__':
 
     # scrape leaderboards
     leaderboard('bat', 'fangraphs_bat_leaderboard')
-    # leaderboard('pit', 'fangraphs_pit_leaderboard')
+    leaderboard('pit', 'fangraphs_pit_leaderboard')
 
     print(s.get_key('fangraphs_bat_leaderboard'))
 

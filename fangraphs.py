@@ -25,10 +25,6 @@ def fangraphs(soup):
         
         db_rows.append(db_data)
 
-    import pprint
-    pprint.pprint(db_rows)
-    print(pandas.DataFrame(db_rows))
-
     return {
         'leaderboard': pandas.DataFrame(db_rows)
     }
