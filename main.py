@@ -164,6 +164,13 @@ def rosters(who, data, year):
     home_batter_ids = ['ID{}'.format(x) for x in home_batters]
 
     def generate_stats_table(batter_ids, team):
+        try:
+            team_name = data['preview'][0]['gameData']\
+                            ['teams'][team]['name']['abbrev']
+        except:
+            team_name = data['preview'][0]['gameData']\
+                            ['teams'][team]['abbreviation']
+
         df_cols = ['Order', 'Position', 'Number', 'Name',
                    'WAR', 'Slash line', 'HR', 'RBI',
                    'SB', 'Off WAR', 'Def WAR']
@@ -189,19 +196,25 @@ def rosters(who, data, year):
             slashline = '{}/{}/{}'.format(avg, obp, slg)
 
             # Query WAR stats from Players collection
-            try:
-                decoded = unidecode.unidecode(name)
-                war_stats = dbc.get_player_war(player=decoded,
-                                               kind='batter',
-                                               year=year)
-                war  = war_stats['war']
-                off  = war_stats['off']
-                def_ = war_stats['def']
-            except:
-                war  = 'N/A'
-                off  = 'N/A'
-                def_ = 'N/A'
-                print("{} not in Players collection".format(name))
+            decoded = unidecode.unidecode(name)
+            exists = dbc.player_exists(decoded)
+
+            if not exists:
+                print("Scraping stats for {}".format(name))
+                scrape.br_player_stats(decoded, team_name)
+                exists = dbc.player_exists(decoded)
+
+            if exists[0]['fg']:
+                war_stats = dbc.get_player_war_fg(player=decoded,
+                                                  kind='batter',
+                                                  year=year)
+            elif exists[0]['br']:
+                war_stats = dbc.get_player_war_br(player=decoded,
+                                                  kind='batter',
+                                                  year=year)
+            war  = war_stats['war']
+            off  = war_stats['off']
+            def_ = war_stats['def']
 
             df_data.append([order, pos, num, name, war,
                             slashline, hrs, rbi, sb, off, def_])
@@ -226,6 +239,13 @@ def bullpen(data, year):
     home_bullpen_ids = ['ID{}'.format(x) for x in home_bullpen]
 
     def generate_stats_table(bullpen_ids, team):
+        try:
+            team_name = data['preview'][0]['gameData']\
+                            ['teams'][team]['name']['abbrev']
+        except:
+            team_name = data['preview'][0]['gameData']\
+                            ['teams'][team]['abbreviation']
+
         df_cols = ['Name', 'Number', 'WAR', 'SV', 'ERA',
                    'IP', 'k/9', 'bb/9', 'hr/9', 'gb%']
         df_data = []
@@ -242,8 +262,14 @@ def bullpen(data, year):
 
             # Query stats from Players collection
             decoded = unidecode.unidecode(name)
+            exists = dbc.player_exists(decoded)
 
-            try:
+            if not exists:
+                print("Scraping stats for {}".format(name))
+                scrape.br_player_stats(decoded, team_name)
+                exists = dbc.player_exists(decoded)
+
+            if exists[0]['fg']:
                 pitstats = dbc.get_player(decoded)['fg']['pit'][year]
                 war = pitstats['pit_WAR']
                 sv  = pitstats['SV']
@@ -253,10 +279,31 @@ def bullpen(data, year):
                 bb9 = pitstats['BB/9']
                 hr9 = pitstats['HR/9']
                 gb  = pitstats['GB%']
-                df_data.append([decoded, num, war, sv, era,
-                            ip, k9, bb9, hr9, gb])
-            except:
-                print("{} not in Players collection".format(decoded))
+
+            elif exists[0]['br']:
+                try:
+                    sp  = dbc.get_player(decoded)\
+                                        ['br']['Standard Pitching'][year]
+                    pv  = dbc.get_player(decoded)\
+                                        ['br']['Pitching Value'][year]
+                    war = pv['WAR']
+                    sv  = sp['SV']
+                    era = sp['ERA']
+                    ip  = sp['IP']
+                    bb9 = sp['BB9']
+                    hr9 = sp['HR9']
+                    gb  ='N/A'
+                except:
+                    print("No {} data for {}".format(year, name))
+                    war = 'N/A'
+                    sv  = 'N/A'
+                    era = 'N/A'
+                    ip  = 'N/A'
+                    bb9 = 'N/A'
+                    hr9 = 'N/A'
+                    gb  = 'N/A'
+
+            df_data.append([decoded, num, war, sv, era, ip, k9, bb9, hr9, gb])
 
         df = pd.DataFrame(df_data, columns=df_cols)
         return df
@@ -598,8 +645,8 @@ if __name__ == '__main__':
     # print(bullpen)
     # for table in standings:
     #     print(table)
-    # print(history[0])
-    # print(history[1])
+    # print(ahistory)
+    # print(hhistory)
     # print(bat_df)
     # print(pit_df)
     # print(era_df)

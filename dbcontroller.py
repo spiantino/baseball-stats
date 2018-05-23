@@ -26,6 +26,37 @@ class DBController:
         return self._db.Players.find_one({'Name' :
                                           re.compile(player, re.IGNORECASE)})
 
+    def player_exists(self, player):
+        """
+        Check if player exists in Players collection.
+        Returns empty list if no player exists.
+        If player exists, returns dict showing if
+        br or fg data exists.
+        """
+        res = self._db.Players.aggregate([{'$match': {'Name': player}},
+                                          {'$project':
+                                              {'br': {'$ifNull': ['$br', 0]},
+                                               'fg': {'$ifNull': ['$fg', 0]}}}
+                                          ])
+        return list(res)
+
+    def get_player_brid(self, player, team, year=None):
+        """
+        Return Player BR ID from Teams collection
+        Player objects are in Fortyman array
+        """
+        year = self._current_year if not year else year
+        namepath = '$Fortyman.{}.Name'.format(year)
+        bidpath  = '$Fortyman.{}.bid'.format(year)
+
+        res = self._db.Teams.aggregate([{'$match': {'Tm': team}},
+                                        {'$unwind': '$Fortyman.2018'},
+                                        {'$project': {'_id' : 0,
+                                                      'bid' : bidpath,
+                                                      'name': namepath}},
+                                        {'$match': {'name': player}}])
+        return list(res)[0]['bid']
+
     def get_pitchers_by_game(self, team, date):
         """
         Return team pitcher data from Games collection
@@ -39,9 +70,9 @@ class DBController:
                                          {'$project': {'_id' : 0,
                                                        pitch : 1}}])
 
-    def get_player_war(self, player, kind, year):
+    def get_player_war_fg(self, player, kind, year):
         """
-        Return WAR stats for player
+        Return WAR stats from fangraphs
         """
         if kind == 'batter':
             war  = '$fg.bat.{}.bat_WAR'.format(year)
@@ -53,6 +84,27 @@ class DBController:
                                                             'off' : off,
                                                             'def' : def_}}])
         elif kind == 'pitcher':
+            war = '$fg.pit.{}.pit_WAR'.format(year)
+            res = self._db.Players.aggregate([{'$match': {'Name' : player}},
+                                              {'$project': {'_id' : 0,
+                                                            'war' : war}}])
+        return list(res)[0]
+
+    def get_player_war_br(self, player, kind , year):
+        """
+        Return WAR stats from baseball-reference
+        """
+        if kind == 'batter':
+            war  = '$br.Batting Value.{}.WAR'.format(year)
+            off  = '$br.Batting Value.{}.oWAR'.format(year)
+            def_ = '$br.Batting Value.{}.dWAR'.format(year)
+            res = self._db.Players.aggregate([{'$match': {'Name' : player}},
+                                              {'$project': {'_id' : 0,
+                                                            'war' : war,
+                                                            'off' : off,
+                                                            'def' : def_}}])
+        elif kind == 'pitcher':
+            war = '$br.Pitching Value.{}.WAR'.format(year)
             war = '$fg.pit.{}.pit_WAR'.format(year)
             res = self._db.Players.aggregate([{'$match': {'Name' : player}},
                                               {'$project': {'_id' : 0,

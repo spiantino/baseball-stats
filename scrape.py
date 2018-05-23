@@ -260,9 +260,10 @@ def forty_man(team, year):
 
     table = soup.find('table', {'id' : 'the40man'})
 
-    # Extract column headers
+    # Extract column headers and rename blank columns
     thead = table.find('thead')
     cols = [x.text for x in thead.find_all('th')]
+    cols[3], cols[4] = 'Country', 'Pos'
 
     # Extract body of fort man table
     tbody = table.find('tbody')
@@ -273,44 +274,70 @@ def forty_man(team, year):
     db.Teams.update({'Tm' : team},
                     {'$set': {db_array : []}})
 
-    # # Extract forty-man roster and push to database
-    # for row in tqdm(trows):
-    #     row_data = [x.text for x in
-    #                 row.find_all(lambda tag: tag.has_attr('data-stat'))]
-    #     db_data = {k:v for k,v in zip(cols, row_data)}
-    #     db.Teams.update({'Tm' : team},
-    #                     {'$push': {db_array : db_data}})
+    # Extract forty-man roster and push to database
+    for row in tqdm(trows):
+        bid = row.find('a')['href'].split('=')[-1]
+        row_data = [x.text for x in
+                    row.find_all(lambda tag: tag.has_attr('data-stat'))]
+        db_data = {k:v for k,v in zip(cols, row_data)}
+        db_data.update({'bid' : bid})
+        db.Teams.update({'Tm' : team},
+                        {'$push': {db_array : db_data}})
 
-    #     # Scrape each player page
-    #     name = db_data['Name']
-    #     id_ = row.find('a')['href']
-    #     brID = id_.split('=')[-1]
+def br_player_stats(name, team):
+    brid = dbc.get_player_brid(name, team)
+    base = 'https://www.baseball-reference.com/redirect.fcgi?player=1&mlb_ID='
+    url = base + brid
 
-    #     url = base + id_
-    #     redirect = requests.get(url).url
-    #     soup = open_url(redirect)
+    redirect = requests.get(url).url
+    soup = open_url(redirect)
 
-    #     table = soup.find('div', {'class' : 'table_outer_container'})
+    # Extract Standard Batting/Pitching table
+    table = soup.find('div', {'class' : 'table_outer_container'})
 
-    #     thead = table.find('thead')
-    #     pcols = [x.text for x in thead.find_all('th')]
-    #     pit_or_bat = table.find('caption').text
+    thead = table.find('thead')
+    cols = [x.text for x in thead.find_all('th')]
+    pit_or_bat = table.find('caption').text
 
-    #     tbody  = table.find('tbody')
-    #     ptrows = tbody.find_all('tr')
+    tbody  = table.find('tbody')
+    trows = tbody.find_all('tr')
 
-    #     # Push to Players collection
-    #     for prow in ptrows:
-    #         if prow.find('th', {'data-stat' : 'year_ID'}).text:
-    #             prow_data = [x.text for x in prow.find_all(lambda tag:
-    #                                           tag.has_attr('data-stat'))]
-    #             pdb_data = {k:v for k,v in zip(pcols, prow_data)}
-    #             pdb_array = 'br.{}.{}'.format(pit_or_bat, pdb_data['Year'])
+    # Push to Players collection
+    for row in trows:
+        if row.find('th', {'data-stat' : 'year_ID'}).text:
+            row_data = [x.text for x in row.find_all(lambda tag:
+                                        tag.has_attr('data-stat'))]
+            db_data = {k:v for k,v in zip(cols, row_data)}
+            db_array = 'br.{}.{}'.format(pit_or_bat, db_data['Year'])
 
-    #             db.Players.update({'Name' : name},
-    #                               {'$set' : {'brID' : brID,
-    #                                          pdb_array : pdb_data}},
-    #                                                      upsert=True)
+            db.Players.update({'Name' : name},
+                              {'$set' : {'brID' : brid,
+                                         db_array : db_data}}, upsert=True)
+
+    # Extract Player Value Table - Stored in html comment
+    comment = soup.find_all(string=lambda text: isinstance(text, Comment))
+    comment_html = [x for x in comment if 'Player Value' in x]
+
+    for c in comment_html:
+        table = BeautifulSoup(c.string, "html.parser")
+
+        table_name = table.find('caption').text.replace('--', ' ').split()
+        title = '{} {}'.format(table_name[2], table_name[1])
+
+        thead = table.find('thead')
+        cols = [x.text for x in thead.find_all('th')]
+
+        tbody = table.find('tbody')
+        trows = tbody.find_all('tr')
+
+        for row in trows:
+            row_data = [x.text for x in
+                        row.find_all(lambda tag: tag.has_attr('data-stat'))]
+            db_data = {k:v for k,v in zip(cols, row_data)}
+            db_array = 'br.{}.{}'.format(title, db_data['Year'])
+
+            db.Players.update({'brID' : brid},
+                              {'$set' : {db_array : db_data}}, upsert=True)
 
 
 def current_injuries(team):
@@ -479,6 +506,8 @@ def boxscores(date, dbc=dbc):
         games = list(dbc.get_team_game_preview(away, date))
         gnums = [int(game['preview'][0]['gameData']['game']['gameNumber'])
                                                        for game in games]
+
+        # !!! remove try/except here since postponed games are now removed?
         try:
             idx = gnums.index(url_id) if url_id > 0 else 0
         except:
@@ -588,6 +617,7 @@ def game_previews(dbc=dbc):
 
     dates = dates.union(outdated)
     dates = sorted(list(dates))
+
     url_string = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}'
 
     urls = [(date, url_string.format(date)) for date in dates]
@@ -701,26 +731,26 @@ if __name__ == '__main__':
 
     game_previews()
 
-    # print("Scraping past boxscores...")
-    # boxscores(date='all')
+    print("Scraping past boxscores...")
+    boxscores(date='all')
 
-    # print("Scraping batter and pitcher leaderboards")
-    # fangraphs('bat', year)
-    # fangraphs('pit', year)
+    print("Scraping batter and pitcher leaderboards")
+    fangraphs('bat', year)
+    fangraphs('pit', year)
 
-    # print("Scraping league elo and division standings")
-    # league_elo()
-    # standings()
+    print("Scraping league elo and division standings")
+    league_elo()
+    standings()
 
-    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
-    #          'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
-    #          'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
-    #          'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
-    #          'col', 'kcr', 'det', 'min', 'chw', 'nyy']
-    # for team in tqdm(teams):
-    #     schedule(team)
-    #     pitching_logs(team, year)
-    #     current_injuries(team)
-    #     transactions(team, year)
-    #     forty_man(team, year)
+    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
+             'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
+             'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
+             'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
+             'col', 'kcr', 'det', 'min', 'chw', 'nyy']
+    for team in tqdm(teams):
+        schedule(team)
+        pitching_logs(team, year)
+        current_injuries(team)
+        transactions(team, year)
+        forty_man(team, year)
