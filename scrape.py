@@ -633,13 +633,15 @@ def game_previews(dbc=dbc):
         # Gather all game urls
         gdata = [(date, game['link'], game['status']['detailedState'])
                                               for game in games_data]
+        print(gdata)
         # Only collect data on scheduled games (not postponed or other)
         valid_states = ['Scheduled',
                         'Pre-Game',
-                        'Warmup'
+                        'Warmup',
                         'In Progress',
                         'Final']
         valid_games = [game for game in gdata if game[2] in valid_states]
+        print([x[2] for x in gdata])
         game_urls += valid_games
 
         # Remove postponed game docs from database
@@ -731,26 +733,26 @@ if __name__ == '__main__':
 
     game_previews()
 
-    print("Scraping past boxscores...")
-    boxscores(date='all')
+    # print("Scraping past boxscores...")
+    # boxscores(date='all')
 
-    print("Scraping batter and pitcher leaderboards")
-    fangraphs('bat', year)
-    fangraphs('pit', year)
+    # print("Scraping batter and pitcher leaderboards")
+    # fangraphs('bat', year)
+    # fangraphs('pit', year)
 
-    print("Scraping league elo and division standings")
-    league_elo()
-    standings()
+    # print("Scraping league elo and division standings")
+    # league_elo()
+    # standings()
 
-    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
-             'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
-             'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
-             'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
-             'col', 'kcr', 'det', 'min', 'chw', 'nyy']
-    for team in tqdm(teams):
-        schedule(team)
-        pitching_logs(team, year)
-        current_injuries(team)
-        transactions(team, year)
-        forty_man(team, year)
+    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
+    #          'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
+    #          'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
+    #          'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
+    #          'col', 'kcr', 'det', 'min', 'chw', 'nyy']
+    # for team in tqdm(teams):
+    #     schedule(team)
+    #     pitching_logs(team, year)
+    #     current_injuries(team)
+    #     transactions(team, year)
+    #     forty_man(team, year)

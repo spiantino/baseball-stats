@@ -117,8 +117,11 @@ def summary_table(data, year):
         away_pit_hand = away_pit_data['rightLeft']
         home_pit_hand = home_pit_data['rightLeft']
 
-    away_pit_stats = dbc.get_player(away_pit_name)['fg']['pit'][year]
-    home_pit_stats = dbc.get_player(home_pit_name)['fg']['pit'][year]
+    away_decoded = unidecode.unidecode(away_pit_name)
+    home_decoded = unidecode.unidecode(home_pit_name)
+
+    away_pit_stats = dbc.get_player(away_decoded)['fg']['pit'][year]
+    home_pit_stats = dbc.get_player(home_decoded)['fg']['pit'][year]
 
     pit_cols = ['Team', 'R/L', '#', 'Name', 'pit_WAR', 'W', 'L', 'ERA',
                 'IP', 'K/9', 'BB/9', 'HR/9', 'GB%']
