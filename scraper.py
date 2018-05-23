@@ -76,23 +76,4 @@ class Scraper:
             if dfs is not None:
                 self._set_cache(url, dfs, data_key, ttl)
 
-def schedule(team, year):
-    s = scraper.Scraper()
-    url = "http://www.baseball-reference.com/teams/{}/{}-schedule-scores.shtml".format(team, year)
-    s.scrape(url, '{}_schedule'.format(team), 'baseballreference', 'schedule', 24*60*60)
 
-def leaderboards():
-    s = scraper.Scraper()
-
-    for state in ('bat', 'pit'):
-        tid = 0 # Scrape all teams for now, add individual teams later if needed
-        year = datetime.date.today().strftime('%Y')
-
-        url = """http://www.fangraphs.com/leaders.aspx?pos=all&stats={0}\
-                 &lg=all&qual=0&type=8&season={1}\
-                 &month=0&season1={1}\
-                 &ind=0&team={2}&page=1_1000"""\
-                 .format(state, year, tid)\
-                 .replace(' ', '')
-
-        s.scrape(url, 'fangraphs_{}_leaderboard'.format(state), 'fangraphs', 'fangraphs', 24*60*60)

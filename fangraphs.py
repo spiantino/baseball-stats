@@ -14,7 +14,6 @@ def fangraphs(soup):
     db_rows = []
     for row in all_row_data:
         row_data = [x.text for x in row]
-        player = row_data[1]
         db_data = {k:v for k,v in zip(cols, row_data)}
 
         # Store type as numeric if possible
@@ -23,8 +22,12 @@ def fangraphs(soup):
                 db_data[key] = float(db_data[key])
             except:
                 continue
-
+        
         db_rows.append(db_data)
+
+    import pprint
+    pprint.pprint(db_rows)
+    print(pandas.DataFrame(db_rows))
 
     return {
         'leaderboard': pandas.DataFrame(db_rows)

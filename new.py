@@ -39,11 +39,13 @@ if __name__ == '__main__':
     s = scraper.Scraper()
 
     # scrape schedule
-    schedule(args.team, year, '{}_schedule'.format(team))
+    schedule(args.team, year, '{}_schedule'.format(args.team))
 
     # scrape leaderboards
-    leaderboards('bat', 'fangraphs_bat_leaderboard')
-    leaderboards('pit', 'fangraphs_pit_leaderboard')
+    leaderboard('bat', 'fangraphs_bat_leaderboard')
+    # leaderboard('pit', 'fangraphs_pit_leaderboard')
+
+    print(s.get_key('fangraphs_bat_leaderboard'))
 
 
 
