@@ -284,6 +284,14 @@ def forty_man(team, year):
         db.Teams.update({'Tm' : team},
                         {'$push': {db_array : db_data}})
 
+        # Check if player exists in database
+        player = db_data['Name']
+        exists = dbc.player_exists(player)
+        if not exists:
+            print("Scraping br data for {}".format(player))
+            br_player_stats(player, team)
+
+
 def br_player_stats(name, team):
     brid = dbc.get_player_brid(name, team)
     base = 'https://www.baseball-reference.com/redirect.fcgi?player=1&mlb_ID='
@@ -308,8 +316,12 @@ def br_player_stats(name, team):
             row_data = [x.text for x in row.find_all(lambda tag:
                                         tag.has_attr('data-stat'))]
             db_data = {k:v for k,v in zip(cols, row_data)}
-            db_array = 'br.{}.{}'.format(pit_or_bat, db_data['Year'])
 
+            # Skip blank rows and don't collect minor league data
+            if not row_data[0] or db_data['Lg'] not in ['AL', 'NL']:
+                continue
+
+            db_array = 'br.{}.{}'.format(pit_or_bat, db_data['Year'])
             db.Players.update({'Name' : name},
                               {'$set' : {'brID' : brid,
                                          db_array : db_data}}, upsert=True)
@@ -334,8 +346,12 @@ def br_player_stats(name, team):
             row_data = [x.text for x in
                         row.find_all(lambda tag: tag.has_attr('data-stat'))]
             db_data = {k:v for k,v in zip(cols, row_data)}
-            db_array = 'br.{}.{}'.format(title, db_data['Year'])
 
+            # Skip blank rows and don't collect minor league data
+            if not row_data[0] or db_data['Lg'] not in ['AL', 'NL']:
+                continue
+
+            db_array = 'br.{}.{}'.format(title, db_data['Year'])
             db.Players.update({'brID' : brid},
                               {'$set' : {db_array : db_data}}, upsert=True)
 
@@ -571,7 +587,6 @@ def boxscores(date, dbc=dbc):
                 db.Games.update({'gid' : gid},
                                 {'$push' : {db_array : db_data}})
 
-
         # Extract pitching box score
         pit_tables  = [x for x in comment if '>Pitching</th>' in x][0]
         pit = BeautifulSoup(pit_tables, "html.parser")
@@ -633,7 +648,6 @@ def game_previews(dbc=dbc):
         # Gather all game urls
         gdata = [(date, game['link'], game['status']['detailedState'])
                                               for game in games_data]
-        print(gdata)
         # Only collect data on scheduled games (not postponed or other)
         valid_states = ['Scheduled',
                         'Pre-Game',
@@ -641,7 +655,6 @@ def game_previews(dbc=dbc):
                         'In Progress',
                         'Final']
         valid_games = [game for game in gdata if game[2] in valid_states]
-        print([x[2] for x in gdata])
         game_urls += valid_games
 
         # Remove postponed game docs from database
@@ -730,29 +743,28 @@ def league_elo():
 
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
-
     game_previews()
 
-    # print("Scraping past boxscores...")
-    # boxscores(date='all')
+    print("Scraping past boxscores...")
+    boxscores(date='all')
 
     # print("Scraping batter and pitcher leaderboards")
-    # fangraphs('bat', year)
-    # fangraphs('pit', year)
+    fangraphs('bat', year)
+    fangraphs('pit', year)
 
-    # print("Scraping league elo and division standings")
-    # league_elo()
-    # standings()
+    print("Scraping league elo and division standings")
+    league_elo()
+    standings()
 
-    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
-    #          'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
-    #          'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
-    #          'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
-    #          'col', 'kcr', 'det', 'min', 'chw', 'nyy']
-    # for team in tqdm(teams):
-    #     schedule(team)
-    #     pitching_logs(team, year)
-    #     current_injuries(team)
-    #     transactions(team, year)
-    #     forty_man(team, year)
+    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
+             'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
+             'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
+             'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
+             'col', 'kcr', 'det', 'min', 'chw', 'nyy']
+    for team in tqdm(teams):
+        schedule(team)
+        pitching_logs(team, year)
+        current_injuries(team)
+        transactions(team, year)
+        forty_man(team, year)

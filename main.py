@@ -16,35 +16,36 @@ from latex import Latex
 def summary_table(data, year):
     current_year = datetime.date.today().strftime('%Y')
     game_number = data['preview'][0]['gameData']['game']['gameNumber']
+    game_state = data['preview'][0]['gameData']['status']['detailedState']
 
     home_abbr = data['home']
     away_abbr = data['away']
 
-    try:
-        home_name_full = data['preview'][0]['gameData']\
-                             ['teams']['home']['name']['full']
+    if game_state == 'Scheduled':
 
-        away_name_full = data['preview'][0]['gameData']\
-                             ['teams']['away']['name']['full']
-    except:
-        home_name_full = data['preview'][0]['gameData']\
-                             ['teams']['home']['name']
+        home_name = data['preview'][0]['gameData']\
+                        ['teams']['home']['name']['full']
 
-        away_name_full = data['preview'][0]['gameData']\
-                             ['teams']['away']['name']
+        away_name = data['preview'][0]['gameData']\
+                        ['teams']['away']['name']['full']
 
-    try:
         home_rec = data['preview'][0]['gameData']['teams']\
                        ['home']['record']['leagueRecord']
 
         away_rec = data['preview'][0]['gameData']['teams']\
                        ['away']['record']['leagueRecord']
-    except:
-        home_rec = data['preview'][0]['gameData']\
-                       ['teams']['home']['record']
 
-        away_rec = data['preview'][0]['gameData']\
-                       ['teams']['away']['record']
+        raw_game_time = data['preview'][0]['gameData']['datetime']['time']
+        hour = int(raw_game_time.split(':')[0]) + 1
+        mins = raw_game_time.split(':')[1]
+        game_time = "{}:{}".format(hour, mins)
+
+    else:
+        home_name = data['preview'][0]['gameData']['teams']['home']['name']
+        away_name = data['preview'][0]['gameData']['teams']['away']['name']
+        home_rec  = data['preview'][0]['gameData']['teams']['home']['record']
+        away_rec  = data['preview'][0]['gameData']['teams']['away']['record']
+        game_time = data['preview'][0]['gameData']['datetime']['time']
 
     home_wins = home_rec['wins']
     away_wins = away_rec['wins']
@@ -52,16 +53,15 @@ def summary_table(data, year):
     home_losses = home_rec['losses']
     away_losses = away_rec['losses']
 
-    title = "{} ({}-{}) @ {} ({}-{})".format(away_name_full,
-                                              away_wins,
-                                              away_losses,
-                                              home_name_full,
-                                              home_wins,
-                                              home_losses)
-
-    game_time = data['preview'][0]['gameData']['datetime']['time']
     am_or_pm = data['preview'][0]['gameData']['datetime']['ampm']
     stadium  = data['preview'][0]['gameData']['venue']['name']
+
+    title = "{} ({}-{}) @ {} ({}-{})".format(away_name,
+                                              away_wins,
+                                              away_losses,
+                                              home_name,
+                                              home_wins,
+                                              home_losses)
 
     details = '{}{} {}'.format(game_time, am_or_pm, stadium)
 
@@ -200,24 +200,27 @@ def rosters(who, data, year):
 
             # Query WAR stats from Players collection
             decoded = unidecode.unidecode(name)
-            exists = dbc.player_exists(decoded)
-
-            if not exists:
-                print("Scraping stats for {}".format(name))
-                scrape.br_player_stats(decoded, team_name)
-                exists = dbc.player_exists(decoded)
-
-            if exists[0]['fg']:
-                war_stats = dbc.get_player_war_fg(player=decoded,
-                                                  kind='batter',
-                                                  year=year)
-            elif exists[0]['br']:
-                war_stats = dbc.get_player_war_br(player=decoded,
-                                                  kind='batter',
-                                                  year=year)
-            war  = war_stats['war']
-            off  = war_stats['off']
-            def_ = war_stats['def']
+            # Replace try/except with has_data() method
+            try:
+                try:
+                    war_stats = dbc.get_player_war_fg(player=decoded,
+                                                      kind='batter',
+                                                      year=year)
+                    war  = war_stats['war']
+                    off  = war_stats['off']
+                    def_ = war_stats['def']
+                except:
+                    war_stats = dbc.get_player_war_br(player=decoded,
+                                                      kind='batter',
+                                                      year=year)
+                    war  = war_stats['war']
+                    off  = war_stats['off']
+                    def_ = war_stats['def']
+            except:
+                print("No {} data for {}".format(year, name))
+                war  = 'N/A'
+                off  ='N/A'
+                def_ = 'N/A'
 
             df_data.append([order, pos, num, name, war,
                             slashline, hrs, rbi, sb, off, def_])
@@ -265,30 +268,24 @@ def bullpen(data, year):
 
             # Query stats from Players collection
             decoded = unidecode.unidecode(name)
-            exists = dbc.player_exists(decoded)
 
-            if not exists:
-                print("Scraping stats for {}".format(name))
-                scrape.br_player_stats(decoded, team_name)
-                exists = dbc.player_exists(decoded)
-
-            if exists[0]['fg']:
-                pitstats = dbc.get_player(decoded)['fg']['pit'][year]
-                war = pitstats['pit_WAR']
-                sv  = pitstats['SV']
-                era = pitstats['ERA']
-                ip  = pitstats['IP']
-                k9  = pitstats['K/9']
-                bb9 = pitstats['BB/9']
-                hr9 = pitstats['HR/9']
-                gb  = pitstats['GB%']
-
-            elif exists[0]['br']:
+            #Replace try/except clauses with has_data() method
+            try:
                 try:
-                    sp  = dbc.get_player(decoded)\
-                                        ['br']['Standard Pitching'][year]
-                    pv  = dbc.get_player(decoded)\
-                                        ['br']['Pitching Value'][year]
+                    pitstats = dbc.get_player(decoded)['fg']['pit'][year]
+                    war = pitstats['pit_WAR']
+                    sv  = pitstats['SV']
+                    era = pitstats['ERA']
+                    ip  = pitstats['IP']
+                    k9  = pitstats['K/9']
+                    bb9 = pitstats['BB/9']
+                    hr9 = pitstats['HR/9']
+                    gb  = pitstats['GB%']
+                except:
+                    sp  = dbc.get_player(decoded)['br']\
+                                                 ['Standard Pitching'][year]
+                    pv  = dbc.get_player(decoded)['br']\
+                                                 ['Pitching Value'][year]
                     war = pv['WAR']
                     sv  = sp['SV']
                     era = sp['ERA']
@@ -296,15 +293,15 @@ def bullpen(data, year):
                     bb9 = sp['BB9']
                     hr9 = sp['HR9']
                     gb  ='N/A'
-                except:
-                    print("No {} data for {}".format(year, name))
-                    war = 'N/A'
-                    sv  = 'N/A'
-                    era = 'N/A'
-                    ip  = 'N/A'
-                    bb9 = 'N/A'
-                    hr9 = 'N/A'
-                    gb  = 'N/A'
+            except:
+                print("No {} data for {}".format(year, name))
+                war = 'N/A'
+                sv  = 'N/A'
+                era = 'N/A'
+                ip  = 'N/A'
+                bb9 = 'N/A'
+                hr9 = 'N/A'
+                gb  = 'N/A'
 
             df_data.append([decoded, num, war, sv, era, ip, k9, bb9, hr9, gb])
 
@@ -320,7 +317,7 @@ def bullpen(data, year):
 def game_history(team):
     sched = dbc.get_team(team)['Schedule']
 
-    cols = ['Date', 'Time', 'Opp', 'Result', 'Score']
+    cols = ['Date', 'Time', 'Opp', 'Result', 'Score', 'GB']
     df = pd.DataFrame(sched)
     df = df.loc[df['']=='boxscore']
 

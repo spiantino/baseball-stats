@@ -45,6 +45,7 @@ class DBController:
         Return Player BR ID from Teams collection
         Player objects are in Fortyman array
         """
+        print(player)
         year = self._current_year if not year else year
         namepath = '$Fortyman.{}.Name'.format(year)
         bidpath  = '$Fortyman.{}.bid'.format(year)
@@ -207,9 +208,9 @@ class DBController:
         Query top 10 batting or pitching leaderboard
         """
         if stat in ['WAR', 'rank', 'G']:
-            sort_key = '{0}.{1}.{1}_{2}'.format(year, kind, stat)
+            sort_key = 'fg.{0}.{1}.{0}_{2}'.format(kind, year, stat)
         else:
-            sort_key = '{}.{}.{}'.format(year, kind, stat)
+            sort_key = 'fg.{}.{}.{}'.format(kind, year, stat)
 
         lb = self._db.Players.find({}).sort(sort_key, -1).limit(n)
 
