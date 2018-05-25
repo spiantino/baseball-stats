@@ -9,7 +9,7 @@ def open_url(url):
     return BeautifulSoup(page.text, "html.parser")
 
 
-def convert_name(name, how):
+def convert_name(name, how='abbr'):
     """
     Convert between abbreviation and full team name.
     Also resolves abbreviation differences.
@@ -131,3 +131,20 @@ def find_earlier_date(list_with_dates):
     date2 = datetime.datetime.strptime(date2, '%Y-%m-%d')
 
     return id1 if date1 < date2 else id2
+
+def parse_types(d):
+    """
+    Parse values in db_data dict and
+    convert to int or float when possible
+    """
+    new_dict = {}
+    for k,v in d.items():
+        if v and all([char.isdigit() for char in str(v)]):
+            new_dict[k] = int(v)
+        else:
+            try:
+                new_dict[k] = float(v)
+            except:
+                new_dict[k] = v
+    return new_dict
+

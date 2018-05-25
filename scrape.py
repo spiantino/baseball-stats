@@ -8,7 +8,7 @@ import pickle
 import inspect
 
 from dbcontroller import DBController
-from utils import open_url, convert_name, find_missing_dates
+from utils import open_url, convert_name, find_missing_dates, parse_types
 
 # No push methods in DBController, so do it manually for now
 dbc = DBController()
@@ -19,44 +19,6 @@ def fangraphs(state, year):
     """
     Scrape data from fangraphs.com
     """
-    # team = convert_name(name=team, how='full') if all_=='off' else 'all'
-    # team_id = {
-    #            'all'          : 0,
-    #            'angels'       : 1,
-    #            'astros'       : 21,
-    #            'athletics'    : 10,
-    #            'blue jays'    : 14,
-    #            'braves'       : 16,
-    #            'brewers'      : 23,
-    #            'cardinals'    : 28,
-    #            'cubs'         : 17,
-    #            'diamondbacks' : 15,
-    #            'dodgers'      : 22,
-    #            'giants'       : 30,
-    #            'indians'      : 5,
-    #            'mariners'     : 11,
-    #            'marlins'      : 20,
-    #            'mets'         : 25,
-    #            'nationals'    : 24,
-    #            'orioles'      : 2,
-    #            'padres'       : 29,
-    #            'phillies'     : 26,
-    #            'pirates'      : 27,
-    #            'rangers'      : 13,
-    #            'rays'         : 12,
-    #            'red sox'      : 3,
-    #            'reds'         : 18,
-    #            'rockies'      : 19,
-    #            'royals'       : 7,
-    #            'tigers'       : 6,
-    #            'twins'        : 8,
-    #            'white sox'    : 4,
-    #            'yankees'      : 9
-    #            }
-
-    # team = team.lower()
-    # tid = team_id[team]
-
     tid = 0 # Scrape all teams for now, add individual teams later if needed
 
     url = """http://www.fangraphs.com/leaders.aspx?pos=all&stats={0}\
@@ -92,17 +54,24 @@ def fangraphs(state, year):
         games = '{}_G'.format(state)
         db_data[games] = db_data.pop('G')
 
+        # Convert team name to abbreviation
+        try:
+            db_data['Team'] = convert_name(db_data['Team'])
+        except:
+            print("(fangraphs) No team listed for {}".format(player))
+
         # Store type as numeric if possible
-        for key in db_data.keys():
-            try:
-                db_data[key] = float(db_data[key])
-            except:
-                continue
+        db_data = parse_types(db_data)
 
         # Insert row into database
         db_path = 'fg.{}.{}'.format(state, year)
         db.Players.update({'Name': player},
                           {'$set' : {db_path : db_data}}, upsert=True)
+
+        # Add current team to top level
+        if year == dbc._current_year:
+            db.Players.update({'Name' : player},
+                              {'$set': {'Team' : db_data['Team']}})
 
 
 def standings():
@@ -162,6 +131,9 @@ def standings():
             db_data.update({'div' : division})
             db_data.update({'gb' : games_behind})
 
+            # Store int/float when possible
+            db_data = parse_types(db_data)
+
             # Insert row into database
             db.Teams.update({'Tm' : team}, db_data, upsert=True)
 
@@ -208,6 +180,8 @@ def schedule(team):
             game_num = row_data[0]
             db_data = {k:v for k,v in zip(upcoming_cols, row_data)}
 
+        db_data = parse_types(db_data)
+
         # Insert row into database
         db.Teams.update({'Tm' : name},
                         {'$push': {'Schedule': db_data}})
@@ -242,6 +216,7 @@ def pitching_logs(team, year):
         row_data = [x.text for x in
                     row.find_all(lambda tag: tag.has_attr('data-stat'))]
         db_data = {k:v for k,v in zip(cols, row_data)}
+        db_data = parse_types(db_data)
 
         # Insert row indo database
         db.Teams.update({'Tm' : team},
@@ -316,6 +291,7 @@ def br_player_stats(name, team):
             row_data = [x.text for x in row.find_all(lambda tag:
                                         tag.has_attr('data-stat'))]
             db_data = {k:v for k,v in zip(cols, row_data)}
+            db_data = parse_types(db_data)
 
             # Skip blank rows and don't collect minor league data
             if not row_data[0] or db_data['Lg'] not in ['AL', 'NL']:
@@ -346,6 +322,7 @@ def br_player_stats(name, team):
             row_data = [x.text for x in
                         row.find_all(lambda tag: tag.has_attr('data-stat'))]
             db_data = {k:v for k,v in zip(cols, row_data)}
+            db_data = parse_types(db_data)
 
             # Skip blank rows and don't collect minor league data
             if not row_data[0] or db_data['Lg'] not in ['AL', 'NL']:
@@ -392,6 +369,7 @@ def current_injuries(team):
         row_data = [x.text for x in
                     row.find_all(lambda tag: tag.has_attr('data-stat'))]
         db_data = {k:v for k,v in zip(cols, row_data)}
+        db_data = parse_types(db_data)
         db.Teams.update({'Tm' : team},
                         {'$push' : {'Injuries' : db_data}})
 
@@ -567,6 +545,7 @@ def boxscores(date, dbc=dbc):
             row_data = [x.text for x in
                         tfoot.find_all(lambda tag: tag.has_attr('data-stat'))]
             db_data = {k:v for k,v in zip(cols, row_data)}
+            db_data = parse_types(db_data)
             db_array = '{}.batting'.format(team)
             db.Games.update({'gid' : gid},
                             {'$set' : {db_array : [db_data]}})
@@ -583,6 +562,7 @@ def boxscores(date, dbc=dbc):
                          row.find_all(lambda tag: tag.has_attr('data-stat'))]
                 stats[0] = player
                 db_data = {k:v for k,v in zip(cols, stats)}
+                db_data = parse_types(db_data)
                 db_array = '{}.batting'.format(team)
                 db.Games.update({'gid' : gid},
                                 {'$push' : {db_array : db_data}})
@@ -603,6 +583,7 @@ def boxscores(date, dbc=dbc):
                         foot[1].find_all(lambda tag:
                                                 tag.has_attr('data-stat'))]
             db_data = {k:v for k,v in zip(cols, row_data)}
+            db_data = parse_types(db_data)
             db_array = '{}.pitching'.format(team)
             db.Games.update({'gid' : gid},
                             {'$set' : {db_array : [db_data]}})
@@ -617,6 +598,7 @@ def boxscores(date, dbc=dbc):
                 stats  = [x.text for x in row.find_all('td')]
                 stats.insert(0, player)
                 db_data = {k:v for k,v in zip(cols, stats)}
+                db_data = parse_types(db_data)
                 db_array = '{}.pitching'.format(team)
                 db.Games.update({'gid' : gid},
                                 {'$push' : {db_array : db_data}})
@@ -732,6 +714,7 @@ def league_elo():
 
         row_data = [rating] + pcts
         db_data  = {k:v for k,v in zip(cols, row_data)}
+        db_data  = parse_types(db_data)
 
         # Clear existing elo document
         tm = convert_name(name=team, how='abbr')
@@ -743,28 +726,28 @@ def league_elo():
 
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
-    game_previews()
+    # game_previews()
 
-    print("Scraping past boxscores...")
-    boxscores(date='all')
+    # print("Scraping past boxscores...")
+    # boxscores(date='all')
 
-    # print("Scraping batter and pitcher leaderboards")
+    # # print("Scraping batter and pitcher leaderboards")
     fangraphs('bat', year)
     fangraphs('pit', year)
 
-    print("Scraping league elo and division standings")
-    standings()
-    league_elo()
+    # print("Scraping league elo and division standings")
+    # standings()
+    # league_elo()
 
-    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
-             'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
-             'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
-             'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
-             'col', 'kcr', 'det', 'min', 'chw', 'nyy']
-    for team in tqdm(teams):
-        schedule(team)
-        pitching_logs(team, year)
-        current_injuries(team)
-        transactions(team, year)
-        forty_man(team, year)
+    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
+    #          'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
+    #          'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
+    #          'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
+    #          'col', 'kcr', 'det', 'min', 'chw', 'nyy']
+    # for team in tqdm(teams):
+    #     schedule(team)
+    #     pitching_logs(team, year)
+    #     current_injuries(team)
+    #     transactions(team, year)
+    #     forty_man(team, year)
