@@ -5,137 +5,189 @@ import subprocess
 import os
 
 class Latex:
-	def __init__(self, filename):
-		self._filename = filename
-		self._f = open(filename, "w")
+    def __init__(self, filename):
+        self._filename = filename
+        self._f = open(filename, "w")
 
-	def tex_escape(s):
-		if isinstance(s, str):
-			s = s.replace('%', '\\%')
-			s = s.replace('#', '\\#')
-			s = s.replace('_', ' ')
-		return s
+    def format_row_value(s, f=None):
+        try:
+            s = float(s)
+        except:
+            pass
 
-	def pd_to_tabulated(self, pd):
-		
-		column_def = ""
-		rows = pd.to_dict(orient='records')
+        percent = False
+        if isinstance(s, str) and s.endswith('%') and False:
+            s = float(s.replace('%',''))
+            percent = True
 
-		if len(rows) == 0:
-			column_def = "c"
-			rows = [{" " : "None"}]
-		else:
-			for key, value in rows[0].items():
-				if isinstance(value, str):
-					column_def += "l"
-				else:
-					column_def += "r"
+        if f is not None and f != '' and isinstance(s, float):
+            formatted = f.format(s)
+        else:
+            formatted = Latex.tex_escape(s)
 
-			for i, row in enumerate(rows):
-				rows[i] = {Latex.tex_escape(k): Latex.tex_escape(v) for k, v in row.items()}
+        if percent is True:
+            return formatted + " \\%"
+        else:
+            return formatted
+    
+    def format_col_name(s):
+        return Latex.tex_escape(s)
 
-		t = jinja2.Template(
-			r"""
-			\begin{tabular}{@{}{{ column_def }}@{}}
-			{% for c in columns %}\textbf{ {{- c -}} }{% if not loop.last %} & {% endif %}{% endfor %} \\ \midrule
-			{% for row in data %}{% for k, v in row.items() %} {{ v }} {% if not loop.last %}&{% endif %}{% endfor %} \\
-			{% if not loop.last %}\hdashline{% endif %}{% endfor %}
-			\bottomrule
-			\end{tabular}
-			""")
+    def tex_escape(s):
+        if isinstance(s, str):
+            s = s.replace('%', '\\%')
+            s = s.replace('#', '\\#')
+            s = s.replace('_', ' ')
+        return s
 
-		return t.render(column_def = column_def,
-						columns = rows[0].keys(),	
-						data = rows)
+    def pd_to_rows(self, pd, formats=None):
+        
+        rows = pd.to_dict(orient='records')
+        if formats is None:
+            formats = [{}] * len(rows[0].keys())
 
-	def header(self):
-		self._f.write(r"""
-				\documentclass{article}
-				\usepackage[margin=0.4in,a4paper]{geometry}
-				\usepackage{booktabs}
-				\usepackage{caption}
-				\usepackage{float}
-				\usepackage{titlesec}
-				\usepackage{capt-of}
+        for i, row in enumerate(rows):
+            rows[i] = [Latex.format_row_value(v,f) for v, f in zip(row.values(), formats)]
+        
+        t = jinja2.Template(
+            r"""
+            {% for row in data %}{% for v in row %} {{ v }} {% if not loop.last %}&{% endif %}{% endfor %} \\
+            {% if not loop.last %}\hdashline{% endif %}{% endfor %}
+            """)
 
-				%dashed line
-				\usepackage{array}
-				\usepackage{arydshln}
-				\setlength\dashlinedash{0.2pt}
-				\setlength\dashlinegap{1.5pt}
-				\setlength\arrayrulewidth{0.3pt}
+        return t.render(data = rows)
 
-				%Widows & Orphans & Penalties
+    def header(self):
+        self._f.write(r"""
+                \documentclass{article}
+                \usepackage[margin=0.4in,a4paper]{geometry}
+                \usepackage{booktabs}
+                \usepackage{caption}
+                \usepackage{float}
+                \usepackage{titlesec}
+                \usepackage{capt-of}
 
-				\widowpenalty500
-				\clubpenalty500
-				\clubpenalty=9996
-				\exhyphenpenalty=50 %for line-breaking at an explicit hyphen
-				\brokenpenalty=4991
-				\predisplaypenalty=10000
-				\postdisplaypenalty=1549
-				\displaywidowpenalty=1602
-				\floatingpenalty = 20000
+                %dashed line
+                \usepackage{array}
+                \usepackage{arydshln}
+                \setlength\dashlinedash{0.2pt}
+                \setlength\dashlinegap{1.5pt}
+                \setlength\arrayrulewidth{0.3pt}
 
-				\usepackage[T1]{fontenc}
-				\usepackage{fontspec}
-				\setmainfont[Scale=0.85, Ligatures={Required,Common,Contextual,TeX}]{TeX Gyre Schola} % Incredible font inside latex
+                %Widows & Orphans & Penalties
 
+                \widowpenalty500
+                \clubpenalty500
+                \clubpenalty=9996
+                \exhyphenpenalty=50 %for line-breaking at an explicit hyphen
+                \brokenpenalty=4991
+                \predisplaypenalty=10000
+                \postdisplaypenalty=1549
+                \displaywidowpenalty=1602
+                \floatingpenalty = 20000
 
-				\begin{document}
-				""")
-
-	def title(self, summary):
-		t = jinja2.Template(
-			r"""
-			\section*{ Game {{ game }}: {{ title }} }
-			\subsection*{ {{ details }} $\cdot$ {{ temp }}$\,^{\circ}$ {{ condition }} $\cdot$ Wind {{ wind }} }
-			""")
-		self._f.write( 
-			t.render(game = summary['game'], 
-					 title = summary['title'],
-					 details = summary['details'],
-					 temp = summary['temp'],
-					 condition = summary['condition'],
-					 wind = summary['wind'],
-					 pitchers = summary['pit_df'].to_dict(orient='records')
-					 )
-		)
-
-		self._f.write(self.pd_to_tabulated(summary['pit_df']))
-
-	def add_section(self, title):
-		t = jinja2.Template(
-			r"""
-			\subsection*{ {{ title }} }
-			""")
-		self._f.write( 
-			t.render(title = title)
-		)
-
-	def add_subsection(self, title):
-		t = jinja2.Template(
-			r"""
-			\subsubsection*{ {{ title }} }
-			""")
-		self._f.write( 
-			t.render(title = title)
-		)
+                \usepackage[T1]{fontenc}
+                \usepackage{fontspec}
+                \setmainfont[Scale=0.85, Ligatures={Required,Common,Contextual,TeX}]{TeX Gyre Schola} % Incredible font inside latex
 
 
-	def add_table(self, pd):
-		self._f.write(self.pd_to_tabulated(pd))
+                \begin{document}
+                """)
+
+    def title(self, summary):
+        t = jinja2.Template(
+            r"""
+            \section*{ Game {{ game }}: {{ title }} }
+            \subsection*{ {{ details }} $\cdot$ {{ temp }}$\,^{\circ}$ {{ condition }} $\cdot$ Wind {{ wind }} }
+            """)
+        self._f.write( 
+            t.render(game = summary['game'], 
+                     title = summary['title'],
+                     details = summary['details'],
+                     temp = summary['temp'],
+                     condition = summary['condition'],
+                     wind = summary['wind'],
+                     pitchers = summary['pit_df'].to_dict(orient='records')
+                     )
+        )
+
+    def add_section(self, title):
+        t = jinja2.Template(
+            r"""
+            \subsection*{ {{ title }} }
+            """)
+        self._f.write( 
+            t.render(title = title)
+        )
+
+    def add_subsection(self, title):
+        t = jinja2.Template(
+            r"""
+            \subsubsection*{ {{ title }} }
+            """)
+        self._f.write( 
+            t.render(title = title)
+        )
+
+    def start_table(self, coldef):
+        t = jinja2.Template(
+           r"""
+           \begin{tabular}{@{}{{ coldef }}@{}}
+           """)
+        self._f.write(t.render(coldef = coldef))
+
+    def add_divider(self):
+        t = jinja2.Template(
+           r"""
+           \midrule
+           """)
+        self._f.write(t.render())
+
+    def end_table(self):
+        t = jinja2.Template(
+           r"""
+           \bottomrule
+           \end{tabular}
+           """)
+        self._f.write(t.render())
 
 
-	def footer(self):
-		self._f.write(r"""
-			\end{document}
-			""")
+    def add_headers(self, columns):
+        t = jinja2.Template(
+            r"""
+            {% for c in columns %}\textbf{ {{- c -}} }{% if not loop.last %} & {% endif %}{% endfor %} \\ \midrule
+            """)
 
-	def make_pdf(self):
-		self._f.close()
-		subprocess.call(['xelatex', self._filename])
-	    
-	    
+        self._f.write(
+            t.render(columns = [Latex.format_col_name(c) for c in columns])
+        )
+
+    def add_rows(self, pd, formats=None):
+        rows = pd.to_dict(orient='records')
+        if formats is None:
+            formats = [{}] * len(rows[0].keys())
+
+        for i, row in enumerate(rows):
+            rows[i] = [Latex.format_row_value(v,f) for v, f in zip(row.values(), formats)]
+        
+        t = jinja2.Template(
+            r"""
+            {% for row in data %}{% for v in row %} {{ v }} {% if not loop.last %}&{% endif %}{% endfor %} \\
+            {% if not loop.last %}\hdashline{% endif %}{% endfor %}
+            """)
+
+        self._f.write(t.render(data = rows))
+
+
+    def footer(self):
+        self._f.write(r"""
+            \end{document}
+            """)
+
+    def make_pdf(self):
+        self._f.close()
+        subprocess.call(['xelatex', self._filename])
+        
+        
 
 
