@@ -252,9 +252,29 @@ class DBController:
         ids = self.get_starters_or_relievers(role=role, year=year, kind='pit')
         sort_direction = 1 if ascending else -1
 
-        res = self._db.Players.find({'_id' : {'$in' : ids}})\
-                              .sort(sort_key, sort_direction).limit(n)
-        return [x['fg']['pit'][str(year)] for x in res]
+        if stat == 'ERA':
+            pit_data = '$fg.pit.{}'.format(year)
+            ip = '$fg.pit.{}.IP'.format(year)
+            res = self._db.Players.aggregate([
+                                {'$match': {'_id': {'$in' : ids}}},
+                                {'$lookup': {'from': 'Teams',
+                                             'localField': 'Team',
+                                             'foreignField': 'Tm',
+                                             'as': 'td'}},
+                                {'$unwind': '$td'},
+                                {'$project': {'_id': 0,
+                                              'pit' : pit_data,
+                                              'qual': {'$subtract':
+                                                            [ip, '$td.G']}}},
+                                {'$match': {'qual': {'$gte': 0}}},
+                                {'$project': {'pit': '$pit'}},
+                                {'$sort': {'pit.ERA': 1}}])
+            return [x['pit'] for x in list(res)[:n]]
+
+        else:
+            res = self._db.Players.find({'_id' : {'$in' : ids}})\
+                                  .sort(sort_key, sort_direction).limit(n)
+            return [x['fg']['pit'][str(year)] for x in res]
 
     def get_elo_stats(self):
         rating   = '$elo.elo_rating'
