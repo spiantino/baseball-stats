@@ -753,8 +753,8 @@ if __name__ == '__main__':
     fangraphs('pit', year)
 
     print("Scraping league elo and division standings")
-    league_elo()
     standings()
+    league_elo()
 
     print("Scraping schedule, roster, pitch logs, injuries, transactions...")
     teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',

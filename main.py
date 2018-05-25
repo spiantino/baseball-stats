@@ -41,8 +41,8 @@ def summary_table(data, year):
         game_time = "{}:{}".format(hour, mins)
 
     else:
-        home_name = data['preview'][0]['gameData']['teams']['home']['name']
-        away_name = data['preview'][0]['gameData']['teams']['away']['name']
+        home_name = data['preview'][0]['gameData']['teams']['home']['name']['full']
+        away_name = data['preview'][0]['gameData']['teams']['away']['name']['full']
         home_rec  = data['preview'][0]['gameData']['teams']['home']['record']
         away_rec  = data['preview'][0]['gameData']['teams']['away']['record']
         game_time = data['preview'][0]['gameData']['datetime']['time']
