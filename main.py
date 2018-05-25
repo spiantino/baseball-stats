@@ -24,10 +24,10 @@ def summary_table(data, year):
     if game_state == 'Scheduled':
 
         home_name = data['preview'][0]['gameData']\
-                        ['teams']['home']['name']['full']
+                        ['teams']['home']['name']
 
         away_name = data['preview'][0]['gameData']\
-                        ['teams']['away']['name']['full']
+                        ['teams']['away']['name']
 
         home_rec = data['preview'][0]['gameData']['teams']\
                        ['home']['record']['leagueRecord']
@@ -372,6 +372,8 @@ def pitcher_history(team):
         opp_side = set({'home', 'away'} - {side}).pop()
 
         date = game['date']
+        date_data = datetime.datetime.strptime(date, "%Y-%m-%d")
+        short_date = "{d.month}/{d.day} {dow}".format(d=date_data, dow=date_data.strftime("%a"))
         opp = game[opp_side]
 
         data = game['preview'][0]['liveData']['boxscore']['teams'][side]
@@ -399,7 +401,7 @@ def pitcher_history(team):
         pit_stats = [x for x in all_pits if decoded in x.values()][0]
         gsc = pit_stats['GSc']
 
-        df_data.append([date, opp, name, ip, hits, runs,
+        df_data.append([short_date, opp, name, ip, hits, runs,
                         er, walks, strko, hr, gsc])
     df = pd.DataFrame(df_data, columns=cols)
     df = df.sort_values(by='Date', ascending=False)
@@ -704,19 +706,19 @@ if __name__ == '__main__':
     for table in standings:
         l.start_table('lrrcccrr')
         l.add_headers([table.columns[0], 'w', 'l', 'l10', 'gb', 'strk', 'home', 'away'])
-        l.add_rows(table, ['', '{:.0f}', '{:.0f}', '', '{:.0f}', '', '{:.2f}', '{:.2f}'])
+        l.add_rows(table, ['', '{:.0f}', '{:.0f}', '', '{:.0f}', '', '{:.3f}', '{:.3f}'])
         l.end_table()
 
     l.add_subsection("{} Game Log".format(away))
-    l.start_table('lrlcc')
-    l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score'])
-    l.add_rows(ahistory, ['', '', '', '', ''])
+    l.start_table('lrlccc')
+    l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
+    l.add_rows(ahistory, ['', '', '', '', '', ''])
     l.end_table()
 
     l.add_subsection("{} Game Log".format(home))
-    l.start_table('lrlcc')
-    l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score'])
-    l.add_rows(hhistory, ['', '', '', '', ''])
+    l.start_table('lrlccc')
+    l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
+    l.add_rows(hhistory, ['', '', '', '', '', ''])
     l.end_table()
 
     l.add_section("Batting Leaderboards")
