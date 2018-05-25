@@ -72,7 +72,7 @@ def summary_table(data, year):
         temp = forecast['temp']
         wind = forecast['wind']
     except:
-        condition, temp, wind = 'N/A', 'N/A', 'N/A'
+        condition, temp, wind = 'n/a', 'n/a', 'n/a'
 
     # Starting pitchers
     try:    # Game state: scheduled
@@ -218,9 +218,9 @@ def rosters(who, data, year):
                     def_ = war_stats['def']
             except:
                 print("No {} data for {}".format(year, name))
-                war  = 'N/A'
-                off  ='N/A'
-                def_ = 'N/A'
+                war  = '-'
+                off  = '-'
+                def_ = '-'
 
             df_data.append([order, pos, num, name, war,
                             slashline, hrs, rbi, sb, off, def_])
@@ -290,18 +290,20 @@ def bullpen(data, year):
                     sv  = sp['SV']
                     era = sp['ERA']
                     ip  = sp['IP']
+                    k9  = '-'
                     bb9 = sp['BB9']
                     hr9 = sp['HR9']
-                    gb  ='N/A'
+                    gb  = '-'
             except:
                 print("No {} data for {}".format(year, name))
-                war = 'N/A'
-                sv  = 'N/A'
-                era = 'N/A'
-                ip  = 'N/A'
-                bb9 = 'N/A'
-                hr9 = 'N/A'
-                gb  = 'N/A'
+                war = '-'
+                sv  = '-'
+                era = '-'
+                ip  = '-'
+                k9  = '-'
+                bb9 = '-'
+                hr9 = '-'
+                gb  = '-'
 
             df_data.append([decoded, num, war, sv, era, ip, k9, bb9, hr9, gb])
 
@@ -370,6 +372,8 @@ def pitcher_history(team):
         opp_side = set({'home', 'away'} - {side}).pop()
 
         date = game['date']
+        date_data = datetime.datetime.strptime(date, "%Y-%m-%d")
+        short_date = "{d.month}/{d.day} {dow}".format(d=date_data, dow=date_data.strftime("%a"))
         opp = game[opp_side]
 
         data = game['preview'][0]['liveData']['boxscore']['teams'][side]
@@ -397,7 +401,7 @@ def pitcher_history(team):
         pit_stats = [x for x in all_pits if decoded in x.values()][0]
         gsc = pit_stats['GSc']
 
-        df_data.append([date, opp, name, ip, hits, runs,
+        df_data.append([short_date, opp, name, ip, hits, runs,
                         er, walks, strko, hr, gsc])
     df = pd.DataFrame(df_data, columns=cols)
     df = df.sort_values(by='Date', ascending=False)
@@ -639,66 +643,120 @@ if __name__ == '__main__':
     elo = elo()
     pitcher_history = pitcher_history(team=args.team)
 
-    # print(summary)
-    # print(starters)
-    # print(bench)
-    # print(bullpen)
-    # for table in standings:
-    #     print(table)
-    # print(ahistory)
-    # print(hhistory)
-    # print(bat_df)
-    # print(pit_df)
-    # print(era_df)
-    # print(rel_df)
-    # print(hr_df)
-    # print(elo)
-    # print(pitcher_history)
+    print(summary)
+    print(starters)
+    print(bench)
+    print(bullpen)
+    for table in standings:
+        print(table)
+    print(ahistory)
+    print(hhistory)
+    print(bat_df)
+    print(pit_df)
+    print(era_df)
+    print(rel_df)
+    print(hr_df)
+    print(elo)
+    print(pitcher_history)
 
     l = Latex("{}-{}.tex".format(args.team, args.date))
     l.header()
     l.title(summary)
+    
+    l.start_table('lcclrrrrrrrrr')
+    l.add_headers(['Team', 'R/L', '#', 'Name', 'war', 'w', 'l', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
+    l.add_rows(summary['pit_df'], ['', '', '{:.0f}', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.2f}', '{:.1f}', '{:.2f}', '{:.2f}', '{:.2f}', '{:.2f}'])
+    l.end_table()
+
     l.add_section("{} Lineup".format(away))
-    l.add_table(starters[0])
-    l.add_subsection("{} Bench".format(away))
-    l.add_table(bench[0])
+    l.start_table('lcclrcrrrrr')
+    l.add_headers(['', 'Pos', '#', 'Name', 'war', 'slash', 'hr', 'rbi', 'sb', 'owar', 'dwar'])
+    l.add_rows(starters[0], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
+    l.add_divider()
+    l.add_rows(bench[0], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
+    l.end_table()
+
     l.add_subsection("{} Bullpen".format(away))
-    l.add_table(bullpen[0])
+    l.start_table('lcrrrrrrrr')
+    l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
+    l.add_rows(bullpen[0], ['', '{:.0f}', '{:.1f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}'])
+    l.end_table()
 
     l.add_section("{} Lineup".format(home))
-    l.add_table(starters[1])
-    l.add_subsection("{} Bench".format(home))
-    l.add_table(bench[1])
+    l.start_table('lcclrcrrrrr')
+    l.add_headers(['', 'Pos', '#', 'Name', 'war', 'slash', 'hr', 'rbi', 'sb', 'owar', 'dwar'])
+    l.add_rows(starters[1], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
+    l.add_divider()
+    l.add_rows(bench[1], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
+    l.end_table()
+
     l.add_subsection("{} Bullpen".format(home))
-    l.add_table(bullpen[1])
+    l.start_table('lcrrrrrrrr')
+    l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
+    l.add_rows(bullpen[1], ['', '{:.0f}', '{:.1f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}'])
+    l.end_table()
 
     l.add_section("{} Recent Starts".format(args.team))
-    l.add_table(pitcher_history)
+    l.start_table('lclrrrrrrrr')
+    l.add_headers(['Date', 'Opp', 'Starter', 'ip', 'h', 'r', 'er', 'bb', 'k', 'hr', 'gs'])
+    l.add_rows(pitcher_history, ['', '', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}'])
+    l.end_table()
 
     l.add_section("Standings")
     for table in standings:
-        l.add_table(table)
+        l.start_table('lrrcccrr')
+        l.add_headers([table.columns[0], 'w', 'l', 'l10', 'gb', 'strk', 'home', 'away'])
+        l.add_rows(table, ['', '{:.0f}', '{:.0f}', '', '{:.0f}', '', '{:.3f}', '{:.3f}'])
+        l.end_table()
+
     l.add_subsection("{} Game Log".format(away))
-    l.add_table(ahistory)
+    l.start_table('lrlccc')
+    l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
+    l.add_rows(ahistory, ['', '', '', '', '', ''])
+    l.end_table()
+
     l.add_subsection("{} Game Log".format(home))
-    l.add_table(hhistory)
+    l.start_table('lrlccc')
+    l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
+    l.add_rows(hhistory, ['', '', '', '', '', ''])
+    l.end_table()
 
     l.add_section("Batting Leaderboards")
-    l.add_subsection("WAR")
-    l.add_table(bat_df)
+    l.start_table('rllrcrrrrrrrr')
+    l.add_headers(['', 'Name', 'Team', 'war', 'slash', 'hr', 'rbi', 'sb', 'bb%', 'k%', 'babip', 'owar', 'dwar'])
+    l.add_rows(bat_df, ['{:.0f}', '', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.1f}', '{:.1f}'])
+    l.end_table()
+
     l.add_subsection("HR")
-    l.add_table(hr_df)
+    l.start_table('llrr')
+    l.add_headers(['Name','Team', 'hr', '#'])
+    l.add_rows(hr_df, ['', '', '{:.0f}', '{:.0f}'])
+    l.end_table()
 
     l.add_section("Pitching Leaderboards")
     l.add_subsection("WAR")
-    l.add_table(pit_df)
+    l.start_table('rllrrrrrrrrr')
+    l.add_headers(['','Name','Team','war','w','l','era','ip','k/9','bb/9','hr/9','gb%'])
+    l.add_rows(pit_df, ['{:.0f}', '', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.2f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.2f}'])
+    l.end_table()
+    
     l.add_subsection("WAR - Relivers")
-    l.add_table(rel_df)
+    l.start_table('rllr')
+    l.add_headers(['','Name','Team','war'])
+    l.add_rows(rel_df, ['{:.0f}', '', '', '{:.1f}'])
+    l.end_table()
+    
     l.add_subsection("ERA")
-    l.add_table(era_df)
+    l.start_table('rllrrrrrrrrr')
+    l.add_headers(['', 'Name', 'Team', 'war', 'w', 'l', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
+    l.add_rows(era_df, ['{:.0f}', '', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.2f}', '{:.1f}', '{:.2f}', '{:.2f}', '{:.2f}', '{:.2f}'])
+    l.end_table()
 
     l.add_section("ELO Ratings")
-    l.add_table(elo)
+    l.start_table('rlrrrr')
+    l.add_headers(['', 'Team', 'Rating', 'div%', 'post%', 'ws%'])
+    l.add_rows(elo, ['{:.0f}', '', '{:.0f}', '{:.2f}', '{:.2f}', '{:.2f}'])
+    l.end_table()
 
     l.footer()
     l.make_pdf()
