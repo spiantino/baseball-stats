@@ -79,7 +79,7 @@ class Latex:
 
 				\usepackage[T1]{fontenc}
 				\usepackage{fontspec}
-				\setmainfont[Scale=0.85, Ligatures={Required,Common,Contextual,TeX}]{TeX Gyre Schola} % Incredible font inside latex
+				\setmainfont[Scale=0.85]{TeX Gyre Schola} % Incredible font inside latex
 
 
 				\begin{document}

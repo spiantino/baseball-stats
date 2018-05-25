@@ -24,10 +24,10 @@ def summary_table(data, year):
     if game_state == 'Scheduled':
 
         home_name = data['preview'][0]['gameData']\
-                        ['teams']['home']['name']['full']
+                        ['teams']['home']['name']
 
         away_name = data['preview'][0]['gameData']\
-                        ['teams']['away']['name']['full']
+                        ['teams']['away']['name']
 
         home_rec = data['preview'][0]['gameData']['teams']\
                        ['home']['record']['leagueRecord']
