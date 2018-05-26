@@ -26,8 +26,8 @@ def summary_table(data, year, team):
         away_name = game_data['teams']['away']['name']
         home_abbr = game_data['teams']['home']['abbreviation']
         away_abbr = game_data['teams']['away']['abbreviation']
-        home_rec  = game_data['home']['record']['leagueRecord']
-        away_rec  = game_data['away']['record']['leagueRecord']
+        home_rec  = game_data['teams']['home']['record']['leagueRecord']
+        away_rec  = game_data['teams']['away']['record']['leagueRecord']
 
         raw_game_time = game_data['datetime']['time']
         hour = int(raw_game_time.split(':')[0]) + 1
@@ -637,6 +637,10 @@ if __name__ == '__main__':
     # Create database controller object
     dbc = DBController()
 
+    # Gather game previews
+    print("Gathering game preivews...")
+    scrape.game_previews()
+
     # Query upcomming game and populate data
     game = dbc.get_team_game_preview(team=args.team, date=args.date)
 
@@ -655,11 +659,7 @@ if __name__ == '__main__':
     # print("Scraping pitching leaderboard...")
     # scrape.fangraphs(state='pit', year=current_year)
 
-    # # Gather game previews
-    # print("Gathering game preivews...")
-    # scrape.game_previews()
-
-    #print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
     # for team in [home, away]:
     #     scrape.schedule(team)
     #     scrape.pitching_logs(team, year)
@@ -667,7 +667,7 @@ if __name__ == '__main__':
     #     scrape.transactions(team, year)
     #     scrape.forty_man(team, year)
 
-    # scrape.elo()
+    # scrape.league_elo()
 
 
     summary   = summary_table(data=game_data, year=year, team=args.team)
@@ -718,18 +718,25 @@ if __name__ == '__main__':
     l.add_rows(bench[0], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
     l.end_table()
 
-    l.add_subsection("{} Bullpen".format(away))
-    l.start_table('lcrrrrrrrr')
-    l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
-    l.add_rows(bullpen[0], ['', '{:.0f}', '{:.1f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}'])
-    l.end_table()
-
     l.add_section("{} Lineup".format(home))
     l.start_table('lcclrcrrrrr')
     l.add_headers(['', 'Pos', '#', 'Name', 'war', 'slash', 'hr', 'rbi', 'sb', 'owar', 'dwar'])
     l.add_rows(starters[1], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
     l.add_divider()
     l.add_rows(bench[1], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
+    l.end_table()
+
+    l.add_section("Standings")
+    for table in standings:
+        l.start_table('lrrcccrr')
+        l.add_headers([table.columns[0], 'w', 'l', 'l10', 'gb', 'strk', 'home', 'away'])
+        l.add_rows(table, ['', '{:.0f}', '{:.0f}', '', '{:.0f}', '', '{:.3f}', '{:.3f}'])
+        l.end_table()
+
+    l.add_subsection("{} Bullpen".format(away))
+    l.start_table('lcrrrrrrrr')
+    l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
+    l.add_rows(bullpen[0], ['', '{:.0f}', '{:.1f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}'])
     l.end_table()
 
     l.add_subsection("{} Bullpen".format(home))
@@ -743,13 +750,6 @@ if __name__ == '__main__':
     l.add_headers(['Date', 'Opp', 'Starter', 'ip', 'h', 'r', 'er', 'bb', 'k', 'hr', 'gs'])
     l.add_rows(pitcher_history, ['', '', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}'])
     l.end_table()
-
-    l.add_section("Standings")
-    for table in standings:
-        l.start_table('lrrcccrr')
-        l.add_headers([table.columns[0], 'w', 'l', 'l10', 'gb', 'strk', 'home', 'away'])
-        l.add_rows(table, ['', '{:.0f}', '{:.0f}', '', '{:.0f}', '', '{:.3f}', '{:.3f}'])
-        l.end_table()
 
     l.add_subsection("{} Game Log".format(away))
     l.start_table('lrlccc')
