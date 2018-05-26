@@ -726,18 +726,17 @@ def league_elo():
 
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
-    # game_previews()
+    game_previews()
 
     # print("Scraping past boxscores...")
     # boxscores(date='all')
 
     # # print("Scraping batter and pitcher leaderboards")
-    fangraphs('bat', year)
-    fangraphs('pit', year)
+    # fangraphs('bat', year)
+    # fangraphs('pit', year)
 
     # print("Scraping league elo and division standings")
     # standings()
-    # league_elo()
 
     # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
     # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
@@ -751,3 +750,5 @@ if __name__ == '__main__':
     #     current_injuries(team)
     #     transactions(team, year)
     #     forty_man(team, year)
+
+    # league_elo()

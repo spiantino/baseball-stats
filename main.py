@@ -13,39 +13,35 @@ from utils import combine_dicts_in_list
 from latex import Latex
 
 
-def summary_table(data, year):
+def summary_table(data, year, team):
     current_year = datetime.date.today().strftime('%Y')
-    game_number = data['preview'][0]['gameData']['game']['gameNumber']
-    game_state = data['preview'][0]['gameData']['status']['detailedState']
+    game_data = data['preview'][0]['gameData']
+    game_state = game_data['status']['detailedState']
 
     home_abbr = data['home']
     away_abbr = data['away']
 
     if game_state == 'Scheduled':
+        home_name = game_data['teams']['home']['name']
+        away_name = game_data['teams']['away']['name']
+        home_abbr = game_data['teams']['home']['abbreviation']
+        away_abbr = game_data['teams']['away']['abbreviation']
+        home_rec  = game_data['home']['record']['leagueRecord']
+        away_rec  = game_data['away']['record']['leagueRecord']
 
-        home_name = data['preview'][0]['gameData']\
-                        ['teams']['home']['name']
-
-        away_name = data['preview'][0]['gameData']\
-                        ['teams']['away']['name']
-
-        home_rec = data['preview'][0]['gameData']['teams']\
-                       ['home']['record']['leagueRecord']
-
-        away_rec = data['preview'][0]['gameData']['teams']\
-                       ['away']['record']['leagueRecord']
-
-        raw_game_time = data['preview'][0]['gameData']['datetime']['time']
+        raw_game_time = game_data['datetime']['time']
         hour = int(raw_game_time.split(':')[0]) + 1
         mins = raw_game_time.split(':')[1]
         game_time = "{}:{}".format(hour, mins)
 
     else:
-        home_name = data['preview'][0]['gameData']['teams']['home']['name']['full']
-        away_name = data['preview'][0]['gameData']['teams']['away']['name']['full']
-        home_rec  = data['preview'][0]['gameData']['teams']['home']['record']
-        away_rec  = data['preview'][0]['gameData']['teams']['away']['record']
-        game_time = data['preview'][0]['gameData']['datetime']['time']
+        home_name = game_data['teams']['home']['name']['full']
+        away_name = game_data['teams']['away']['name']['full']
+        home_abbr = game_data['teams']['home']['name']['abbrev']
+        away_abbr = game_data['teams']['away']['name']['abbrev']
+        home_rec  = game_data['teams']['home']['record']
+        away_rec  = game_data['teams']['away']['record']
+        game_time = game_data['datetime']['time']
 
     home_wins = home_rec['wins']
     away_wins = away_rec['wins']
@@ -53,8 +49,15 @@ def summary_table(data, year):
     home_losses = home_rec['losses']
     away_losses = away_rec['losses']
 
-    am_or_pm = data['preview'][0]['gameData']['datetime']['ampm']
-    stadium  = data['preview'][0]['gameData']['venue']['name']
+    if team == home_abbr:
+        game_number = int(home_losses) + int(home_wins) + 1
+    elif team == away_abbr:
+        game_number = int(away_losses) + int(away_wins) + 1
+    else:
+        print("Error determining game number")
+
+    am_or_pm = game_data['datetime']['ampm']
+    stadium  = game_data['venue']['name']
 
     title = "{} ({}-{}) @ {} ({}-{})".format(away_name,
                                               away_wins,
@@ -67,7 +70,7 @@ def summary_table(data, year):
 
     # Forecast
     try:
-        forecast = data['preview'][0]['gameData']['weather']
+        forecast = game_data['weather']
         condition = forecast['condition']
         temp = forecast['temp']
         wind = forecast['wind']
@@ -76,8 +79,8 @@ def summary_table(data, year):
 
     # Starting pitchers
     try:    # Game state: scheduled
-        pitchers = data['preview'][0]['gameData']['probablePitchers']
-        players  = data['preview'][0]['gameData']['players']
+        pitchers = game_data['probablePitchers']
+        players  = game_data['players']
 
         away_pit_id = 'ID' + str(pitchers['away']['id'])
         home_pit_id = 'ID' + str(pitchers['home']['id'])
@@ -184,22 +187,41 @@ def rosters(who, data, year):
             batter = live_data['teams'][team]['players'][playerid]
             name = ' '.join((batter['name']['first'],
                              batter['name']['last']))
+            decoded = unidecode.unidecode(name)
             try:
                 pos = batter['position']
             except:
-                pos = ''
-            num = batter['shirtNum']
-            batstats = batter['seasonStats']['batting']
-            avg = batstats['avg']
-            obp = batstats['obp']
-            slg = batstats['slg']
-            hrs = batstats['homeRuns']
-            rbi = batstats['rbi']
-            sb  = batstats['stolenBases']
+                pos = '-'
+            try:
+                num = batter['shirtNum']
+            except:
+                num = '-'
+
+            # Find player data from fg/br data
+            pobj = dbc.get_player(decoded)
+            try:
+                try:
+                    pdata = pobj['fg']['bat'][year]
+                    avg = pdata['AVG']
+                except:
+                    pdata = pobj['br']['Standard Batting'][year]
+                    avg = pdata['BA']
+                obp = pdata['OBP']
+                slg = pdata['SLG']
+                hrs = pdata['HR']
+                rbi = pdata['RBI']
+                sb  = pdata['SB']
+            except:
+                avg = '-'
+                obp = '-'
+                slg = '-'
+                hrs = '-'
+                rbi = '-'
+                sb  = '-'
+
             slashline = '{}/{}/{}'.format(avg, obp, slg)
 
             # Query WAR stats from Players collection
-            decoded = unidecode.unidecode(name)
             # Replace try/except with has_data() method
             try:
                 try:
@@ -260,7 +282,10 @@ def bullpen(data, year):
             pitch = live_data['teams'][team]['players'][playerid]
             name = ' '.join((pitch['name']['first'],
                              pitch['name']['last']))
-            num = pitch['shirtNum']
+            try:
+                num = pitch['shirtNum']
+            except:
+                num = '--'
             hits = pitch['seasonStats']['pitching']['hits']
             runs = pitch['seasonStats']['pitching']['runs']
             eruns = pitch['seasonStats']['pitching']['earnedRuns']
@@ -326,9 +351,9 @@ def game_history(team):
     df['Opp'] = df[['Field', 'Opp']].apply(lambda x:' '.join((x[0], x[1]))
                                                        .strip(), axis=1)
 
-    df['Score'] = df[['R', 'RA']].apply(lambda x:''.join((x[0],'-',x[1])),
+    df['Score'] = df[['R', 'RA']].apply(lambda x: '{}-{}'.format(int(x[0]),
+                                                                 int(x[1])),
                                                                  axis=1)
-
     df = df.rename({'W/L' : 'Result'}, axis=1)
     df = df[cols]
 
@@ -568,9 +593,6 @@ def leaderboards(kind, stat, n, role='starter'):
                 'AVG/OBP/SLG', 'HR', 'RBI', 'SB',
                 'BB%', 'K%', 'BABIP', 'Off', 'Def']
 
-    elif role == 'reliever':
-        cols = ['Rank', 'Name', 'Team', 'WAR']
-
     elif kind == 'pit':
         cols = ['Rank', 'Name', 'Team', 'WAR', 'W', 'L',
                 'ERA', 'IP', 'K/9', 'BB/9', 'HR/9', 'GB%']
@@ -583,13 +605,22 @@ def leaderboards(kind, stat, n, role='starter'):
 
 def elo():
     # League ELO
-    elo_cols = ['Team', 'Rating', 'Division%',
+    elo_cols = ['Rating', 'Team', 'Division%',
                 'Playoff%', 'WorldSeries%']
     elo_stats = dbc.get_elo_stats()
     elo_data = combine_dicts_in_list(elo_stats)
     df = pd.DataFrame(elo_data)
     df = df[elo_cols].sort_values(by='Rating', ascending=False)
-    return df.reset_index()
+
+    # Round rating column
+    df['Rating'] = df.Rating.round().astype(int)
+
+    # Format columns with percantages
+    perc_cols = ['Division%', 'Playoff%', 'WorldSeries%']
+    for col in perc_cols:
+        df[col] = df[col].apply(lambda x: "{:.1%}".format(round(x, 3)))
+
+    return df
 
 
 if __name__ == '__main__':
@@ -602,18 +633,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     year = args.date.split('-')[0]
-
-
-    # # Gather global leaderboard data
-    # print("Scraping batting leaderboard...")
-    # scrape.fangraphs(state='bat', year=current_year)
-
-    # print("Scraping pitching leaderboard...")
-    # scrape.fangraphs(state='pit', year=current_year)
-
-    # # Gather game previews
-    # print("Gathering game preivews...")
-    # scrape.game_previews()
 
     # Create database controller object
     dbc = DBController()
@@ -628,7 +647,30 @@ if __name__ == '__main__':
     except:
         raise ValueError("NO GAME FOUND")
 
-    summary   = summary_table(data=game_data, year=year)
+
+    # # Gather global leaderboard data
+    # print("Scraping batting leaderboard...")
+    # scrape.fangraphs(state='bat', year=current_year)
+
+    # print("Scraping pitching leaderboard...")
+    # scrape.fangraphs(state='pit', year=current_year)
+
+    # # Gather game previews
+    # print("Gathering game preivews...")
+    # scrape.game_previews()
+
+    #print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    # for team in [home, away]:
+    #     scrape.schedule(team)
+    #     scrape.pitching_logs(team, year)
+    #     scrape.current_injuries(team)
+    #     scrape.transactions(team, year)
+    #     scrape.forty_man(team, year)
+
+    # scrape.elo()
+
+
+    summary   = summary_table(data=game_data, year=year, team=args.team)
     starters  = rosters(who='starters', data=game_data, year=year)
     bench     = rosters(who='bench', data=game_data, year=year)
     bullpen   = bullpen(data=game_data, year=year)
@@ -643,26 +685,26 @@ if __name__ == '__main__':
     elo = elo()
     pitcher_history = pitcher_history(team=args.team)
 
-    print(summary)
-    print(starters)
-    print(bench)
-    print(bullpen)
-    for table in standings:
-        print(table)
-    print(ahistory)
-    print(hhistory)
-    print(bat_df)
-    print(pit_df)
-    print(era_df)
-    print(rel_df)
-    print(hr_df)
-    print(elo)
-    print(pitcher_history)
+    # print(summary)
+    # print(starters)
+    # print(bench)
+    # print(bullpen)
+    # for table in standings:
+        # print(table)
+    # print(ahistory)
+    # print(hhistory)
+    # print(bat_df)
+    # print(pit_df)
+    # print(era_df)
+    # print(rel_df)
+    # print(hr_df)
+    # print(elo)
+    # print(pitcher_history)
 
     l = Latex("{}-{}.tex".format(args.team, args.date))
     l.header()
     l.title(summary)
-    
+
     l.start_table('lcclrrrrrrrrr')
     l.add_headers(['Team', 'R/L', '#', 'Name', 'war', 'w', 'l', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
     l.add_rows(summary['pit_df'], ['', '', '{:.0f}', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.2f}', '{:.1f}', '{:.2f}', '{:.2f}', '{:.2f}', '{:.2f}'])
@@ -739,13 +781,13 @@ if __name__ == '__main__':
     l.add_headers(['','Name','Team','war','w','l','era','ip','k/9','bb/9','hr/9','gb%'])
     l.add_rows(pit_df, ['{:.0f}', '', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.2f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.2f}'])
     l.end_table()
-    
+
     l.add_subsection("WAR - Relivers")
     l.start_table('rllr')
     l.add_headers(['','Name','Team','war'])
     l.add_rows(rel_df, ['{:.0f}', '', '', '{:.1f}'])
     l.end_table()
-    
+
     l.add_subsection("ERA")
     l.start_table('rllrrrrrrrrr')
     l.add_headers(['', 'Name', 'Team', 'war', 'w', 'l', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])

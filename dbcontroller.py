@@ -45,7 +45,6 @@ class DBController:
         Return Player BR ID from Teams collection
         Player objects are in Fortyman array
         """
-        print(player)
         year = self._current_year if not year else year
         namepath = '$Fortyman.{}.Name'.format(year)
         bidpath  = '$Fortyman.{}.bid'.format(year)
@@ -63,7 +62,7 @@ class DBController:
         Return team pitcher data from Games collection
         """
         abbr = convert_name(team, how='abbr')
-        pitch = '{}.pitching'.format(team)
+        pitch = '{}.pitching'.format(abbr)
         return self._db.Games.aggregate([{'$match':
                                              {'$and': [{'date':  date},
                                              {'$or':  [{'home' : abbr},
