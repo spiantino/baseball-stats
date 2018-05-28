@@ -729,7 +729,7 @@ if __name__ == '__main__':
     game_previews()
 
     # print("Scraping past boxscores...")
-    # boxscores(date='all')
+    boxscores(date='all')
 
     # # print("Scraping batter and pitcher leaderboards")
     # fangraphs('bat', year)

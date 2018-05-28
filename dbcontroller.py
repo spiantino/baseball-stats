@@ -171,6 +171,31 @@ class DBController:
                                     '$or' : [{'home' : abbr},
                                              {'away' : abbr}]})
 
+    def get_all_team_previews(self):
+        abbr = convert_name(team, how='abbr')
+        year = '^{}'.format(self._current_year)
+        return self._db.Games.find({'$and': [{'date': {'$regex': year}},
+                                             {'$or':  [{'home' : abbr},
+                                                       {'away' : abbr}]}]})
+
+    def get_last_pitch_date(self, name, team):
+        """
+        Find the last day where a pitcher was active
+        """
+        abbr = convert_name(team, how='abbr')
+        dates = self.get_past_game_dates_by_team(abbr)
+
+        for date in dates:
+            if date == self._current_day:
+                continue
+            game = list(self._db.Games.find({'$and': [{'date': date},
+                                               {'$or':  [{'home' : abbr},
+                                                         {'away' : abbr}]}]}))
+            pitchers = [x['Pitching'] for x in game[0][abbr]['pitching']]
+            if name in pitchers:
+                return date
+        return None
+
     def get_teams_by_division(self, div):
         return self._db.Teams.find({'div' : div})
 
@@ -289,12 +314,16 @@ class DBController:
                                               'Division%'    : division,
                                               'WorldSeries%' : worldser}}])
 
-    # def get_pitching_results(self, team, date):
-    #     """
-    #     Get starting pitcher stats
-    #     """
-    #     abbr = convert_name(team, how='abbr')
-    #     return self._db.Teams.aggregate({'$match' : {}})
+    def get_past_game_dates_by_team(self, team):
+        """
+        Return list of dates when input team has played
+        """
+        data = self._db.Games.aggregate([{'$match':
+                                             {'$or':[{'home' : team},
+                                                     {'away' : team}]}},
+                                         {'$project': {'_id' : 0,
+                                                      'date' : 1}}])
+        return sorted([x['date'] for x in data], reverse=True)
 
     def get_past_game_dates(self):
         """
@@ -318,12 +347,6 @@ class DBController:
                                                'date': 1}}])
         dates = set([x['date'] for x in data])
         return dates
-
-    # def delete_postponed_game_docs(self):
-    #     """529995
-    #     Delete Game doc if game has been postponed
-    #     but game state has not changed from "Scheduled"
-    #     """
 
 
     def find_outdated_game_dates(self):

@@ -9,7 +9,7 @@ import scrape
 
 from collections import defaultdict
 from dbcontroller import DBController
-from utils import combine_dicts_in_list
+from utils import combine_dicts_in_list, subtract_dates
 from latex import Latex
 
 
@@ -275,7 +275,7 @@ def bullpen(data, year):
                             ['teams'][team]['abbreviation']
 
         df_cols = ['Name', 'Number', 'WAR', 'SV', 'ERA',
-                   'IP', 'k/9', 'bb/9', 'hr/9', 'gb%']
+                   'IP', 'k/9', 'bb/9', 'hr/9', 'gb%', 'days']
         df_data = []
 
         for playerid in bullpen_ids:
@@ -330,7 +330,16 @@ def bullpen(data, year):
                 hr9 = '-'
                 gb  = '-'
 
-            df_data.append([decoded, num, war, sv, era, ip, k9, bb9, hr9, gb])
+            # Find number of days since last active
+            today = datetime.date.today().strftime('%Y-%m-%d')
+            last_date = dbc.get_last_pitch_date(decoded, team_name)
+            if last_date:
+                days = subtract_dates(today, last_date)
+            else:
+                days = '-'
+
+            df_data.append([decoded, num, war, sv, era,
+                            ip, k9, bb9, hr9, gb, days])
 
         df = pd.DataFrame(df_data, columns=df_cols)
         return df
@@ -638,8 +647,8 @@ if __name__ == '__main__':
     dbc = DBController()
 
     # Gather game previews
-    print("Gathering game preivews...")
-    scrape.game_previews()
+    # print("Gathering game preivews...")
+    # scrape.game_previews()
 
     # Query upcomming game and populate data
     game = dbc.get_team_game_preview(team=args.team, date=args.date)
@@ -802,8 +811,3 @@ if __name__ == '__main__':
 
     l.footer()
     l.make_pdf()
-
-
-
-
-
