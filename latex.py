@@ -90,7 +90,6 @@ class Latex:
                 \usepackage{fontspec}
                 \setmainfont[Scale=0.80]{TeX Gyre Schola}
 
-
                 \begin{document}
                 """)
 

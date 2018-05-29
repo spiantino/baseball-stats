@@ -211,6 +211,10 @@ def rosters(who, data, year):
                 hrs = pdata['HR']
                 rbi = pdata['RBI']
                 sb  = pdata['SB']
+                slashline = '{}/{}/{}'.format(
+                    "{:.3f}".format(avg).lstrip('0'), 
+                    "{:.3f}".format(obp).lstrip('0'), 
+                    "{:.3f}".format(slg).lstrip('0'))
             except:
                 avg = '-'
                 obp = '-'
@@ -218,8 +222,8 @@ def rosters(who, data, year):
                 hrs = '-'
                 rbi = '-'
                 sb  = '-'
+                slashline = '-'
 
-            slashline = '{}/{}/{}'.format(avg, obp, slg)
 
             # Query WAR stats from Players collection
             # Replace try/except with has_data() method
@@ -581,7 +585,10 @@ def leaderboards(kind, stat, n, role='starter'):
     if kind == 'bat':
         def make_slash_line(*x):
             avg, obp, slg = x
-            return '{}/{}/{}'.format(avg, obp, slg)
+            return '{}/{}/{}'.format(
+                "{:.3f}".format(avg).lstrip('0'), 
+                "{:.3f}".format(obp).lstrip('0'), 
+                "{:.3f}".format(slg).lstrip('0'))
 
         df['AVG/OBP/SLG'] = df[['AVG', 'OBP', 'SLG']]\
                              .apply(lambda x: make_slash_line(*x), axis=1)

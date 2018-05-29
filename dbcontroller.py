@@ -5,7 +5,7 @@ import re
 from utils import convert_name, find_earlier_date
 
 class DBController:
-    def __init__(self, test=True):
+    def __init__(self, test=False):
         if test:
             address='localhost'
             port=27017
