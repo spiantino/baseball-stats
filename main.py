@@ -351,6 +351,9 @@ def bullpen(data, year):
     away_df = generate_stats_table(away_bullpen_ids, 'away')
     home_df = generate_stats_table(home_bullpen_ids, 'home')
 
+    away_df = away_df.sort_values(by='IP', ascending=False)
+    home_df = home_df.sort_values(by='IP', ascending=False)
+
     return (away_df, home_df)
 
 
@@ -367,6 +370,12 @@ def game_history(team):
     df['Score'] = df[['R', 'RA']].apply(lambda x: '{}-{}'.format(int(x[0]),
                                                                  int(x[1])),
                                                                  axis=1)
+    def format_date(x, y):
+        _, m, d = x.split()
+        df_date = '{} {} {}'.format(m, d, y)
+        return datetime.datetime.strptime(df_date, '%b %d %Y')
+
+    df['Date'] = df.Date.apply(lambda x: str(format_date(x, y=year).strftime("%m-%d")))
     df = df.rename({'W/L' : 'Result'}, axis=1)
     df = df[cols]
 
@@ -604,6 +613,9 @@ def leaderboards(kind, stat, n, role='starter'):
     if stat == 'HR':
         cols = ['Name', 'Team', 'HR']
 
+    elif stat == 'RBI':
+        cols = ['Name', 'Team', 'RBI']
+
     elif kind == 'bat':
         cols = ['Rank', 'Name', 'Team', 'WAR',
                 'AVG/OBP/SLG', 'HR', 'RBI', 'SB',
@@ -661,9 +673,9 @@ if __name__ == '__main__':
     # Create database controller object
     dbc = DBController()
 
-    # # Gather game previews
-    # print("Gathering game preivews...")
-    # scrape.game_previews()
+    # Gather game previews
+    print("Gathering game previews...")
+    scrape.game_previews()
 
     # Query upcomming game and populate data
     game = dbc.get_team_game_preview(team=args.team, date=args.date)
@@ -675,24 +687,22 @@ if __name__ == '__main__':
     except:
         raise ValueError("NO GAME FOUND")
 
+    # Gather global leaderboard data
+    print("Scraping batting leaderboard...")
+    scrape.fangraphs(state='bat', year=current_year)
 
-    # # Gather global leaderboard data
-    # print("Scraping batting leaderboard...")
-    # scrape.fangraphs(state='bat', year=current_year)
+    print("Scraping pitching leaderboard...")
+    scrape.fangraphs(state='pit', year=current_year)
 
-    # print("Scraping pitching leaderboard...")
-    # scrape.fangraphs(state='pit', year=current_year)
+    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    for team in [home, away]:
+        scrape.schedule(team)
+        scrape.pitching_logs(team, year)
+        scrape.current_injuries(team)
+        scrape.transactions(team, year)
+        scrape.forty_man(team, year)
 
-    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    # for team in [home, away]:
-    #     scrape.schedule(team)
-    #     scrape.pitching_logs(team, year)
-    #     scrape.current_injuries(team)
-    #     scrape.transactions(team, year)
-    #     scrape.forty_man(team, year)
-
-    # scrape.league_elo()
-
+    scrape.league_elo()
 
     summary   = summary_table(data=game_data, year=year, team=args.team)
     starters  = rosters(who='starters', data=game_data, year=year)
@@ -706,6 +716,7 @@ if __name__ == '__main__':
     era_df = leaderboards(kind='pit', stat='ERA', n=10, role='starter')
     rel_df = leaderboards(kind='pit', stat='WAR', n=10, role='reliever')
     hr_df  = leaderboards(kind='bat', stat='HR',  n=10, role='starter')
+    rbi_df = leaderboards(kind='bat', stat='RBI', n=10, role='starter')
     elo = elo()
     pitcher_history = pitcher_history(team=args.team)
 
@@ -751,12 +762,15 @@ if __name__ == '__main__':
     l.end_table()
 
     l.add_section("Standings")
+    l.start_multicol(2)
     for table in standings:
         l.start_table('lrrcccrr')
         l.add_headers([table.columns[0], 'w', 'l', 'l10', 'gb', 'strk', 'home', 'away'])
         l.add_rows(table, ['', '{:.0f}', '{:.0f}', '', '{:.0f}', '', '{:.3f}', '{:.3f}'])
         l.end_table()
-
+    l.end_multicol()
+    
+    l.page_break()
     l.add_subsection("{} Bullpen".format(away))
     l.start_table('lcrrrrrrrr')
     l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
@@ -775,6 +789,8 @@ if __name__ == '__main__':
     l.add_rows(pitcher_history, ['', '', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}'])
     l.end_table()
 
+    l.page_break()
+    l.start_multicol(2)
     l.add_subsection("{} Game Log".format(away))
     l.start_table('lrlccc')
     l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
@@ -786,18 +802,27 @@ if __name__ == '__main__':
     l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
     l.add_rows(hhistory, ['', '', '', '', '', ''])
     l.end_table()
+    l.end_multicol()
 
     l.add_section("Batting Leaderboards")
     l.start_table('rllrcrrrrrrrr')
     l.add_headers(['', 'Name', 'Team', 'war', 'slash', 'hr', 'rbi', 'sb', 'bb%', 'k%', 'babip', 'owar', 'dwar'])
     l.add_rows(bat_df, ['{:.0f}', '', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.1f}', '{:.1f}'])
     l.end_table()
-
+    
+    l.start_multicol(2)
     l.add_subsection("HR")
     l.start_table('llrr')
     l.add_headers(['Name','Team', 'hr', '#'])
     l.add_rows(hr_df, ['', '', '{:.0f}', '{:.0f}'])
     l.end_table()
+
+    l.add_subsection("RBI")
+    l.start_table('llrr')
+    l.add_headers(['Name','Team', 'rbi', '#'])
+    l.add_rows(rbi_df, ['', '', '{:.0f}', '{:.0f}'])
+    l.end_table()
+    l.end_multicol()
 
     l.add_section("Pitching Leaderboards")
     l.add_subsection("WAR")

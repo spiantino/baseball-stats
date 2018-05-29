@@ -66,6 +66,7 @@ class Latex:
                 \usepackage{float}
                 \usepackage{titlesec}
                 \usepackage{capt-of}
+                \usepackage{multicol}
 
                 %dashed line
                 \usepackage{array}
@@ -150,6 +151,26 @@ class Latex:
            """)
         self._f.write(t.render())
 
+    def start_multicol(self, cols):
+        t = jinja2.Template(
+           r"""
+            \begin{multicols}{ {{- cols -}} }
+           """)
+        self._f.write(t.render(cols = cols))
+
+    def end_multicol(self):
+        t = jinja2.Template(
+           r"""
+            \end{multicols}
+           """)
+        self._f.write(t.render())
+
+    def page_break(self):
+        t = jinja2.Template(
+           r"""
+            \newpage
+           """)
+        self._f.write(t.render())
 
     def add_headers(self, columns):
         t = jinja2.Template(
