@@ -623,11 +623,19 @@ def elo():
 
     # Round rating column
     df['Rating'] = df.Rating.round().astype(int)
+    
+    # Add Rank column and make it first
+    df['Rank'] = df.Rating.rank(ascending=False)
+    cols = df.columns.tolist()
+    cols = cols[-1:] + cols[:-1]
+    df = df[cols]
 
     # Format columns with percantages
     perc_cols = ['Division%', 'Playoff%', 'WorldSeries%']
     for col in perc_cols:
         df[col] = df[col].apply(lambda x: "{:.1%}".format(round(x, 3)))
+
+
 
     return df
 
@@ -646,7 +654,7 @@ if __name__ == '__main__':
     # Create database controller object
     dbc = DBController()
 
-    # Gather game previews
+    # # Gather game previews
     # print("Gathering game preivews...")
     # scrape.game_previews()
 
@@ -686,8 +694,8 @@ if __name__ == '__main__':
     standings = standings(home, away)
     ahistory = game_history(away)
     hhistory = game_history(home)
-    bat_df = leaderboards(kind='bat', stat='WAR', n=10, role='starter')
-    pit_df = leaderboards(kind='pit', stat='WAR', n=10, role='starter')
+    bat_df = leaderboards(kind='bat', stat='WAR', n=30, role='starter')
+    pit_df = leaderboards(kind='pit', stat='WAR', n=30, role='starter')
     era_df = leaderboards(kind='pit', stat='ERA', n=10, role='starter')
     rel_df = leaderboards(kind='pit', stat='WAR', n=10, role='reliever')
     hr_df  = leaderboards(kind='bat', stat='HR',  n=10, role='starter')
@@ -792,9 +800,9 @@ if __name__ == '__main__':
     l.end_table()
 
     l.add_subsection("WAR - Relivers")
-    l.start_table('rllr')
-    l.add_headers(['','Name','Team','war'])
-    l.add_rows(rel_df, ['{:.0f}', '', '', '{:.1f}'])
+    l.start_table('rllrrrrrrrrr')
+    l.add_headers(['','Name','Team','war','w','l','era','ip','k/9','bb/9','hr/9','gb%'])
+    l.add_rows(rel_df, ['{:.0f}', '', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.2f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.2f}'])
     l.end_table()
 
     l.add_subsection("ERA")
@@ -804,9 +812,9 @@ if __name__ == '__main__':
     l.end_table()
 
     l.add_section("ELO Ratings")
-    l.start_table('rlrrrr')
-    l.add_headers(['', 'Team', 'Rating', 'div%', 'post%', 'ws%'])
-    l.add_rows(elo, ['{:.0f}', '', '{:.0f}', '{:.2f}', '{:.2f}', '{:.2f}'])
+    l.start_table('rrlrrr')
+    l.add_headers(['', 'Rating', 'Team', 'div%', 'post%', 'ws%'])
+    l.add_rows(elo, ['{:.0f}', '{:.0f}', '', '{:.2f}', '{:.2f}', '{:.2f}'])
     l.end_table()
 
     l.footer()
