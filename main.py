@@ -369,12 +369,13 @@ def game_history(team):
     df['Score'] = df[['R', 'RA']].apply(lambda x: '{}-{}'.format(int(x[0]),
                                                                  int(x[1])),
                                                                  axis=1)
-    def format_date(x, y):
-        _, m, d = x.split()
-        df_date = '{} {} {}'.format(m, d, y)
-        return datetime.datetime.strptime(df_date, '%b %d %Y')
+    def format_date(x):
+        _, m, d = x.split()[:3]
+        df_date = '{} {}'.format(m, d)
+        dt_date = datetime.datetime.strptime(df_date, '%b %d')
+        return dt_date.strftime("%m-%d")
 
-    df['Date'] = df.Date.apply(lambda x: str(format_date(x, y=year).strftime("%m-%d")))
+    df['Date'] = df.Date.apply(lambda x: format_date(x))
     df = df.rename({'W/L' : 'Result'}, axis=1)
     df = df[cols]
 
@@ -710,7 +711,7 @@ if __name__ == '__main__':
 
     # Gather game previews
     print("Gathering game previews...")
-    # scrape.game_previews()
+    scrape.game_previews()
 
     print("Scraping past boxscores...")
     scrape.boxscores(date='all')

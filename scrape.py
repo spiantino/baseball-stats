@@ -58,7 +58,8 @@ def fangraphs(state, year):
         try:
             db_data['Team'] = convert_name(db_data['Team'])
         except:
-            print("(fangraphs) No team listed for {}".format(player))
+            pass # any need to pull team value from br here?
+            # print("(fangraphs) No team listed for {}".format(player))
 
         # Store type as numeric if possible
         db_data = parse_types(db_data)
