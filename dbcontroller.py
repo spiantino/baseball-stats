@@ -5,7 +5,7 @@ import re
 from utils import convert_name, find_earlier_date
 
 class DBController:
-    def __init__(self, test=False):
+    def __init__(self, test=True):
         if test:
             address='localhost'
             port=27017
@@ -40,17 +40,43 @@ class DBController:
                                           ])
         return list(res)
 
+    def find_team_by_player(self, player, year=None):
+        """
+        Return team for input player
+        Useful when team value does not exist in Player object
+        """
+        year = self._current_year if not year else year
+        fortypath = 'Fortyman.{}.Name'.format(year)
+        res = self._db.Teams.aggregate([{'$match':
+                                            {fortypath : player}},
+                                        {'$project': {'_id' : 0,
+                                                      'Tm' : 1}}])
+        return next(res)['Tm']
+
+    def get_player_team(self, player, year=None):
+        """
+        Checks for team info in two locations
+        """
+        year = self._current_year if not year else year
+        try:
+            team = self.find_team_by_player(player, year)
+        except:
+            team = self.get_player(player)['Team']
+
+        return team
+
     def get_player_brid(self, player, team, year=None):
         """
         Return Player BR ID from Teams collection
         Player objects are in Fortyman array
         """
         year = self._current_year if not year else year
+        fortypath = '$Fortyman.{}'.format(year)
         namepath = '$Fortyman.{}.Name'.format(year)
         bidpath  = '$Fortyman.{}.bid'.format(year)
 
         res = self._db.Teams.aggregate([{'$match': {'Tm': team}},
-                                        {'$unwind': '$Fortyman.2018'},
+                                        {'$unwind': fortypath},
                                         {'$project': {'_id' : 0,
                                                       'bid' : bidpath,
                                                       'name': namepath}},
@@ -178,12 +204,35 @@ class DBController:
                                              {'$or':  [{'home' : abbr},
                                                        {'away' : abbr}]}]})
 
-    def get_last_pitch_date(self, name, team):
+    def get_all_pitch_dates(self, name, team=None, year=None):
+        """
+        Return list of dates where pitcher was active
+        """
+        if not team:
+            team = self.get_player_team(name, year)
+
+        abbr = convert_name(team, how='abbr')
+        dates = self.get_past_game_dates_by_team(abbr, year)
+        active_dates = []
+
+        for date in dates:
+            # Change this back once br updates
+            if date == self._current_day:
+                continue
+            game = list(self._db.Games.find({'$and': [{'date': date},
+                                               {'$or':  [{'home' : abbr},
+                                                         {'away' : abbr}]}]}))
+            pitchers = [x['Pitching'] for x in game[0][abbr]['pitching']]
+            if name in pitchers:
+                active_dates.append(date)
+        return active_dates
+
+    def get_last_pitch_date(self, name, team=None, year=None):
         """
         Find the last day where a pitcher was active
         """
         abbr = convert_name(team, how='abbr')
-        dates = self.get_past_game_dates_by_team(abbr)
+        dates = self.get_past_game_dates_by_team(abbr, year)
 
         for date in dates:
             if date == self._current_day:
@@ -314,25 +363,31 @@ class DBController:
                                               'Division%'    : division,
                                               'WorldSeries%' : worldser}}])
 
-    def get_past_game_dates_by_team(self, team):
+    def get_past_game_dates_by_team(self, team, year=None):
         """
-        Return list of dates when input team has played
+        Return list of dates when input team
+        has played during the specified year
         """
+        year = self._current_year if not year else year
         data = self._db.Games.aggregate([{'$match':
                                              {'$or':[{'home' : team},
                                                      {'away' : team}]}},
                                          {'$project': {'_id' : 0,
                                                       'date' : 1}}])
-        return sorted([x['date'] for x in data], reverse=True)
+        return sorted([x['date'] for x in data
+                    if x['date'].split('-')[0] == year], reverse=True)
 
-    def get_past_game_dates(self):
+    def get_past_game_dates(self, year=None):
         """
-        Return set of all date values in Games collection
+        Return set of all date values in
+        Games collection for a specified year
         """
+        year = self._current_year if not year else year
         data = list(self._db.Games.aggregate([{'$project':
                                                   {'_id' : 0,
                                                   'date' : 1}}]))
-        dates = set([x['date'] for x in data])
+        dates = set([x['date'] for x in data
+                  if x['date'].split('-')[0] == year])
         return dates
 
     def get_missing_array_dates(self, array):

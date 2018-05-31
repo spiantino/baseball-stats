@@ -1,13 +1,12 @@
-
 import argparse
 import datetime
 import pandas as pd
-import unidecode
 import matplotlib.pyplot as plt
 import matplotlib.dates as dates
 import scrape
 
-from collections import defaultdict
+from collections import defaultdict, Counter
+from unidecode import unidecode
 from dbcontroller import DBController
 from utils import combine_dicts_in_list, subtract_dates
 from latex import Latex
@@ -120,8 +119,8 @@ def summary_table(data, year, team):
         away_pit_hand = away_pit_data['rightLeft']
         home_pit_hand = home_pit_data['rightLeft']
 
-    away_decoded = unidecode.unidecode(away_pit_name)
-    home_decoded = unidecode.unidecode(home_pit_name)
+    away_decoded = unidecode(away_pit_name)
+    home_decoded = unidecode(home_pit_name)
 
     away_pit_stats = dbc.get_player(away_decoded)['fg']['pit'][year]
     home_pit_stats = dbc.get_player(home_decoded)['fg']['pit'][year]
@@ -187,7 +186,7 @@ def rosters(who, data, year):
             batter = live_data['teams'][team]['players'][playerid]
             name = ' '.join((batter['name']['first'],
                              batter['name']['last']))
-            decoded = unidecode.unidecode(name)
+            decoded = unidecode(name)
             try:
                 pos = batter['position']
             except:
@@ -212,8 +211,8 @@ def rosters(who, data, year):
                 rbi = pdata['RBI']
                 sb  = pdata['SB']
                 slashline = '{}/{}/{}'.format(
-                    "{:.3f}".format(avg).lstrip('0'), 
-                    "{:.3f}".format(obp).lstrip('0'), 
+                    "{:.3f}".format(avg).lstrip('0'),
+                    "{:.3f}".format(obp).lstrip('0'),
                     "{:.3f}".format(slg).lstrip('0'))
             except:
                 avg = '-'
@@ -296,7 +295,7 @@ def bullpen(data, year):
             strikeouts = pitch['seasonStats']['pitching']['strikeOuts']
 
             # Query stats from Players collection
-            decoded = unidecode.unidecode(name)
+            decoded = unidecode(name)
 
             #Replace try/except clauses with has_data() method
             try:
@@ -442,7 +441,7 @@ def pitcher_history(team):
         strko = pit_data['strikeOuts']
 
         # Find GSc from BR data
-        decoded = unidecode.unidecode(name)
+        decoded = unidecode(name)
         pitchers = list(dbc.get_pitchers_by_game(team, date))
         all_pits = pitchers[0][team]['pitching']
         pit_stats = [x for x in all_pits if decoded in x.values()][0]
@@ -595,8 +594,8 @@ def leaderboards(kind, stat, n, role='starter'):
         def make_slash_line(*x):
             avg, obp, slg = x
             return '{}/{}/{}'.format(
-                "{:.3f}".format(avg).lstrip('0'), 
-                "{:.3f}".format(obp).lstrip('0'), 
+                "{:.3f}".format(avg).lstrip('0'),
+                "{:.3f}".format(obp).lstrip('0'),
                 "{:.3f}".format(slg).lstrip('0'))
 
         df['AVG/OBP/SLG'] = df[['AVG', 'OBP', 'SLG']]\
@@ -642,7 +641,7 @@ def elo():
 
     # Round rating column
     df['Rating'] = df.Rating.round().astype(int)
-    
+
     # Add Rank column and make it first
     df['Rank'] = df.Rating.rank(ascending=False)
     cols = df.columns.tolist()
@@ -654,9 +653,45 @@ def elo():
     for col in perc_cols:
         df[col] = df[col].apply(lambda x: "{:.1%}".format(round(x, 3)))
 
-
-
     return df
+
+### Pitch count functions - move to a new file?
+def parse_pitch_types(game_data):
+    """
+    Gather counts of pitch types for
+    all pitchers in a single game
+    """
+    live_data = game_data['preview'][0]['liveData']
+    player_data = live_data['players']['allPlayers']
+    all_plays = live_data['plays']['allPlays']
+    pit_data = defaultdict(list)
+    for play in all_plays:
+        pitcher_id = 'ID' + play['matchup']['pitcher']
+        pitcher_raw = ' '.join((player_data[pitcher_id]['name']['first'],
+                                player_data[pitcher_id]['name']['last']))
+        pitcher = unidecode(pitcher_raw)
+        for event in play['playEvents']:
+            try:
+                pitch = event['details']['type']
+                pit_data[pitcher].append(pitch)
+            except:
+                continue
+    pit_counts = {k : Counter(v) for k,v in pit_data.items()}
+    return pit_counts
+
+
+def get_pitch_counts(player):
+    """
+    Return counts of all pitch types for input player
+    """
+    dates = dbc.get_all_pitch_dates(player)
+    team = dbc.get_player_team(player)
+    counts = Counter()
+    for date in dates:
+        game = list(dbc.get_team_game_preview(team, date))[0]
+        game_counts = parse_pitch_types(game)[player]
+        counts += game_counts
+    return counts
 
 
 if __name__ == '__main__':
@@ -675,7 +710,10 @@ if __name__ == '__main__':
 
     # Gather game previews
     print("Gathering game previews...")
-    scrape.game_previews()
+    # scrape.game_previews()
+
+    print("Scraping past boxscores...")
+    scrape.boxscores(date='all')
 
     # Query upcomming game and populate data
     game = dbc.get_team_game_preview(team=args.team, date=args.date)
@@ -725,7 +763,7 @@ if __name__ == '__main__':
     # print(bench)
     # print(bullpen)
     # for table in standings:
-        # print(table)
+    #     print(table)
     # print(ahistory)
     # print(hhistory)
     # print(bat_df)
@@ -769,7 +807,7 @@ if __name__ == '__main__':
         l.add_rows(table, ['', '{:.0f}', '{:.0f}', '', '{:.0f}', '', '{:.3f}', '{:.3f}'])
         l.end_table()
     l.end_multicol()
-    
+
     l.page_break()
     l.add_subsection("{} Bullpen".format(away))
     l.start_table('lcrrrrrrrr')
@@ -809,7 +847,7 @@ if __name__ == '__main__':
     l.add_headers(['', 'Name', 'Team', 'war', 'slash', 'hr', 'rbi', 'sb', 'bb%', 'k%', 'babip', 'owar', 'dwar'])
     l.add_rows(bat_df, ['{:.0f}', '', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.1f}', '{:.1f}'])
     l.end_table()
-    
+
     l.start_multicol(2)
     l.add_subsection("HR")
     l.start_table('llrr')

@@ -726,10 +726,11 @@ def league_elo():
 
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
+
     game_previews()
 
     # print("Scraping past boxscores...")
-    boxscores(date='all')
+    # boxscores(date='all')
 
     # # print("Scraping batter and pitcher leaderboards")
     # fangraphs('bat', year)

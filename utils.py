@@ -132,6 +132,7 @@ def find_earlier_date(list_with_dates):
 
     return id1 if date1 < date2 else id2
 
+
 def subtract_dates(date1, date2):
     """
     Return number of days between two dates
@@ -141,6 +142,7 @@ def subtract_dates(date1, date2):
     date2 = datetime.datetime.strptime(date2, '%Y-%m-%d')
     days = (date1-date2).days
     return str(days).strip('-')
+
 
 def parse_types(d):
     """
@@ -157,4 +159,3 @@ def parse_types(d):
             except:
                 new_dict[k] = v
     return new_dict
-
