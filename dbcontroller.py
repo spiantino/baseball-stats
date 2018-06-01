@@ -51,7 +51,10 @@ class DBController:
                                             {fortypath : player}},
                                         {'$project': {'_id' : 0,
                                                       'Tm' : 1}}])
-        return next(res)['Tm']
+        try:
+            return next(res)['Tm']
+        except:
+            return None
 
     def get_player_team(self, player, year=None):
         """
@@ -216,7 +219,6 @@ class DBController:
         active_dates = []
 
         for date in dates:
-            # Change this back once br updates
             if date == self._current_day:
                 continue
             game = list(self._db.Games.find({'$and': [{'date': date},
