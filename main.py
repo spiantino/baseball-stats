@@ -157,18 +157,23 @@ def summary_table(data, year, team):
 
 
 def rosters(who, data, year):
+    game_state = data['preview'][0]['gameData']['status']['detailedState']
     live_data = data['preview'][0]['liveData']['boxscore']
 
-    if who == 'starters':
-        away_batters = live_data['teams']['away']['battingOrder']
-        home_batters = live_data['teams']['home']['battingOrder']
+    if game_state == 'Scheduled':
+        away_batter_ids = live_data['teams']['away']['players'].keys()
+        home_batter_ids = live_data['teams']['home']['players'].keys()
+    else:
+        if who == 'starters':
+            away_batters = live_data['teams']['away']['battingOrder']
+            home_batters = live_data['teams']['home']['battingOrder']
 
-    elif who == 'bench':
-        away_batters = live_data['teams']['away']['bench']
-        home_batters = live_data['teams']['home']['bench']
+        elif who == 'bench':
+            away_batters = live_data['teams']['away']['bench']
+            home_batters = live_data['teams']['home']['bench']
 
-    away_batter_ids = ['ID{}'.format(x) for x in away_batters]
-    home_batter_ids = ['ID{}'.format(x) for x in home_batters]
+        away_batter_ids = ['ID{}'.format(x) for x in away_batters]
+        home_batter_ids = ['ID{}'.format(x) for x in home_batters]
 
     def generate_stats_table(batter_ids, team):
         try:
@@ -186,17 +191,26 @@ def rosters(who, data, year):
         for idx, playerid in enumerate(batter_ids):
             order = idx + 1
             batter = live_data['teams'][team]['players'][playerid]
-            name = ' '.join((batter['name']['first'],
-                             batter['name']['last']))
+            try:
+                name = ' '.join((batter['name']['first'],
+                                 batter['name']['last']))
+            except:
+                name = batter['person']['fullName']
             decoded = unidecode(name)
             try:
-                pos = batter['position']
+                try:
+                    pos = batter['position']['abbreviation']
+                except:
+                    pos = batter['position']
             except:
-                pos = '-'
+                pos = None
             try:
-                num = batter['shirtNum']
+                try:
+                    num = batter['shirtNum']
+                except:
+                    num = batter['jerseyNumber']
             except:
-                num = '-'
+                num = None
 
             # Find player data from fg/br data
             pobj = dbc.get_player(decoded)
@@ -217,13 +231,13 @@ def rosters(who, data, year):
                     "{:.3f}".format(obp).lstrip('0'),
                     "{:.3f}".format(slg).lstrip('0'))
             except:
-                avg = '-'
-                obp = '-'
-                slg = '-'
-                hrs = '-'
-                rbi = '-'
-                sb  = '-'
-                slashline = '-'
+                avg = None
+                obp = None
+                slg = None
+                hrs = None
+                rbi = None
+                sb  = None
+                slashline = None
 
             # Query WAR stats from Players collection
             # Replace try/except with has_data() method
@@ -244,9 +258,9 @@ def rosters(who, data, year):
                     def_ = war_stats['def']
             except:
                 print("No {} data for {}".format(year, name))
-                war  = '-'
-                off  = '-'
-                def_ = '-'
+                war  = None
+                off  = None
+                def_ = None
 
             df_data.append([order, pos, num, name, war,
                             slashline, hrs, rbi, sb, off, def_])
@@ -256,6 +270,20 @@ def rosters(who, data, year):
 
     away_df = generate_stats_table(away_batter_ids, 'away')
     home_df = generate_stats_table(home_batter_ids, 'home')
+
+    if state == 'Scheduled':
+        away_df =  away_df.loc[away_df['Position'] != 'P']
+        home_df =  home_df.loc[home_df['Position'] != 'P']
+
+        away_df = away_df.sort_values(by='WAR', ascending=False)
+        home_df = home_df.sort_values(by='WAR', ascending=False)
+
+        away_df = away_df.drop(columns='Order')
+        home_df = home_df.drop(columns='Order')
+
+    away_df = away_df.fillna(value='-')
+    home_df = home_df.fillna(value='-')
+
     return (away_df, home_df)
 
 
@@ -319,10 +347,10 @@ def bullpen(data, year):
                     sv  = sp['SV']
                     era = sp['ERA']
                     ip  = sp['IP']
-                    k9  = '-'
+                    k9  = None
                     bb9 = sp['BB9']
                     hr9 = sp['HR9']
-                    gb  = '-'
+                    gb  = None
             except:
                 print("No {} data for {}".format(year, name))
                 war = None
@@ -811,8 +839,12 @@ def series_results(team):
 
         score = '{}-{}'.format(h_score, a_score)
 
-        home_pit_data = game_data[home]['pitching'][1]
-        away_pit_data = game_data[away]['pitching'][1]
+        try:
+            home_pit_data = game_data[home]['pitching'][1]
+            away_pit_data = game_data[away]['pitching'][1]
+        except:
+            print("Need boxscores for {}".format(date))
+            continue
 
         home_starter = home_pit_data['Pitching']
         away_starter = away_pit_data['Pitching']
@@ -828,6 +860,25 @@ def series_results(team):
 
     df = pd.DataFrame(df_data, columns=cols)
     return df
+
+def extract_game_data(cursorobj):
+    """
+    Returns game data from a cursor object
+    Determines which game to return when a double header occurs
+    """
+    games = list(cursorobj)
+    if len(games) > 1:
+        status = games[0]['preview'][0]['gameData']['status']['detailedState']
+        if status == 'Final':
+            return games[1]
+        else:
+            return games[0]
+
+    elif len(games) == 1:
+        return games[0]
+
+    else:
+        return None
 
 
 if __name__ == '__main__':
@@ -854,11 +905,12 @@ if __name__ == '__main__':
     # Query upcomming game and populate data
     game = dbc.get_team_game_preview(team=args.team, date=args.date)
 
-    try:
-        game_data = list(game)[0]
+    game_data = extract_game_data(game)
+    if game_data:
         home = game_data['home']
         away = game_data['away']
-    except:
+        state = game_data['preview'][0]['gameData']['status']['detailedState']
+    else:
         raise ValueError("NO GAME FOUND")
 
     # Gather global leaderboard data
@@ -879,8 +931,12 @@ if __name__ == '__main__':
     scrape.league_elo()
 
     summary   = summary_table(data=game_data, year=year, team=args.team)
-    starters  = rosters(who='starters', data=game_data, year=year)
-    bench     = rosters(who='bench', data=game_data, year=year)
+    if state == 'Scheduled':
+        starters = rosters(who='all', data=game_data, year=year)
+        bench = None
+    else:
+        starters  = rosters(who='starters', data=game_data, year=year)
+        bench     = rosters(who='bench', data=game_data, year=year)
     bullpen   = bullpen(data=game_data, year=year)
     standings = standings(home, away)
     ahistory = game_history(away)
@@ -911,8 +967,8 @@ if __name__ == '__main__':
     # print(hr_df)
     # print(elo)
     # print(pitcher_history)
-    print(last_week_bullpen)
-    print(series_table)
+    # print(last_week_bullpen)
+    # print(series_table)
 
     l = Latex("{}-{}.tex".format(args.team, args.date))
     l.header()
@@ -927,16 +983,18 @@ if __name__ == '__main__':
     l.start_table('lcclrcrrrrr')
     l.add_headers(['', 'Pos', '#', 'Name', 'war', 'slash', 'hr', 'rbi', 'sb', 'owar', 'dwar'])
     l.add_rows(starters[0], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
-    l.add_divider()
-    l.add_rows(bench[0], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
+    if bench:
+        l.add_divider()
+        l.add_rows(bench[0], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
     l.end_table()
 
     l.add_section("{} Lineup".format(home))
     l.start_table('lcclrcrrrrr')
     l.add_headers(['', 'Pos', '#', 'Name', 'war', 'slash', 'hr', 'rbi', 'sb', 'owar', 'dwar'])
     l.add_rows(starters[1], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
-    l.add_divider()
-    l.add_rows(bench[1], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
+    if bench:
+        l.add_divider()
+        l.add_rows(bench[1], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
     l.end_table()
 
     l.add_section("Standings")
