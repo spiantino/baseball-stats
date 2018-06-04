@@ -696,6 +696,7 @@ def get_pitch_counts(player):
         counts += game_counts
     return counts
 
+
 def previous_week_bullpen(team):
     """
     For each day in the week:
@@ -767,6 +768,65 @@ def previous_week_bullpen(team):
 
     return df
 
+
+def series_results(team):
+    """
+    Table with date, time, score, starter,
+    ip, game score, for the current series
+    """
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    opponent = None
+    df_data = []
+    cols = ['date', 'time', 'home', 'away', 'score',
+            'home starter', 'home ip', 'home gs',
+            'away starter', 'away ip', 'away gs']
+    all_game_dates = dbc.get_past_game_dates_by_team(team)
+
+    for date in all_game_dates:
+        game = dbc.get_team_game_preview(team, date)
+        game_data = next(game)
+        preview = game_data['preview'][0]
+        state = preview['gameData']['status']['detailedState']
+        if date == today and state != 'Final':
+            continue
+        home = game_data['home']
+        away = game_data['away']
+
+        # Stop collecting data when opponent changes
+        this_opponent = away if team == home else home
+        if not opponent:
+            opponent = this_opponent
+        elif opponent != this_opponent:
+            break
+
+        game_time = preview['gameData']['datetime']['time']
+        am_or_pm = preview['gameData']['datetime']['ampm']
+        time = '{}{}'.format(game_time, am_or_pm)
+
+        h_score = preview['liveData']['linescore']['home']['runs']
+        a_score = preview['liveData']['linescore']['away']['runs']
+
+        score = '{}-{}'.format(h_score, a_score)
+
+        home_pit_data = game_data[home]['pitching'][1]
+        away_pit_data = game_data[away]['pitching'][1]
+
+        home_starter = home_pit_data['Pitching']
+        away_starter = away_pit_data['Pitching']
+
+        home_ip = home_pit_data['IP']
+        away_ip = away_pit_data['IP']
+
+        home_gsc = home_pit_data['GSc']
+        away_gsc = away_pit_data['GSc']
+
+        df_data.append([date, time, home, away, score, home_starter, home_ip,
+                        home_gsc, away_starter, away_ip, away_gsc])
+
+    df = pd.DataFrame(df_data, columns=cols)
+    return df
+
+
 if __name__ == '__main__':
     today = datetime.date.today().strftime('%Y-%m-%d')
     current_year = today.split('-')[0]
@@ -831,6 +891,7 @@ if __name__ == '__main__':
     elo = elo()
     pitcher_history = pitcher_history(team=args.team)
     last_week_bullpen = previous_week_bullpen(team=args.team)
+    series_table = series_results(team=args.team)
 
     # print(summary)
     # print(starters)
@@ -848,6 +909,7 @@ if __name__ == '__main__':
     # print(elo)
     # print(pitcher_history)
     print(last_week_bullpen)
+    print(series_table)
 
     l = Latex("{}-{}.tex".format(args.team, args.date))
     l.header()
