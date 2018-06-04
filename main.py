@@ -225,7 +225,6 @@ def rosters(who, data, year):
                 sb  = '-'
                 slashline = '-'
 
-
             # Query WAR stats from Players collection
             # Replace try/except with has_data() method
             try:
@@ -326,14 +325,15 @@ def bullpen(data, year):
                     gb  = '-'
             except:
                 print("No {} data for {}".format(year, name))
-                war = '-'
-                sv  = '-'
-                era = '-'
-                ip  = '-'
-                k9  = '-'
-                bb9 = '-'
-                hr9 = '-'
-                gb  = '-'
+                war = None
+                sv  = None
+                era = None
+                ip  = None
+                k9  = None
+                bb9 = None
+                hr9 = None
+                gb  = None
+
 
             # Find number of days since last active
             today = datetime.date.today().strftime('%Y-%m-%d')
@@ -341,7 +341,7 @@ def bullpen(data, year):
             if last_date:
                 days = subtract_dates(today, last_date)
             else:
-                days = '-'
+                days = None
 
             df_data.append([decoded, num, war, sv, era,
                             ip, k9, bb9, hr9, gb, days])
@@ -354,6 +354,9 @@ def bullpen(data, year):
 
     away_df = away_df.sort_values(by='IP', ascending=False)
     home_df = home_df.sort_values(by='IP', ascending=False)
+
+    away_df = away_df.fillna(value='-')
+    home_df = home_df.fillna(value='-')
 
     return (away_df, home_df)
 
