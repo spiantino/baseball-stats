@@ -2,6 +2,7 @@ from bs4 import BeautifulSoup, Comment
 from tqdm import tqdm
 import requests
 import argparse
+import re
 import json
 import datetime
 import pickle
@@ -685,6 +686,44 @@ def game_previews(dbc=dbc):
                          'date' : date,
                          'gid'  : gid},
                          {'$push': {'preview': game_data}}, upsert=True)
+
+
+def espn_preview_text(date, team):
+    # Find competition ID
+    date_norm = date.replace('-', '')
+    url = 'http://www.espn.com/mlb/scoreboard/_/date/{}'.format(date_norm)
+    html = requests.get(url).text.replace('\t', '')
+
+    data = re.search(r'data: [\s\S]+,\nqueue', html, re.DOTALL).group()
+    data = data.strip(',\nqueue').strip('data: ')
+    j = json.loads(data)
+
+    events = j['sports'][1]['leagues'][0]['events']
+
+    event = [event for event in events if
+             team == event['competitors'][0]['abbreviation'] or
+             team == event['competitors'][1]['abbreviation']][0]
+
+    cid = event['competitionId']
+
+    # Scrape article text
+    url = 'http://www.espn.com/mlb/preview?gameId={}'.format(cid)
+    html = requests.get(url).text.replace('\t', '')
+
+    soup = BeautifulSoup(html, 'html.parser')
+
+    mlbid = 'mlbid' + cid
+
+    article = soup.find('article', {'data-id' : '{}'.format(mlbid)})
+    text = ' '.join([p.text for p in article.find_all('p')])
+    text = text.replace("\'", "'")
+
+    # Find correct game object
+    gid = list(dbc.get_team_game_preview(team, date))[0]['gid']
+
+    # Push to database
+    db.Games.update({'gid' : gid},
+                    {'$set' : {'preview_text' : text}})
 
 
 def league_elo():
