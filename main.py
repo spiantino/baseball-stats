@@ -426,7 +426,7 @@ def get_past_game_dates(team, n=10):
 
     year = datetime.date.today().strftime('%Y')
     def format_date(x, y):
-        _, m, d = x.split()
+        _, m, d = x.split()[:3]
         df_date = '{} {} {}'.format(m, d, y)
         return datetime.datetime.strptime(df_date, '%b %d %Y')
 
@@ -478,8 +478,11 @@ def pitcher_history(team):
         decoded = unidecode(name)
         pitchers = list(dbc.get_pitchers_by_game(team, date))
         all_pits = pitchers[0][team]['pitching']
-        pit_stats = [x for x in all_pits if decoded in x.values()][0]
-        gsc = pit_stats['GSc']
+        try:
+            pit_stats = [x for x in all_pits if decoded in x.values()][0]
+            gsc = pit_stats['GSc']
+        except:
+            gsc = '-'
 
         df_data.append([short_date, opp, name, ip, hits, runs,
                         er, walks, strko, hr, gsc])
@@ -813,9 +816,18 @@ def series_results(team):
             'away starter', 'away ip', 'away gs']
     all_game_dates = dbc.get_past_game_dates_by_team(team)
 
+    double_header = False
     for date in all_game_dates:
         game = dbc.get_team_game_preview(team, date)
-        game_data = next(game)
+        games = list(game)
+        if len(games) > 1:
+            if double_header:
+                game_data = games[0]
+            else:
+                game_data = games[1]
+                double_header = True
+        else:
+            game_data = games[0]
         preview = game_data['preview'][0]
         state = preview['gameData']['status']['detailedState']
         if date == today and state != 'Final':
