@@ -7,6 +7,8 @@ import json
 import datetime
 import pickle
 import inspect
+import pandas as pd
+from io import StringIO
 
 from dbcontroller import DBController
 from utils import open_url, convert_name, find_missing_dates, parse_types
@@ -74,6 +76,60 @@ def fangraphs(state, year):
         if year == dbc._current_year:
             db.Players.update({'Name' : player},
                               {'$set': {'Team' : db_data['Team']}})
+
+def fangraph_splits(year):
+    # 5 is for left handed batters, 6 for right handed batters
+    for hand in [5, 6]:
+        url = """https://www.fangraphs.com/leaderssplits.aspx?splitArr={0}\
+               &strgroup=season&statgroup=1&startDate={1}-03-01\
+               &endDate={1}-11-01&filter=&position=P&statType=player\
+               &autoPt=true&players=&sort=19,-1&pg=0"""\
+               .format(hand, year).replace(' ', '')
+
+        soup = open_url(url)
+
+        # Send POST request to get data in csv format
+        params = {'__EVENTTARGET' : 'SplitsLeaderboard$cmdCSV',
+                  '__EVENTARGUMENT' : '',
+                  'SplitsLeaderboard$dataPlayerId': 'all',
+                  'SplitsLeaderboard$dataPos' : 'P',
+                  'SplitsLeaderboard$dataSplitArr': '[{}]'.format(hand),
+                  'SplitsLeaderboard$dataGroup' : 'season',
+                  'SplitsLeaderboard$dataType' : '1',
+                  'SplitsLeaderboard$dataStart' : '{}-03-01'.format(year),
+                  'SplitsLeaderboard$dataEnd' : '{}-11-01'.format(year),
+                  'SplitsLeaderboard$dataSplitTeams' : 'false',
+                  'SplitsLeaderboard$dataFilter' : '[]',
+                  'SplitsLeaderboard$dataAutoPt' : 'true',
+                  'SplitsLeaderboard$dataStatType' : 'player',
+                  'SplitsLeaderboard$dataPlayers' : ''}
+
+        elems = ['__VIEWSTATE',
+                 '__VIEWSTATEGENERATOR',
+                 '__EVENTVALIDATION']
+
+        # Find dynamic parameters in the page html
+        more_params = [soup.find('input', {'id' : elem}) for elem in elems]
+        for param in more_params:
+            params.update({param['id'] : param['value']})
+
+        req = requests.post(url, data=params).text
+        df = pd.read_csv(StringIO(req))
+
+        # Push one row at a time into database
+        df_data = df.to_dict(orient='index')
+        for key in tqdm(df_data.keys()):
+            name = df_data[key]['Name']
+            season = df_data[key]['Season']
+            player_data = {k:v for k,v in df_data[key].items()
+                               if k not in ['Name', 'Season']}
+
+            handstr = 'vLHH' if hand == 5 else 'vRHH'
+            db_path = 'fg.{}.{}'.format(handstr, season)
+
+            db.Players.update({'Name' : name},
+                              {'$set' : {db_path : player_data}})
+
 
 
 def standings():
@@ -768,6 +824,7 @@ if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
     # espn_preview_text('2018-06-04', 'NYY')
+    fangraph_splits(year=year)
 
     # print("Scraping past boxscores...")
     # boxscores(date='all')
