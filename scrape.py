@@ -691,14 +691,14 @@ def game_previews(dbc=dbc):
 def espn_preview_text(date, team):
     # Find competition ID
     date_norm = date.replace('-', '')
-    url = 'http://www.espn.com/mlb/scoreboard/_/date/{}'.format(date_norm)
+    url = 'http://www.espn.com/mlb/schedule/_/date/{}'.format(date_norm)
     html = requests.get(url).text.replace('\t', '')
 
     data = re.search(r'data: [\s\S]+,\nqueue', html, re.DOTALL).group()
     data = data.strip(',\nqueue').strip('data: ')
     j = json.loads(data)
 
-    events = j['sports'][1]['leagues'][0]['events']
+    events = j['sports'][0]['leagues'][0]['events']
 
     event = [event for event in events if
              team == event['competitors'][0]['abbreviation'] or
@@ -767,7 +767,7 @@ def league_elo():
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    game_previews()
+    # espn_preview_text('2018-06-04', 'NYY')
 
     # print("Scraping past boxscores...")
     # boxscores(date='all')
