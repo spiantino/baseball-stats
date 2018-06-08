@@ -1,5 +1,7 @@
 import argparse
 import datetime
+import requests
+import json
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as dates
@@ -8,7 +10,7 @@ import scrape
 from collections import defaultdict, Counter
 from unidecode import unidecode
 from dbcontroller import DBController
-from utils import combine_dicts_in_list, subtract_dates
+from utils import combine_dicts_in_list, subtract_dates, get_stadium_location
 from latex import Latex
 
 import math
@@ -69,14 +71,25 @@ def summary_table(data, year, team):
 
     details = '{}{} {}'.format(game_time, am_or_pm, stadium)
 
-    # Forecast
-    try:
-        forecast = game_data['weather']
-        condition = forecast['condition']
-        temp = forecast['temp']
-        wind = forecast['wind']
-    except:
-        condition, temp, wind = 'n/a', 'n/a', 'n/a'
+    # Forecast from darsky.net api
+    key = 'fb8f30e533bb7ae1a9a26b0ff68a0ed8'
+    loc  = get_stadium_location(home_abbr)
+    lat, lon = loc['lat'], loc['lon']
+    url = 'https://api.darksky.net/forecast/{}/{},{}'.format(key, lat, lon)
+    weather = json.loads(requests.get(url).text)
+
+    condition = weather['currently']['summary']
+    temp = weather['currently']['temperature']
+    wind = weather['currently']['windSpeed']
+
+    # Weather from game preview data
+    # try:
+    #     forecast = game_data['weather']
+    #     condition = forecast['condition']
+    #     temp = forecast['temp']
+    #     wind = forecast['wind']
+    # except:
+    #     condition, temp, wind = 'n/a', 'n/a', 'n/a'
 
     # Starting pitchers
     try:    # Game state: scheduled

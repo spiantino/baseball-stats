@@ -78,6 +78,43 @@ def convert_name(name, how='abbr'):
             return name.upper()
 
 
+def get_stadium_location(team):
+    team = convert_name(team)
+    locs = {
+            'ARI': {'lat': 33.4455, 'lon': -112.0667},
+            'ATL': {'lat': 33.7345, 'lon': -84.3870},
+            'BAL': {'lat': 39.2840, 'lon': -76.6199},
+            'BOS': {'lat': 42.3467, 'lon': -71.0972},
+            'CHC': {'lat': 41.8299, 'lon': -87.6338},
+            'CHW': {'lat': 41.8299, 'lon': -87.6338},
+            'CIN': {'lat': 39.0979, 'lon': -84.5082},
+            'CLE': {'lat': 41.4962, 'lon': -81.6852},
+            'COL': {'lat': 39.7559, 'lon': -104.9942},
+            'DET': {'lat': 42.3400, 'lon': -83.0456},
+            'HOU': {'lat': 29.7573, 'lon': -95.3555},
+            'KCR': {'lat': 39.0517, 'lon': -94.4803},
+            'LAA': {'lat': 33.8003, 'lon': -117.8827},
+            'LAD': {'lat': 34.0739, 'lon': -118.2400},
+            'MIA': {'lat': 25.7783, 'lon': -80.2196},
+            'MIL': {'lat': 43.0280, 'lon': -87.9712},
+            'MIN': {'lat': 44.9757, 'lon': -93.2737},
+            'NYM': {'lat': 40.7571, 'lon': -73.8458},
+            'NYY': {'lat': 40.8296, 'lon': -73.9262},
+            'OAK': {'lat': 37.7516, 'lon': -122.2005},
+            'PHI': {'lat': 39.9061, 'lon': -75.1665},
+            'PIT': {'lat': 40.4469, 'lon': -80.0057},
+            'SDP': {'lat': 32.7077, 'lon': -117.1569},
+            'SEA': {'lat': 47.5952, 'lon': -122.3316},
+            'SFG': {'lat': 37.7786, 'lon': -122.3893},
+            'STL': {'lat': 38.6226, 'lon': -90.1928},
+            'TBR': {'lat': 27.7682, 'lon': -82.6534},
+            'TEX': {'lat': 32.7512, 'lon': -97.0832},
+            'TOR': {'lat': 43.6414, 'lon': -79.3894},
+            'WSN': {'lat': 38.8730, 'lon': -77.0074}
+            }
+    return locs[team]
+
+
 def find_missing_dates(dbc):
     """
     Find dates between start of season and yesterday
