@@ -80,7 +80,14 @@ def summary_table(data, year, team):
 
     condition = weather['currently']['summary']
     temp = weather['currently']['temperature']
-    wind = weather['currently']['windSpeed']
+    wind = str(weather['currently']['windSpeed']) + 'mph'
+
+    try:
+        direction = ' '.join(game_data['weather']['wind'].split()[1:])
+        wind = wind + ' ' + direction
+    except:
+        pass
+
 
     # Weather from game preview data
     # try:
@@ -905,40 +912,13 @@ def extract_game_data(cursorobj):
     else:
         return None
 
-
-if __name__ == '__main__':
-    today = datetime.date.today().strftime('%Y-%m-%d')
-    current_year = today.split('-')[0]
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--team', default='NYY')
-    parser.add_argument('-d', '--date', default=today)
-    args = parser.parse_args()
-
-    year = args.date.split('-')[0]
-
-    # Create database controller object
-    dbc = DBController()
-
-    # Gather game previews
+def scrape_update(home, away, year):
     print("Gathering game previews...")
     scrape.game_previews()
 
     print("Scraping past boxscores...")
     scrape.boxscores(date='all')
 
-    # Query upcomming game and populate data
-    game = dbc.get_team_game_preview(team=args.team, date=args.date)
-
-    game_data = extract_game_data(game)
-    if game_data:
-        home = game_data['home']
-        away = game_data['away']
-        state = game_data['preview'][0]['gameData']['status']['detailedState']
-    else:
-        raise ValueError("NO GAME FOUND")
-
-    # Gather global leaderboard data
     print("Scraping batting leaderboard...")
     scrape.fangraphs(state='bat', year=current_year)
 
@@ -954,6 +934,34 @@ if __name__ == '__main__':
         scrape.forty_man(team, year)
 
     scrape.league_elo()
+
+
+if __name__ == '__main__':
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    current_year = today.split('-')[0]
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-t', '--team', default='NYY')
+    parser.add_argument('-d', '--date', default=today)
+    args = parser.parse_args()
+
+    year = args.date.split('-')[0]
+
+    # Create database controller object
+    dbc = DBController()
+
+    # Query upcomming game and populate data
+    game = dbc.get_team_game_preview(team=args.team, date=args.date)
+
+    game_data = extract_game_data(game)
+    if game_data:
+        home = game_data['home']
+        away = game_data['away']
+        state = game_data['preview'][0]['gameData']['status']['detailedState']
+    else:
+        raise ValueError("NO GAME FOUND")
+
+    scrape_update(home, away, year)
 
     summary   = summary_table(data=game_data, year=year, team=args.team)
     if state == 'Scheduled':
