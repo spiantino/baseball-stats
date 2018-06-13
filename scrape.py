@@ -131,7 +131,6 @@ def fangraph_splits(year):
                               {'$set' : {db_path : player_data}})
 
 
-
 def standings():
     """
     Scrape MLB standings from baseball-reference.com
@@ -193,7 +192,7 @@ def standings():
             db_data = parse_types(db_data)
 
             # Insert row into database
-            db.Teams.update({'Tm' : team}, db_data, upsert=True)
+            db.Teams.update({'Tm' : team}, {'$set': db_data}, upsert=True)
 
 
 def schedule(team):
@@ -321,8 +320,11 @@ def forty_man(team, year):
         player = db_data['Name']
         exists = dbc.player_exists(player)
         if not exists:
-            print("Scraping br data for {}".format(player))
-            br_player_stats(player, team)
+            try:
+                print("Scraping br data for {}".format(player))
+                br_player_stats(player, team)
+            except:
+                print("Unable to scrape br data for {}".format(player))
 
 
 def br_player_stats(name, team):
@@ -823,30 +825,29 @@ def league_elo():
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    # espn_preview_text('2018-06-04', 'NYY')
-    fangraph_splits(year=year)
+    # fangraph_splits(year=year)
 
-    # print("Scraping past boxscores...")
-    # boxscores(date='all')
+    print("Scraping past boxscores...")
+    boxscores(date='all')
 
-    # # print("Scraping batter and pitcher leaderboards")
-    # fangraphs('bat', year)
-    # fangraphs('pit', year)
+    print("Scraping batter and pitcher leaderboards")
+    fangraphs('bat', year)
+    fangraphs('pit', year)
 
-    # print("Scraping league elo and division standings")
-    # standings()
+    print("Scraping league elo and division standings")
+    standings()
 
-    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
-    #          'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
-    #          'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
-    #          'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
-    #          'col', 'kcr', 'det', 'min', 'chw', 'nyy']
-    # for team in tqdm(teams):
-    #     schedule(team)
-    #     pitching_logs(team, year)
-    #     current_injuries(team)
-    #     transactions(team, year)
-    #     forty_man(team, year)
+    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
+             'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
+             'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
+             'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
+             'col', 'kcr', 'det', 'min', 'chw', 'nyy']
+    for team in tqdm(teams):
+        schedule(team)
+        pitching_logs(team, year)
+        current_injuries(team)
+        transactions(team, year)
+        forty_man(team, year)
 
-    # league_elo()
+    league_elo()

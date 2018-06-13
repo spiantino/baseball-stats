@@ -925,6 +925,9 @@ def scrape_update(home, away, year):
     print("Scraping pitching leaderboard...")
     scrape.fangraphs(state='pit', year=current_year)
 
+    print("Scraping league standings...")
+    scrape.standings()
+
     print("Scraping schedule, roster, pitch logs, injuries, transactions...")
     for team in [home, away]:
         scrape.schedule(team)
@@ -961,7 +964,7 @@ if __name__ == '__main__':
     else:
         raise ValueError("NO GAME FOUND")
 
-    scrape_update(home, away, year)
+    # scrape_update(home, away, year)
 
     summary   = summary_table(data=game_data, year=year, team=args.team)
     if state == 'Scheduled':
