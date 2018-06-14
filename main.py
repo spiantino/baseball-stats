@@ -913,9 +913,6 @@ def extract_game_data(cursorobj):
         return None
 
 def scrape_update(home, away, year):
-    print("Gathering game previews...")
-    scrape.game_previews()
-
     print("Scraping past boxscores...")
     scrape.boxscores(date='all')
 
@@ -953,6 +950,9 @@ if __name__ == '__main__':
     # Create database controller object
     dbc = DBController()
 
+    print("Gathering game previews...")
+    scrape.game_previews()
+
     # Query upcomming game and populate data
     game = dbc.get_team_game_preview(team=args.team, date=args.date)
 
@@ -964,7 +964,7 @@ if __name__ == '__main__':
     else:
         raise ValueError("NO GAME FOUND")
 
-    # scrape_update(home, away, year)
+    scrape_update(home, away, year)
 
     summary   = summary_table(data=game_data, year=year, team=args.team)
     if state == 'Scheduled':
