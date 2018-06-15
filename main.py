@@ -144,8 +144,15 @@ def summary_table(data, year, team):
     away_decoded = unidecode(away_pit_name)
     home_decoded = unidecode(home_pit_name)
 
-    away_pit_stats = dbc.get_player(away_decoded)['fg']['pit'][year]
-    home_pit_stats = dbc.get_player(home_decoded)['fg']['pit'][year]
+    try:
+        away_pit_stats = dbc.get_player(away_decoded)['fg']['pit'][year]
+    except:
+        away_pit_stats = {}
+
+    try:
+        home_pit_stats = dbc.get_player(home_decoded)['fg']['pit'][year]
+    except:
+        home_pit_stats = {}
 
     pit_cols = ['Team', 'R/L', '#', 'Name', 'pit_WAR', 'W', 'L', 'ERA',
                 'IP', 'K/9', 'BB/9', 'HR/9', 'GB%']
