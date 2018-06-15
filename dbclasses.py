@@ -33,7 +33,7 @@ class Game(DBController):
 
     def reset_internals(self):
         self._game_details = None
-        self._starting_pitcher_data = None
+        self._starting_pitchers = None
         self._batters = None
 
     def get_game_preview(self):
@@ -45,7 +45,12 @@ class Game(DBController):
         games = self._db.Games.find({'date' : date,
                                      '$or' : [{'home' : team},
                                               {'away' : team}]})
-        self._game = self.extract_game(games)['preview'][0]
+        game = self.extract_game(games)
+
+        self._date = date
+        self._team = team
+        self._side = 'home' if game['home'] == team else 'away'
+        self._game = game['preview'][0]
         self._state = self._game['gameData']['status']['detailedState']
 
     def extract_game(self, cursor):
@@ -188,12 +193,12 @@ class Game(DBController):
             away_pit_hand = away_pit_data['rightLeft']
             home_pit_hand = home_pit_data['rightLeft']
 
-        self._starting_pitcher_data = {'home': [home_pit_name,
-                                                home_pit_hand,
-                                                home_pit_num],
-                                       'away': [away_pit_name,
-                                                away_pit_hand,
-                                                away_pit_num]}
+        self._starting_pitchers = {'home': {'name' : home_pit_name,
+                                            'hand' : home_pit_hand,
+                                            'num'  : home_pit_num},
+                                   'away': {'name' : away_pit_name,
+                                            'hand' : away_pit_hand,
+                                            'num'  : away_pit_num}}
 
     def parse_batters(self):
         live_data = self._game['liveData']['boxscore']
@@ -275,24 +280,28 @@ class Game(DBController):
                          'away_bench'   : away_bench,
                          'home_bench'   : home_bench}
 
+    def parse_all(self):
+        self.parse_game_details()
+        self.parse_starting_pitchers()
+        self.parse_batters()
 
-    def get_starting_pitchers(self):
-        if not self._starting_pitcher_data:
-            self.parse_starting_pitchers()
+    # def get_starting_pitchers(self):
+    #     if not self._starting_pitcher_data:
+    #         self.parse_starting_pitchers()
 
-        return self._starting_pitcher_data
+    #     return self._starting_pitcher_data
 
-    def get_game_details(self):
-        if not self._game_details:
-            self.parse_game_details()
+    # def get_game_details(self):
+    #     if not self._game_details:
+    #         self.parse_game_details()
 
-        return self._game_details
+    #     return self._game_details
 
-    def get_batters(self):
-        if not self._batters:
-            self.parse_batters()
+    # def get_batters(self):
+    #     if not self._batters:
+    #         self.parse_batters()
 
-        return self._batters
+    #     return self._batters
 
 class Team(DBController):
     def __init__(self, test=True):
