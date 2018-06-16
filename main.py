@@ -956,3 +956,5 @@ if __name__ == '__main__':
     print(summary)
     print(pitchers)
     print(rosters)
+
+    print(g._batters)

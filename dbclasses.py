@@ -245,65 +245,37 @@ class Game(DBController):
 
     def parse_batters(self):
         live_data = self._game['liveData']['boxscore']
-        away_players = live_data['teams']['away']['players']
-        home_players = live_data['teams']['home']['players']
 
         if self._state == 'Scheduled':
-            away_batter_ids = away_players.keys()
-            home_batter_ids = home_players.keys()
+            def extract_data(side):
+                plyrs = live_data['teams'][side]['players']
+                pids = plyrs.keys()
 
-            away_names = [away_players[pid]['person']['fullName']
-                                      for pid in away_batter_ids]
+                names = [plyrs[pid]['person']['fullName'] for pid in pids]
+                nums = [plyrs[pid]['jerseyNumber'] for pid in pids]
+                pos = [plyrs[pid]['position']['abbreviation'] for pid in pids]
 
-            home_names = [home_players[pid]['person']['fullName']
-                                      for pid in home_batter_ids]
+                batters_list = list(zip(names, pos, nums))
 
-            away_pos = [away_players[pid]['position']['abbreviation']
-                                          for pid in away_batter_ids]
+                batters = [{'Name': x[0], 'Position': x[1], 'Number': x[2]}
+                                                     for x in batters_list]
+                return batters
 
-            home_pos = [home_players[pid]['position']['abbreviation']
-                                          for pid in home_batter_ids]
-
-            away_num = [away_players[pid]['jerseyNumber']
-                              for pid in away_batter_ids]
-
-            home_num = [home_players[pid]['jerseyNumber']
-                              for pid in home_batter_ids]
-
-            away_batters_list = list(zip(away_names, away_pos, away_num))
-            home_batters_list = list(zip(home_names, home_pos, home_num))
-
-            # Convert tuples to dicts
-            away_batters = [{'Name': x[0], 'Position': x[1], 'Number': x[2]}
-                                                 for x in away_batters_list]
-
-            home_batters = [{'Name': x[0], 'Position': x[1], 'Number': x[2]}
-                                                 for x in home_batters_list]
+            away_batters = extract_data('away')
+            home_batters = extract_data('home')
 
             away_bench = None
             home_bench = None
 
-
         else:
-            away_starters = live_data['teams']['away']['battingOrder']
-            home_starters = live_data['teams']['home']['battingOrder']
+            def extract_data(side, who='battingOrder'):
+                players = live_data['teams'][side]['players']
+                batters = live_data['teams'][side][who]
 
-            away_bench = live_data['teams']['away']['bench']
-            home_bench = live_data['teams']['home']['bench']
+                batter_ids = ['ID{}'.format(x) for x in batters]
 
-            away_batter_ids = ['ID{}'.format(x) for x in away_starters]
-            home_batter_ids = ['ID{}'.format(x) for x in home_starters]
+                data = [players[pid] for pid in batter_ids]
 
-            away_bench_ids = ['ID{}'.format(x) for x in away_bench]
-            home_bench_ids = ['ID{}'.format(x) for x in home_bench]
-
-            away_batter_data = [away_players[pid] for pid in away_batter_ids]
-            home_batter_data = [home_players[pid] for pid in home_batter_ids]
-
-            away_bench_data  = [away_players[pid] for pid in away_bench_ids]
-            home_bench_data =  [home_players[pid] for pid in home_bench_ids]
-
-            def extract_data(data):
                 names = [' '.join((batter['name']['first'],
                                    batter['name']['last']))
                                         for batter in data]
@@ -323,12 +295,11 @@ class Game(DBController):
                                                         for x in data]
                 return d
 
+            away_batters = extract_data('away')
+            home_batters = extract_data('home')
 
-            away_batters = extract_data(away_batter_data)
-            home_batters = extract_data(home_batter_data)
-
-            away_bench = extract_data(away_bench_data)
-            home_bench = extract_data(home_bench_data)
+            away_bench = extract_data('away', 'bench')
+            home_bench = extract_data('home', 'bench')
 
 
         self._batters = {'away_batters' : away_batters,
