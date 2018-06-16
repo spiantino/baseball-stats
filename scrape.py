@@ -73,7 +73,7 @@ def fangraphs(state, year):
                           {'$set' : {db_path : db_data}}, upsert=True)
 
         # Add current team to top level
-        if year == dbc._current_year:
+        if year == dbc._year:
             db.Players.update({'Name' : player},
                               {'$set': {'Team' : db_data['Team']}})
 
@@ -383,6 +383,12 @@ def br_player_stats(name, team):
                         row.find_all(lambda tag: tag.has_attr('data-stat'))]
             db_data = {k:v for k,v in zip(cols, row_data)}
             db_data = parse_types(db_data)
+
+            # Rename stats to match fg data
+            renames = {'BA' : 'AVG'}
+            for stat in rename.keys():
+                db_data[renames[stat]] = db_data[stat]
+                db_data.pop(stat)
 
             # Skip blank rows and don't collect minor league data
             if not row_data[0] or db_data['Lg'] not in ['AL', 'NL']:
