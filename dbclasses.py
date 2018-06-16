@@ -14,7 +14,8 @@ class Player(DBController):
         self._db.Players.update({'Name' : self._name},
                                 {'$set': {stat_path : value}})
 
-    def get_stat(self, site, year, pos, stat):
+    def get_stat(self, stat, pos='bat', site='fg', year=None):
+        year = self._year if not year else year
         stat_path = '${}.{}.{}.{}'.format(site, pos, year, stat)
         res = self._db.Players.aggregate([{'$match': {'Name' : self._name}},
                                           {'$project': {'_id' : 0,
@@ -24,6 +25,34 @@ class Player(DBController):
         except:
             return None
 
+    def get_stats(self, stats, pos='bat', site='fg', year=None):
+        year = self._year if not year else year
+        stat_path = {stat : '${}.{}.{}.{}'.format(site, pos, year, stat)
+                                                       for stat in stats}
+        stat_path.update({'_id' : 0})
+        res = self._db.Players.aggregate([{'$match': {'Name' : self._name}},
+                                          {'$project': stat_path}])
+
+        try:
+            stat_array = list(res)[0]
+        except:
+            missing_player = {'Name' : self._name}
+            missing_player.update({stat: None for stat in stats})
+            return missing_player
+
+        # Look for missing stats in br data
+        for stat in stats:
+            if stat not in stat_array.keys():
+                pos_map = {'bat' : 'Standard Batting',
+                           'pit' : 'Standard Pitching'}
+
+                val = self.get_stat(site='br',
+                                    pos=pos_map[pos],
+                                    stat=stat)
+
+                stat_array[stat] = val
+
+        return stat_array
 
 class Game(DBController):
     def __init__(self, test=True):
@@ -33,7 +62,7 @@ class Game(DBController):
 
     def reset_internals(self):
         self._game_details = None
-        self._starting_pitchers = None
+        self._pitchers = None
         self._batters = None
 
     def get_game_preview(self):
@@ -45,13 +74,19 @@ class Game(DBController):
         games = self._db.Games.find({'date' : date,
                                      '$or' : [{'home' : team},
                                               {'away' : team}]})
+
         game = self.extract_game(games)
 
-        self._date = date
-        self._team = team
-        self._side = 'home' if game['home'] == team else 'away'
-        self._game = game['preview'][0]
-        self._state = self._game['gameData']['status']['detailedState']
+        if not game:
+            print("Error: No game found for that date")
+
+        else:
+            self._date = date
+            self._team = team
+            self._side = 'home' if game['home'] == team else 'away'
+            self._game = game['preview'][0]
+            self._state = self._game['gameData']['status']['detailedState']
+
 
     def extract_game(self, cursor):
         """
@@ -171,6 +206,9 @@ class Game(DBController):
             away_pit_hand = away_pit_data['pitchHand']['code']
             home_pit_hand = home_pit_data['pitchHand']['code']
 
+            away_pit_team = game_data['teams']['away']['abbreviation']
+            home_pit_team = game_data['teams']['home']['abbreviation']
+
         else:
             pitchers = live_data['boxscore']['teams']
             players  = live_data['players']['allPlayers']
@@ -193,12 +231,17 @@ class Game(DBController):
             away_pit_hand = away_pit_data['rightLeft']
             home_pit_hand = home_pit_data['rightLeft']
 
-        self._starting_pitchers = {'home': {'name' : home_pit_name,
-                                            'hand' : home_pit_hand,
-                                            'num'  : home_pit_num},
-                                   'away': {'name' : away_pit_name,
-                                            'hand' : away_pit_hand,
-                                            'num'  : away_pit_num}}
+            away_pit_team = game_data['teams']['away']['name']['abbrev']
+            home_pit_team = game_data['teams']['home']['name']['abbrev']
+
+        self._pitchers = {'home': {'name' : home_pit_name,
+                                   'hand' : home_pit_hand,
+                                   'num'  : home_pit_num,
+                                   'team' : home_pit_team},
+                          'away': {'name' : away_pit_name,
+                                   'hand' : away_pit_hand,
+                                   'num'  : away_pit_num,
+                                   'team' : away_pit_team}}
 
     def parse_batters(self):
         live_data = self._game['liveData']['boxscore']
@@ -227,8 +270,15 @@ class Game(DBController):
             home_num = [home_players[pid]['jerseyNumber']
                               for pid in home_batter_ids]
 
-            away_batters = list(zip(away_names, away_pos, away_num))
-            home_batters = list(zip(home_names, home_pos, home_num))
+            away_batters_list = list(zip(away_names, away_pos, away_num))
+            home_batters_list = list(zip(home_names, home_pos, home_num))
+
+            # Convert tuples to dicts
+            away_batters = [{'Name': x[0], 'Position': x[1], 'Number': x[2]}
+                                                 for x in away_batters_list]
+
+            home_batters = [{'Name': x[0], 'Position': x[1], 'Number': x[2]}
+                                                 for x in home_batters_list]
 
             away_bench = None
             home_bench = None
@@ -266,7 +316,13 @@ class Game(DBController):
 
                 nums = [batter['shirtNum'] for batter in data]
 
-                return list(zip(names, posn, nums))
+                data = list(zip(names, posn, nums))
+
+                # Convert tuples to dicts
+                d = [{'Name': x[0], 'Position': x[1], 'Number': x[2]}
+                                                        for x in data]
+                return d
+
 
             away_batters = extract_data(away_batter_data)
             home_batters = extract_data(home_batter_data)
@@ -285,23 +341,6 @@ class Game(DBController):
         self.parse_starting_pitchers()
         self.parse_batters()
 
-    # def get_starting_pitchers(self):
-    #     if not self._starting_pitcher_data:
-    #         self.parse_starting_pitchers()
-
-    #     return self._starting_pitcher_data
-
-    # def get_game_details(self):
-    #     if not self._game_details:
-    #         self.parse_game_details()
-
-    #     return self._game_details
-
-    # def get_batters(self):
-    #     if not self._batters:
-    #         self.parse_batters()
-
-    #     return self._batters
 
 class Team(DBController):
     def __init__(self, test=True):

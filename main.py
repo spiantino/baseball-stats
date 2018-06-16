@@ -16,6 +16,10 @@ from latex import Latex
 import math
 from fractions import Fraction
 
+from tablebuilder import TableBuilder
+from dbclasses import Player, Game, Team
+
+
 def summary_table(data, year, team):
     current_year = datetime.date.today().strftime('%Y')
     game_data = data['preview'][0]['gameData']
@@ -940,186 +944,15 @@ def scrape_update(home, away, year):
 
 
 if __name__ == '__main__':
-    today = datetime.date.today().strftime('%Y-%m-%d')
-    current_year = today.split('-')[0]
+    g = Game()
+    g.query_game_preview_by_date(team='NYY', date='2018-06-15')
+    g.parse_all()
+    tb=TableBuilder(g)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--team', default='NYY')
-    parser.add_argument('-d', '--date', default=today)
-    args = parser.parse_args()
+    summary = tb.summary_info()
+    pitchers = tb.starting_pitchers()
+    rosters = tb.rosters()
 
-    year = args.date.split('-')[0]
-
-    # Create database controller object
-    dbc = DBController()
-
-    # Query upcomming game and populate data
-    game = dbc.get_team_game_preview(team=args.team, date=args.date)
-
-    game_data = extract_game_data(game)
-    if game_data:
-        home = game_data['home']
-        away = game_data['away']
-        state = game_data['preview'][0]['gameData']['status']['detailedState']
-    else:
-        raise ValueError("NO GAME FOUND")
-
-    # scrape_update(home, away, year)
-
-    summary   = summary_table(data=game_data, year=year, team=args.team)
-    if state == 'Scheduled':
-        starters = rosters(who='all', data=game_data, year=year)
-        bench = None
-    else:
-        starters  = rosters(who='starters', data=game_data, year=year)
-        bench     = rosters(who='bench', data=game_data, year=year)
-    bullpen   = bullpen(data=game_data, year=year)
-    standings = standings(home, away)
-    ahistory = game_history(away)
-    hhistory = game_history(home)
-    bat_df = leaderboards(kind='bat', stat='WAR', n=30, role='starter')
-    pit_df = leaderboards(kind='pit', stat='WAR', n=30, role='starter')
-    era_df = leaderboards(kind='pit', stat='ERA', n=10, role='starter')
-    rel_df = leaderboards(kind='pit', stat='WAR', n=10, role='reliever')
-    hr_df  = leaderboards(kind='bat', stat='HR',  n=10, role='starter')
-    rbi_df = leaderboards(kind='bat', stat='RBI', n=10, role='starter')
-    elo = elo()
-    pitcher_history = pitcher_history(team=args.team)
-    last_week_bullpen = previous_week_bullpen(team=args.team)
-    series_table = series_results(team=args.team)
-
-    # print(summary)
-    # print(starters)
-    # print(bench)
-    # print(bullpen)
-    # for table in standings:
-    #     print(table)
-    # print(ahistory)
-    # print(hhistory)
-    # print(bat_df)
-    # print(pit_df)
-    # print(era_df)
-    # print(rel_df)
-    # print(hr_df)
-    # print(elo)
-    # print(pitcher_history)
-    # print(last_week_bullpen)
-    # print(series_table)
-
-    l = Latex("{}-{}.tex".format(args.team, args.date))
-    l.header()
-    l.title(summary)
-
-    l.start_table('lcclrrrrrrrrr')
-    l.add_headers(['Team', 'R/L', '#', 'Name', 'war', 'w', 'l', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
-    l.add_rows(summary['pit_df'], ['', '', '{:.0f}', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.2f}', '{:.1f}', '{:.2f}', '{:.2f}', '{:.2f}', '{:.2f}'])
-    l.end_table()
-
-    l.add_section("{} Lineup".format(away))
-    l.start_table('lcclrcrrrrr')
-    l.add_headers(['', 'Pos', '#', 'Name', 'war', 'slash', 'hr', 'rbi', 'sb', 'owar', 'dwar'])
-    l.add_rows(starters[0], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
-    if bench:
-        l.add_divider()
-        l.add_rows(bench[0], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
-    l.end_table()
-
-    l.add_section("{} Lineup".format(home))
-    l.start_table('lcclrcrrrrr')
-    l.add_headers(['', 'Pos', '#', 'Name', 'war', 'slash', 'hr', 'rbi', 'sb', 'owar', 'dwar'])
-    l.add_rows(starters[1], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
-    if bench:
-        l.add_divider()
-        l.add_rows(bench[1], ['{:.0f}', '', '{:.0f}', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}'])
-    l.end_table()
-
-    l.add_section("Standings")
-    l.start_multicol(2)
-    for table in standings:
-        l.start_table('lrrcccrr')
-        l.add_headers([table.columns[0], 'w', 'l', 'l10', 'gb', 'strk', 'home', 'away'])
-        l.add_rows(table, ['', '{:.0f}', '{:.0f}', '', '{:.0f}', '', '{:.3f}', '{:.3f}'])
-        l.end_table()
-    l.end_multicol()
-
-    l.page_break()
-    l.add_subsection("{} Bullpen".format(away))
-    l.start_table('lcrrrrrrrr')
-    l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
-    l.add_rows(bullpen[0], ['', '{:.0f}', '{:.1f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}'])
-    l.end_table()
-
-    l.add_subsection("{} Bullpen".format(home))
-    l.start_table('lcrrrrrrrr')
-    l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
-    l.add_rows(bullpen[1], ['', '{:.0f}', '{:.1f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}'])
-    l.end_table()
-
-    l.add_section("{} Recent Starts".format(args.team))
-    l.start_table('lclrrrrrrrr')
-    l.add_headers(['Date', 'Opp', 'Starter', 'ip', 'h', 'r', 'er', 'bb', 'k', 'hr', 'gs'])
-    l.add_rows(pitcher_history, ['', '', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}', '{:.0f}'])
-    l.end_table()
-
-    l.page_break()
-    l.start_multicol(2)
-    l.add_subsection("{} Game Log".format(away))
-    l.start_table('lrlccc')
-    l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
-    l.add_rows(ahistory, ['', '', '', '', '', ''])
-    l.end_table()
-
-    l.add_subsection("{} Game Log".format(home))
-    l.start_table('lrlccc')
-    l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
-    l.add_rows(hhistory, ['', '', '', '', '', ''])
-    l.end_table()
-    l.end_multicol()
-
-    l.add_section("Batting Leaderboards")
-    l.start_table('rllrcrrrrrrrr')
-    l.add_headers(['', 'Name', 'Team', 'war', 'slash', 'hr', 'rbi', 'sb', 'bb%', 'k%', 'babip', 'owar', 'dwar'])
-    l.add_rows(bat_df, ['{:.0f}', '', '', '{:.1f}', '', '{:.0f}', '{:.0f}', '{:.0f}', '{:.1f}', '{:.1f}', '{:.3f}', '{:.1f}', '{:.1f}'])
-    l.end_table()
-
-    l.start_multicol(2)
-    l.add_subsection("HR")
-    l.start_table('llrr')
-    l.add_headers(['Name','Team', 'hr', '#'])
-    l.add_rows(hr_df, ['', '', '{:.0f}', '{:.0f}'])
-    l.end_table()
-
-    l.add_subsection("RBI")
-    l.start_table('llrr')
-    l.add_headers(['Name','Team', 'rbi', '#'])
-    l.add_rows(rbi_df, ['', '', '{:.0f}', '{:.0f}'])
-    l.end_table()
-    l.end_multicol()
-
-    l.add_section("Pitching Leaderboards")
-    l.add_subsection("WAR")
-    l.start_table('rllrrrrrrrrr')
-    l.add_headers(['','Name','Team','war','w','l','era','ip','k/9','bb/9','hr/9','gb%'])
-    l.add_rows(pit_df, ['{:.0f}', '', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.2f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.2f}'])
-    l.end_table()
-
-    l.add_subsection("WAR - Relivers")
-    l.start_table('rllrrrrrrrrr')
-    l.add_headers(['','Name','Team','war','w','l','era','ip','k/9','bb/9','hr/9','gb%'])
-    l.add_rows(rel_df, ['{:.0f}', '', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.2f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.1f}', '{:.2f}'])
-    l.end_table()
-
-    l.add_subsection("ERA")
-    l.start_table('rllrrrrrrrrr')
-    l.add_headers(['', 'Name', 'Team', 'war', 'w', 'l', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
-    l.add_rows(era_df, ['{:.0f}', '', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.2f}', '{:.1f}', '{:.2f}', '{:.2f}', '{:.2f}', '{:.2f}'])
-    l.end_table()
-
-    l.add_section("ELO Ratings")
-    l.start_table('rrlrrr')
-    l.add_headers(['', 'Rating', 'Team', 'div%', 'post%', 'ws%'])
-    l.add_rows(elo, ['{:.0f}', '{:.0f}', '', '{:.2f}', '{:.2f}', '{:.2f}'])
-    l.end_table()
-
-    l.footer()
-    l.make_pdf()
+    print(summary)
+    print(pitchers)
+    print(rosters)
