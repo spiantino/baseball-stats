@@ -16,8 +16,8 @@ class DBController:
             db='heroku_kcpx1gp1'
             self._client = MongoClient(url)
         self._db = self._client[db]
-        self._current_year = datetime.date.today().strftime('%Y')
-        self._current_day  = datetime.date.today().strftime('%Y-%m-%d')
+        self._year = datetime.date.today().strftime('%Y')
+        self._day  = datetime.date.today().strftime('%Y-%m-%d')
 
     def get_player(self, player):
         """
@@ -45,7 +45,7 @@ class DBController:
         Return team for input player
         Useful when team value does not exist in Player object
         """
-        year = self._current_year if not year else year
+        year = self._year if not year else year
         fortypath = 'Fortyman.{}.Name'.format(year)
         res = self._db.Teams.aggregate([{'$match':
                                             {fortypath : player}},
@@ -60,7 +60,7 @@ class DBController:
         """
         Checks for team info in two locations
         """
-        year = self._current_year if not year else year
+        year = self._year if not year else year
         try:
             team = self.find_team_by_player(player, year)
         except:
@@ -73,7 +73,7 @@ class DBController:
         Return Player BR ID from Teams collection
         Player objects are in Fortyman array
         """
-        year = self._current_year if not year else year
+        year = self._year if not year else year
         fortypath = '$Fortyman.{}'.format(year)
         namepath = '$Fortyman.{}.Name'.format(year)
         bidpath  = '$Fortyman.{}.bid'.format(year)
@@ -144,7 +144,7 @@ class DBController:
         """
         Query all player objects given a team
         """
-        year = self._current_year if not year else year
+        year = self._year if not year else year
         return self._db.Players.find({'{}.Team'.format(year) : team})
 
     def get_team(self, team):
@@ -179,7 +179,7 @@ class DBController:
         that are designated as "Scheduled"
         """
         state = 'preview.gameData.status.detailedState'
-        return self._db.Games.find({'date' : self._current_day,
+        return self._db.Games.find({'date' : self._day,
                                     state  : 'Scheduled'})
 
     def get_team_game_preview(self, team, date):
@@ -202,7 +202,7 @@ class DBController:
 
     def get_all_team_previews(self):
         abbr = convert_name(team, how='abbr')
-        year = '^{}'.format(self._current_year)
+        year = '^{}'.format(self._year)
         return self._db.Games.find({'$and': [{'date': {'$regex': year}},
                                              {'$or':  [{'home' : abbr},
                                                        {'away' : abbr}]}]})
@@ -219,7 +219,7 @@ class DBController:
         active_dates = []
 
         for date in dates:
-            if date == self._current_day:
+            if date == self._day:
                 continue
             game = list(self._db.Games.find({'$and': [{'date': date},
                                                {'$or':  [{'home' : abbr},
@@ -237,7 +237,7 @@ class DBController:
         dates = self.get_past_game_dates_by_team(abbr, year)
 
         for date in dates:
-            if date == self._current_day:
+            if date == self._day:
                 continue
             game = list(self._db.Games.find({'$and': [{'date': date},
                                                {'$or':  [{'home' : abbr},
@@ -370,7 +370,7 @@ class DBController:
         Return list of dates when input team
         has played during the specified year
         """
-        year = self._current_year if not year else year
+        year = self._year if not year else year
         data = self._db.Games.aggregate([{'$match':
                                              {'$or':[{'home' : team},
                                                      {'away' : team}]}},
@@ -384,7 +384,7 @@ class DBController:
         Return set of all date values in
         Games collection for a specified year
         """
-        year = self._current_year if not year else year
+        year = self._year if not year else year
         data = list(self._db.Games.aggregate([{'$project':
                                                   {'_id' : 0,
                                                   'date' : 1}}]))

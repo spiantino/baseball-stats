@@ -73,7 +73,7 @@ def fangraphs(state, year):
                           {'$set' : {db_path : db_data}}, upsert=True)
 
         # Add current team to top level
-        if year == dbc._current_year:
+        if year == dbc._year:
             db.Players.update({'Name' : player},
                               {'$set': {'Team' : db_data['Team']}})
 
@@ -340,7 +340,7 @@ def br_player_stats(name, team):
 
     thead = table.find('thead')
     cols = [x.text for x in thead.find_all('th')]
-    pit_or_bat = table.find('caption').text
+    pit_or_bat = 'pit' if 'Pitching' in table.find('caption').text else 'bat'
 
     tbody  = table.find('tbody')
     trows = tbody.find_all('tr')
@@ -358,9 +358,10 @@ def br_player_stats(name, team):
                 continue
 
             db_array = 'br.{}.{}'.format(pit_or_bat, db_data['Year'])
+            push = {'{}.{}'.format(db_array, stat) : val
+                                         for stat, val in db_data.items()}
             db.Players.update({'Name' : name},
-                              {'$set' : {'brID' : brid,
-                                         db_array : db_data}}, upsert=True)
+                              {'$set' : push}, upsert=True)
 
     # Extract Player Value Table - Stored in html comment
     comment = soup.find_all(string=lambda text: isinstance(text, Comment))
@@ -369,8 +370,8 @@ def br_player_stats(name, team):
     for c in comment_html:
         table = BeautifulSoup(c.string, "html.parser")
 
-        table_name = table.find('caption').text.replace('--', ' ').split()
-        title = '{} {}'.format(table_name[2], table_name[1])
+        caption = str(table.find('caption'))
+        pit_or_bat = 'pit' if 'Pitching' in caption else 'bat'
 
         thead = table.find('thead')
         cols = [x.text for x in thead.find_all('th')]
@@ -388,9 +389,11 @@ def br_player_stats(name, team):
             if not row_data[0] or db_data['Lg'] not in ['AL', 'NL']:
                 continue
 
-            db_array = 'br.{}.{}'.format(title, db_data['Year'])
-            db.Players.update({'brID' : brid},
-                              {'$set' : {db_array : db_data}}, upsert=True)
+            db_array = 'br.{}.{}'.format(pit_or_bat, db_data['Year'])
+            push = {'{}.{}'.format(db_array, stat) : val
+                                         for stat, val in db_data.items()}
+            db.Players.update({'Name' : name},
+                              {'$set' : push}, upsert=True)
 
 
 def current_injuries(team):
@@ -825,29 +828,31 @@ def league_elo():
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    # fangraph_splits(year=year)
+    br_player_stats('Justin Verlander', 'HOU')
 
-    print("Scraping past boxscores...")
-    boxscores(date='all')
+    # # fangraph_splits(year=year)
 
-    print("Scraping batter and pitcher leaderboards")
-    fangraphs('bat', year)
-    fangraphs('pit', year)
+    # print("Scraping past boxscores...")
+    # boxscores(date='all')
 
-    print("Scraping league elo and division standings")
-    standings()
+    # print("Scraping batter and pitcher leaderboards")
+    # fangraphs('bat', year)
+    # fangraphs('pit', year)
 
-    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
-             'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
-             'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
-             'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
-             'col', 'kcr', 'det', 'min', 'chw', 'nyy']
-    for team in tqdm(teams):
-        schedule(team)
-        pitching_logs(team, year)
-        current_injuries(team)
-        transactions(team, year)
-        forty_man(team, year)
+    # print("Scraping league elo and division standings")
+    # standings()
 
-    league_elo()
+    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
+    #          'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
+    #          'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
+    #          'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
+    #          'col', 'kcr', 'det', 'min', 'chw', 'nyy']
+    # for team in tqdm(teams):
+    #     schedule(team)
+    #     pitching_logs(team, year)
+    #     current_injuries(team)
+    #     transactions(team, year)
+    #     forty_man(team, year)
+
+    # league_elo()

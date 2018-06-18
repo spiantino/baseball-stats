@@ -32,7 +32,6 @@ class Player(DBController):
         stat_path.update({'_id' : 0})
         res = self._db.Players.aggregate([{'$match': {'Name' : self._name}},
                                           {'$project': stat_path}])
-
         try:
             stat_array = list(res)[0]
         except:
@@ -43,11 +42,8 @@ class Player(DBController):
         # Look for missing stats in br data
         for stat in stats:
             if stat not in stat_array.keys():
-                pos_map = {'bat' : 'Standard Batting',
-                           'pit' : 'Standard Pitching'}
-
                 val = self.get_stat(site='br',
-                                    pos=pos_map[pos],
+                                    pos=pos,
                                     stat=stat)
 
                 stat_array[stat] = val
