@@ -47,15 +47,15 @@ def fangraphs(state, year):
         player = row_data[1]
         db_data = {k:v for k,v in zip(cols, row_data)}
 
-        # Rename common keys with batting or pitching prefixes
-        rank = '{}_rank'.format(state)
-        db_data[rank] = db_data.pop('#')
+        # # Rename common keys with batting or pitching prefixes
+        # rank = '{}_rank'.format(state)
+        # db_data[rank] = db_data.pop('#')
 
-        war = '{}_WAR'.format(state)
-        db_data[war] = db_data.pop('WAR')
+        # war = '{}_WAR'.format(state)
+        # db_data[war] = db_data.pop('WAR')
 
-        games = '{}_G'.format(state)
-        db_data[games] = db_data.pop('G')
+        # games = '{}_G'.format(state)
+        # db_data[games] = db_data.pop('G')
 
         # Convert team name to abbreviation
         try:
@@ -828,16 +828,14 @@ def league_elo():
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    br_player_stats('Justin Verlander', 'HOU')
-
     # # fangraph_splits(year=year)
 
     # print("Scraping past boxscores...")
     # boxscores(date='all')
 
-    # print("Scraping batter and pitcher leaderboards")
-    # fangraphs('bat', year)
-    # fangraphs('pit', year)
+    print("Scraping batter and pitcher leaderboards")
+    fangraphs('bat', year)
+    fangraphs('pit', year)
 
     # print("Scraping league elo and division standings")
     # standings()

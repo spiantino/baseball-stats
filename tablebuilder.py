@@ -1,6 +1,7 @@
 import requests
 import json
 import pandas as pd
+import datetime
 from unidecode import unidecode
 
 from dbclasses import Player, Game, Team
@@ -56,8 +57,8 @@ class TableBuilder:
 
     def starting_pitchers(self):
         pitchers = self.game._pitchers
-        stats = ['Team', 'R/L', '#', 'Name', 'pit_WAR', 'W',
-                 'L', 'ERA', 'IP', 'K/9', 'BB/9', 'HR/9', 'GB%']
+        stats = ['Team', 'R/L', '#', 'Name', 'WAR', 'W', 'L',
+                 'ERA', 'IP', 'K/9', 'BB/9', 'HR/9', 'GB%']
 
         def extract_data(side):
             decoded = unidecode(pitchers[side]['name'])
@@ -73,10 +74,17 @@ class TableBuilder:
         away_pit_data = extract_data('away')
         home_pit_data = extract_data('home')
 
-        df = pd.DataFrame([away_pit_data, home_pit_data])
-        df = df[stats].rename({'pit_WAR' : 'WAR'}, axis='columns')
+        df = pd.DataFrame([away_pit_data, home_pit_data])[stats]
         df = df.fillna('-')
         return df
+
+    def make_slash_line(self, *columns):
+        stats = []
+        for stat in columns:
+            if isinstance(stat, float):
+                stat = '{:.3f}'.format(stat).lstrip('0')
+            stats.append(stat)
+        return '/'.join(stats).replace('nan', '-')
 
     def rosters(self, who='starters'):
         year = self._year
@@ -84,7 +92,7 @@ class TableBuilder:
 
         def extract_data(side):
             stats = ['AVG', 'OBP', 'SLG', 'HR', 'RBI',
-                     'SB', 'bat_WAR', 'Off', 'Def']
+                     'SB', 'WAR', 'Off', 'Def']
             bat_data = []
             for pdata in batters[side]:
                 decoded = unidecode(pdata['Name'])
@@ -98,27 +106,15 @@ class TableBuilder:
             return bat_data
 
         def construct_table(data):
-            cols = ['Order', 'Position', 'Number', 'Name', 'bat_WAR',
+            cols = ['Order', 'Position', 'Number', 'Name', 'WAR',
                     'Slash Line', 'HR', 'RBI', 'SB', 'Off', 'Def']
             df = pd.DataFrame(data)
 
             df['Order'] = df.index + 1
-
-            def make_slash_line(*x):
-                stats = []
-                for stat in x:
-                    if isinstance(stat, float):
-                        stat = '{:.3f}'.format(stat).lstrip('0')
-                    stats.append(stat)
-                return '/'.join(stats).replace('nan', '-')
-
-            df['Slash Line'] = df[['AVG', 'OBP', 'SLG']]\
-                                 .apply(lambda x: make_slash_line(*x), axis=1)
+            df['Slash'] = df[['AVG', 'OBP', 'SLG']]\
+                            .apply(lambda x: self.make_slash_line(*x), axis=1)
 
             df = df[cols]
-            df = df.rename(columns={'bat_WAR' : 'WAR',
-                                    'Off' : 'Off WAR',
-                                    'Def' : 'Def WAR'})
 
             if self.game._state == 'Scheduled':
                 df = df.loc[df['Position'] != 'P']
@@ -151,7 +147,7 @@ class TableBuilder:
         bullpen = self.game._bullpen
 
         def construct_table(side):
-            stats = ['pit_WAR', 'SV', 'ERA', 'IP',
+            stats = ['WAR', 'SV', 'ERA', 'IP',
                      'K/9', 'BB/9', 'HR/9', 'GB%']
 
             df_data = []
@@ -225,3 +221,88 @@ class TableBuilder:
 
         return (home_df, away_df)
 
+    def game_history(self):
+
+        def construct_table(side):
+            team_name = self.game._game[side]
+            t = Team(name=team_name)
+            sched = t.get_stat('Schedule')
+
+            cols = ['Date', 'Time', 'Opp', 'Result', 'Score', 'GB']
+            df = pd.DataFrame(sched)
+
+            # Remove upcoming games
+            df = df.loc[df[''] == 'boxscore']
+
+            df['Opp'] = df[['Field', 'Opp']].apply(lambda x: ' '
+                                            .join((x[0], x[1]))
+                                            .strip(), axis=1)
+
+            df['Score'] = df[['R', 'RA']].apply(lambda x: '{}-{}'
+                                         .format(x[0], x[1]), axis=1)
+
+            def format_date(x):
+                _, m, d = x.split()[:3]
+                df_date = '{} {}'.format(m, d)
+                dt_date = datetime.datetime.strptime(df_date, '%b %d')
+                return dt_date.strftime("%m-%d")
+
+            df['Date'] = df.Date.apply(lambda x: format_date(x))
+
+            df = df.rename({'W/L' : 'Result'}, axis=1)
+            df = df[cols]
+            return df
+
+        home_df = construct_table('home')
+        away_df = construct_table('away')
+
+        return (home_df, away_df)
+
+    def bat_leaders(self, stat, n=10):
+        p = Player()
+        leaders = p.get_top_n_leaders(pos='bat',
+                                      stat=stat,
+                                      year=self._year,
+                                      n=n)
+
+        df = pd.DataFrame(leaders)
+
+        df['Slash'] = df[['AVG', 'OBP', 'SLG']]\
+                        .apply(lambda x: self.make_slash_line(*x), axis=1)
+
+        df['Rank'] = df.index + 1
+
+        if stat in ['HR', 'RBI']:
+            cols = ['Name', 'Team'] + [stat]
+        else:
+            cols = ['Rank', 'Name', 'Team', 'WAR',
+                    'Slash', 'HR', 'RBI', 'SB', 'BB%',
+                    'K%', 'BABIP', 'Off', 'Def']
+        return df[cols]
+
+    def pit_leaders(self, stat, n=10, role='starter'):
+        p = Player()
+
+        if stat == 'WAR':
+            ascending = False
+        else:
+            ascending = True
+
+        leaders = p.get_top_n_pitchers(stat=stat,
+                                       role=role,
+                                       year=self._year,
+                                       ascending=ascending,
+                                       n=n)
+        df = pd.DataFrame(leaders)
+
+        def format_wl(*x):
+            return '{}-{}'.format(x[0], x[1])
+
+        df['W/L'] = df[['W', 'L']].apply(lambda x: format_wl(*x), axis=1)
+
+        cols = ['Rank', 'Name', 'Team', 'WAR', 'W', 'L',
+                'ERA', 'IP', 'K/9', 'BB/9', 'HR/9', 'GB%']
+
+        df['Rank'] = df.index + 1
+
+        return df[cols]

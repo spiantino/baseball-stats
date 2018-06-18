@@ -278,32 +278,29 @@ class DBController:
         hist = [x for x in list(res) if 'GB' in x.keys()]
         return hist
 
-    def get_top_n_leaders(self, kind, stat, year, n):
+    def get_top_n_leaders(self, pos, stat, year, n):
         """
         Query top 10 batting or pitching leaderboard
         """
-        if stat in ['WAR', 'rank', 'G']:
-            sort_key = 'fg.{0}.{1}.{0}_{2}'.format(kind, year, stat)
-        else:
-            sort_key = 'fg.{}.{}.{}'.format(kind, year, stat)
+        sort_key = 'fg.{}.{}.{}'.format(pos, year, stat)
 
         lb = self._db.Players.find({}).sort(sort_key, -1).limit(n)
 
-        return [x['fg'][kind][str(year)] for x in lb]
+        return [x['fg'][pos][str(year)] for x in lb]
 
     def get_top_n_homerun_leaders(self, year, n):
         sort_key = '{}.bat.HR'.format(year)
         return self._db.Players.find({}).sort(sort_key, -1)
 
-    def get_starters_or_relievers(self, role, kind, year):
+    def get_starters_or_relievers(self, role, pos, year):
         """
         Return list of  starter or reliver object ids
         """
         cond    = '$lt' if role=='reliever' else '$gt'
-        gp      = 'fg.{}.{}.pit_G'.format(kind, year)
-        war_val = '$fg.{}.{}.pit_WAR'.format(kind, year)
-        gp_val  = '$fg.{}.{}.pit_G'.format(kind, year)
-        gs_val  = '$fg.{}.{}.GS'.format(kind, year)
+        gp      = 'fg.{}.{}.G'.format(pos, year)
+        war_val = '$fg.{}.{}.WAR'.format(pos, year)
+        gp_val  = '$fg.{}.{}.G'.format(pos, year)
+        gs_val  = '$fg.{}.{}.GS'.format(pos, year)
 
         objs = self._db.Players.aggregate([{'$match' : {gp: {'$gt':  0}}},
                                            {'$project':
@@ -318,13 +315,9 @@ class DBController:
     def get_top_n_pitchers(self, role, year, stat, ascending, n):
         """
         Return top n pitchers sorted by stat
-
-        kind: 'starter' or 'reliever'
-        stat: 'pit_WAR', 'ERA', or any other stat
         """
-        stat = 'pit_WAR' if stat == 'WAR' else stat
         sort_key = 'fg.pit.{}.{}'.format(year, stat)
-        ids = self.get_starters_or_relievers(role=role, year=year, kind='pit')
+        ids = self.get_starters_or_relievers(role=role, year=year, pos='pit')
         sort_direction = 1 if ascending else -1
 
         if stat == 'ERA':
