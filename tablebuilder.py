@@ -7,8 +7,8 @@ from dbclasses import Player, Game, Team
 from utils import get_stadium_location
 
 class TableBuilder:
-    def __init__(self, game_obj):
-        self.game = game_obj
+    def __init__(self, game):
+        self.game = game
         self._year = self.game._date.split('-')[0]
 
     def summary_info(self):
@@ -78,7 +78,7 @@ class TableBuilder:
         df = df.fillna('-')
         return df
 
-    def rosters(self):
+    def rosters(self, who='starters'):
         year = self._year
         batters = self.game._batters
 
@@ -128,20 +128,100 @@ class TableBuilder:
             df = df.fillna(value='-')
             return df
 
-        away_data = extract_data('away_batters')
-        home_data = extract_data('home_batters')
+        away_starter_data = extract_data('away_batters')
+        home_starter_data = extract_data('home_batters')
 
-        away_df = construct_table(away_data)
+        away_starter_df = construct_table(away_starter_data)
+        home_starter_df = construct_table(home_starter_data)
+
+        if batters['home_bench']:
+            away_bench_data = extract_data('away_bench')
+            home_bench_data = extract_data('home_bench')
+
+            away_bench_df = construct_table(away_bench_data)
+            home_bench_df = construct_table(home_bench_data)
+        else:
+            away_bench_df = None
+            home_bench_df = None
+
+        return ((away_starter_df, home_starter_df),
+                (away_bench_df, home_bench_df))
+
+    def bullpen(self):
+        bullpen = self.game._bullpen
+
+        def construct_table(side):
+            stats = ['pit_WAR', 'SV', 'ERA', 'IP',
+                     'K/9', 'BB/9', 'HR/9', 'GB%']
+
+            df_data = []
+            for pitcher, vals in bullpen[side].items():
+                decoded = unidecode(pitcher)
+                p = Player(name=decoded)
+                pstats = p.get_stats(stats, pos='pit')
+                pstats.update({'Name' : pitcher})
+                pstats.update({'#' : vals['number']})
+                df_data.append(pstats)
+
+            cols = ['Name', '#'] + stats
+            df = pd.DataFrame(df_data)[cols]
+
+            df = df.fillna(value='-')
+            return df
+
+        home_df = construct_table('home')
+        away_df = construct_table('away')
+
+        return(home_df, away_df)
+
+    def standings(self):
+        stats = ['Tm', 'W', 'L', 'last10', 'gb',
+                 'div', 'Strk', 'Home', 'Road', 'W-L%']
+
+        def extract_data(side):
+            team_name = self.game._game[side]
+            team = Team(name=team_name)
+            div = team.get_team_division()
+            teams = team.get_teams_by_division(div)
+
+            df_data = []
+            for name in teams:
+                t = Team(name=name)
+                tstats = t.get_stats(stats)
+                df_data.append(tstats)
+
+            return df_data
+
+        def construct_table(data):
+            df = pd.DataFrame(data)[stats]
+            df = df.sort_values(by='W-L%', ascending=False)
+
+            def win_percent(x):
+                w, l = x.split('-')
+                total = int(w) + int(l)
+                percent = float(w) / total
+                return round(percent, 3)
+
+            df['home_rec'] = df.Home.apply(lambda x: win_percent(x))
+            df['away_rec'] = df.Road.apply(lambda x: win_percent(x))
+
+            # Rename team column to division value
+            div = df.iloc[0]['div']
+            df = df.rename(columns={'Tm' : div})
+
+            # Drop unused cols
+            df.drop('div',  axis=1, inplace=True)
+            df.drop('W-L%', axis=1, inplace=True)
+            df.drop('Home', axis=1, inplace=True)
+            df.drop('Road', axis=1, inplace=True)
+
+            return df
+
+        home_data = extract_data('home')
+        away_data = extract_data('away')
+
         home_df = construct_table(home_data)
+        away_df = construct_table(away_data)
 
-        return (away_df, home_df)
-
-
-
-
-
-
-
-
-
+        return (home_df, away_df)
 

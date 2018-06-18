@@ -66,7 +66,7 @@ class Game(DBController):
         self._batters = None
 
     def get_game_preview(self):
-        return self._game
+        return self._preview
 
     def query_game_preview_by_date(self, team, date):
         self.reset_internals()
@@ -84,9 +84,9 @@ class Game(DBController):
             self._date = date
             self._team = team
             self._side = 'home' if game['home'] == team else 'away'
-            self._game = game['preview'][0]
-            self._state = self._game['gameData']['status']['detailedState']
-
+            self._game = game
+            self._preview = game['preview'][0]
+            self._state = self._preview['gameData']['status']['detailedState']
 
     def extract_game(self, cursor):
         """
@@ -131,7 +131,7 @@ class Game(DBController):
             return time_ints.index(earlier_time)
 
     def parse_game_details(self):
-        game_data = self._game['gameData']
+        game_data = self._preview['gameData']
         home = game_data['teams']['home']
         away = game_data['teams']['away']
 
@@ -184,12 +184,10 @@ class Game(DBController):
                               'stadium'  : stadium }
 
     def parse_starting_pitchers(self):
-        game_data = self._game['gameData']
-        live_data = self._game['liveData']
 
         if self._state == 'Scheduled':
-            pitchers = game_data['probablePitchers']
-            players = game_data['players']
+            pitchers = self._preview['gameData']['probablePitchers']
+            players = self._preview['gameData']['players']
 
             away_pit_id = 'ID' + str(pitchers['away']['id'])
             home_pit_id = 'ID' + str(pitchers['home']['id'])
@@ -206,12 +204,9 @@ class Game(DBController):
             away_pit_hand = away_pit_data['pitchHand']['code']
             home_pit_hand = home_pit_data['pitchHand']['code']
 
-            away_pit_team = game_data['teams']['away']['abbreviation']
-            home_pit_team = game_data['teams']['home']['abbreviation']
-
         else:
-            pitchers = live_data['boxscore']['teams']
-            players  = live_data['players']['allPlayers']
+            pitchers = self._preview['liveData']['boxscore']['teams']
+            players  = self._preview['liveData']['players']['allPlayers']
 
             away_pit_id = 'ID' + str(pitchers['away']['pitchers'][0])
             home_pit_id = 'ID' + str(pitchers['home']['pitchers'][0])
@@ -231,8 +226,8 @@ class Game(DBController):
             away_pit_hand = away_pit_data['rightLeft']
             home_pit_hand = home_pit_data['rightLeft']
 
-            away_pit_team = game_data['teams']['away']['name']['abbrev']
-            home_pit_team = game_data['teams']['home']['name']['abbrev']
+        away_pit_team = self._game['away']
+        home_pit_team = self._game['home']
 
         self._pitchers = {'home': {'name' : home_pit_name,
                                    'hand' : home_pit_hand,
@@ -243,8 +238,42 @@ class Game(DBController):
                                    'num'  : away_pit_num,
                                    'team' : away_pit_team}}
 
+    def parse_bullpen(self):
+        live_data = self._preview['liveData']['boxscore']
+
+        def extract_data(side):
+            bullpen_data = live_data['teams'][side]['bullpen']
+            bullpen_ids = ['ID{}'.format(x) for x in bullpen_data]
+            bullpen = {}
+            for playerid in bullpen_ids:
+                pitcher = live_data['teams'][side]['players'][playerid]
+                name = ' '.join((pitcher['name']['first'],
+                                 pitcher['name']['last']))
+                try:
+                    num = pitcher['shirtNum']
+                except:
+                    num = None
+                hits = pitcher['seasonStats']['pitching']['hits']
+                runs = pitcher['seasonStats']['pitching']['runs']
+                eruns = pitcher['seasonStats']['pitching']['earnedRuns']
+                strikeouts = pitcher['seasonStats']['pitching']['strikeOuts']
+
+                pitcher_data = {'number' : num,
+                                'hits' : hits,
+                                'earnedRuns' : eruns,
+                                'strikeouts' : strikeouts}
+
+                bullpen.update({name : pitcher_data})
+            return bullpen
+
+        home_bullpen = extract_data('home')
+        away_bullpen = extract_data('away')
+
+        self._bullpen = {'home' : home_bullpen,
+                         'away' : away_bullpen}
+
     def parse_batters(self):
-        live_data = self._game['liveData']['boxscore']
+        live_data = self._preview['liveData']['boxscore']
 
         if self._state == 'Scheduled':
             def extract_data(side):
@@ -311,8 +340,43 @@ class Game(DBController):
         self.parse_game_details()
         self.parse_starting_pitchers()
         self.parse_batters()
+        self.parse_bullpen()
 
 
 class Team(DBController):
-    def __init__(self, test=True):
+    def __init__(self, test=True, name=None):
+        self._team = name
         super().__init__(test)
+
+    def by_name(self, name):
+        self._team = name
+
+    def get_stat(self, stat):
+        stat_path = '${}'.format(stat)
+        res = self._db.Teams.aggregate([{'$match': {'Tm' : self._team}},
+                                        {'$project': {'_id' : 0,
+                                                      'stat' : stat_path}}])
+        try:
+            return list(res)[0]['stat']
+        except:
+            return None
+
+    def get_stats(self, stats):
+        stat_path = {stat : '${}'.format(stat) for stat in stats}
+        stat_path.update({'_id' : 0})
+        res = self._db.Teams.aggregate([{'$match': {'Tm' : self._team}},
+                                        {'$project': stat_path}])
+
+        stat_array = list(res)[0]
+        return stat_array
+
+
+    def get_team_division(self):
+        return self._db.Teams.find_one({'Tm' : self._team})['div']
+
+    def get_teams_by_division(self, div):
+        res =  self._db.Teams.aggregate([{'$match': {'div' : div}},
+                                         {'$project': {'_id' : 0,
+                                                       'Team' : '$Tm'}}])
+        return [team['Team'] for team in list(res)]
+

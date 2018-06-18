@@ -951,10 +951,13 @@ if __name__ == '__main__':
 
     summary = tb.summary_info()
     pitchers = tb.starting_pitchers()
-    rosters = tb.rosters()
+    starters, bench = tb.rosters()
+    bullpen = tb.bullpen()
+    standings = tb.standings()
 
     print(summary)
     print(pitchers)
-    print(rosters)
-
-    print(g._batters)
+    print(starters)
+    print(bench)
+    print(bullpen)
+    print(standings)
