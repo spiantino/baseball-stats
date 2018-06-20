@@ -19,84 +19,6 @@ from fractions import Fraction
 from tablebuilder import TableBuilder
 from dbclasses import Player, Game, Team
 
-
-
-def get_past_game_dates(team, n=10):
-    """
-    Find dates for last 10 games
-    !!! move to dbcontroller
-    """
-    data = dbc.get_team(team)['Schedule']
-    df = pd.DataFrame(data)
-    df = df.loc[df['']=='boxscore']
-
-    year = datetime.date.today().strftime('%Y')
-    def format_date(x, y):
-        _, m, d = x.split()[:3]
-        df_date = '{} {} {}'.format(m, d, y)
-        return datetime.datetime.strptime(df_date, '%b %d %Y')
-
-    df['Dates'] = df.Date.apply(lambda x: str(format_date(x, y=year).date()))
-    dates = sorted(df.Dates.values, reverse=True)[:n]
-    return dates
-
-
-def pitcher_history(team):
-    """
-    A Teams pitcher history
-    for previous 10 games
-    """
-    dates = get_past_game_dates(team)
-    games = dbc.get_team_game_previews(team, dates)
-
-    cols = ['Date', 'Opponent', 'Pitcher', 'IP', 'Hits', 'Runs',
-            'ER', 'Walks', 'Strikeouts', 'Home Runs', 'GSc']
-    df_data = []
-    for game in games:
-        away, home = game['away'], game['home']
-        side = 'home' if team==home else 'away'
-        opp_side = set({'home', 'away'} - {side}).pop()
-
-        date = game['date']
-        date_data = datetime.datetime.strptime(date, "%Y-%m-%d")
-        short_date = "{d.month}/{d.day} {dow}".format(d=date_data, dow=date_data.strftime("%a"))
-        opp = game[opp_side]
-
-        data = game['preview'][0]['liveData']['boxscore']['teams'][side]
-
-        pit_id = 'ID' + data['pitchers'][0]
-        pit_obj = data['players'][pit_id]
-
-        name = ' '.join((pit_obj['name']['first'],
-                         pit_obj['name']['last']))
-
-        pit_data = pit_obj['gameStats']['pitching']
-
-        ip    = pit_data['inningsPitched']
-        er    = pit_data['earnedRuns']
-        hr    = pit_data['homeRuns']
-        hits  = pit_data['hits']
-        runs  = pit_data['runs']
-        walks = pit_data['baseOnBalls']
-        strko = pit_data['strikeOuts']
-
-        # Find GSc from BR data
-        decoded = unidecode(name)
-        pitchers = list(dbc.get_pitchers_by_game(team, date))
-        all_pits = pitchers[0][team]['pitching']
-        try:
-            pit_stats = [x for x in all_pits if decoded in x.values()][0]
-            gsc = pit_stats['GSc']
-        except:
-            gsc = '-'
-
-        df_data.append([short_date, opp, name, ip, hits, runs,
-                        er, walks, strko, hr, gsc])
-    df = pd.DataFrame(df_data, columns=cols)
-    df = df.sort_values(by='Date', ascending=False)
-    return df
-
-
 def games_behind_data(home, away):
     """
     Get Games Behind data form a team's
@@ -160,32 +82,6 @@ def games_behind_data(home, away):
     h_plot = plt.plot(dfh['Date'], dfh['GB'])
     a_plot = plt.plot(dfa['Date'], dfa['GB'])
     return [h_plot, a_plot]
-
-
-def elo():
-    # League ELO
-    elo_cols = ['Rating', 'Team', 'Division%',
-                'Playoff%', 'WorldSeries%']
-    elo_stats = dbc.get_elo_stats()
-    elo_data = combine_dicts_in_list(elo_stats)
-    df = pd.DataFrame(elo_data)
-    df = df[elo_cols].sort_values(by='Rating', ascending=False)
-
-    # Round rating column
-    df['Rating'] = df.Rating.round().astype(int)
-
-    # Add Rank column and make it first
-    df['Rank'] = df.Rating.rank(ascending=False)
-    cols = df.columns.tolist()
-    cols = cols[-1:] + cols[:-1]
-    df = df[cols]
-
-    # Format columns with percantages
-    perc_cols = ['Division%', 'Playoff%', 'WorldSeries%']
-    for col in perc_cols:
-        df[col] = df[col].apply(lambda x: "{:.1%}".format(round(x, 3)))
-
-    return df
 
 ### Pitch count functions - move to a new file?
 def parse_pitch_types(game_data):
@@ -368,24 +264,6 @@ def series_results(team):
     df = pd.DataFrame(df_data, columns=cols)
     return df
 
-def extract_game_data(cursorobj):
-    """
-    Returns game data from a cursor object
-    Determines which game to return when a double header occurs
-    """
-    games = list(cursorobj)
-    if len(games) > 1:
-        status = games[0]['preview'][0]['gameData']['status']['detailedState']
-        if status == 'Final':
-            return games[1]
-        else:
-            return games[0]
-
-    elif len(games) == 1:
-        return games[0]
-
-    else:
-        return None
 
 def scrape_update(home, away, year):
     print("Gathering game previews...")
@@ -416,7 +294,7 @@ def scrape_update(home, away, year):
 
 if __name__ == '__main__':
     g = Game()
-    g.query_game_preview_by_date(team='NYY', date='2018-06-15')
+    g.query_game_preview_by_date(team='NYY', date='2018-06-16')
     g.parse_all()
     tb=TableBuilder(g)
 
@@ -432,6 +310,8 @@ if __name__ == '__main__':
     pit_df = tb.pit_leaders(stat='WAR', n=30, role='starter')
     era_df = tb.pit_leaders(stat='ERA', n=10, role='starter')
     rel_df = tb.pit_leaders(stat='WAR', n=10, role='reliever')
+    elo_df = tb.elo()
+    pit_hist = tb.pitcher_history()
 
 
     print(summary)
@@ -447,3 +327,7 @@ if __name__ == '__main__':
     print(pit_df)
     print(era_df)
     print(rel_df)
+    print(elo_df)
+    print(pit_hist)
+    # print(last_week_bullpen)
+    # print(series_table)

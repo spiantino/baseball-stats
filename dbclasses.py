@@ -1,4 +1,6 @@
 from dbcontroller import DBController
+import datetime
+from unidecode import unidecode
 
 class Player(DBController):
     def __init__(self, test=True, name=None):
@@ -64,14 +66,17 @@ class Game(DBController):
     def get_game_preview(self):
         return self._preview
 
-    def query_game_preview_by_date(self, team, date):
+    def query_game_preview_by_date(self, team, date, idx=None):
         self.reset_internals()
 
         games = self._db.Games.find({'date' : date,
                                      '$or' : [{'home' : team},
                                               {'away' : team}]})
 
-        game = self.extract_game(games)
+        if idx != None:
+            game = list(games)[idx]
+        else:
+            game = self.extract_game(games)
 
         if not game:
             print("Error: No game found for that date")
@@ -80,6 +85,8 @@ class Game(DBController):
             self._date = date
             self._team = team
             self._side = 'home' if game['home'] == team else 'away'
+            self._opp_side = 'home' if self._side == 'away' else 'away'
+            self._opp = game[self._opp_side]
             self._game = game
             self._preview = game['preview'][0]
             self._state = self._preview['gameData']['status']['detailedState']
@@ -228,11 +235,48 @@ class Game(DBController):
         self._pitchers = {'home': {'name' : home_pit_name,
                                    'hand' : home_pit_hand,
                                    'num'  : home_pit_num,
-                                   'team' : home_pit_team},
+                                   'team' : home_pit_team,
+                                   'pid'  : home_pit_id},
                           'away': {'name' : away_pit_name,
                                    'hand' : away_pit_hand,
                                    'num'  : away_pit_num,
-                                   'team' : away_pit_team}}
+                                   'team' : away_pit_team,
+                                   'pid'  : away_pit_id}}
+
+    def parse_pitcher_game_stats(self):
+        """
+        Return pitching stats for the current game
+        """
+        self._pitcher_gamestats = {}
+        for side in ['home', 'away']:
+            name = self._pitchers[side]['name']
+            pid  = self._pitchers[side]['pid']
+            data = self._preview['liveData']['boxscore']['teams'][side]\
+                                ['players'][pid]['gameStats']['pitching']
+
+            stats = {'name' : name,
+                     'ipit' : data['inningsPitched'],
+                     'hrun' : data['homeRuns'],
+                     'erun' : data['earnedRuns'],
+                     'hits' : data['hits'],
+                     'runs' : data['runs'],
+                     'walk' : data['baseOnBalls'],
+                     'strk' : data['strikeOuts']}
+
+            # Find GSc from BR boxscore data
+            decoded = unidecode(name)
+            team = self._pitchers[side]['team']
+            br_data = self._game[team]['pitching']
+            pdata = [data for data in br_data if data['Pitching'] == decoded]
+            try:
+                gsc = pdata[0]['GSc']
+            except:
+                gsc = None
+
+            stats.update({'gsc' : gsc})
+
+            self._pitcher_gamestats[side] = stats
+
 
     def parse_bullpen(self):
         live_data = self._preview['liveData']['boxscore']
@@ -337,6 +381,8 @@ class Game(DBController):
         self.parse_starting_pitchers()
         self.parse_batters()
         self.parse_bullpen()
+        if self._state == "Final":
+            self.parse_pitcher_game_stats()
 
 
 class Team(DBController):
@@ -366,7 +412,6 @@ class Team(DBController):
         stat_array = list(res)[0]
         return stat_array
 
-
     def get_team_division(self):
         return self._db.Teams.find_one({'Tm' : self._team})['div']
 
@@ -376,3 +421,33 @@ class Team(DBController):
                                                        'Team' : '$Tm'}}])
         return [team['Team'] for team in list(res)]
 
+    def get_elo_stats(self):
+        rating   = '$elo.elo_rating'
+        playoff  = '$elo.playoff_pct'
+        division = '$elo.division_pct'
+        worldser = '$elo.worldseries_pct'
+        return self._db.Teams.aggregate([{'$unwind': '$elo'},
+                                         {'$project':
+                                             {'_id'          : 0,
+                                              'Team'         : '$Tm',
+                                              'Rating'       : rating,
+                                              'Playoff%'     : playoff,
+                                              'Division%'    : division,
+                                              'WorldSeries%' : worldser}}])
+
+    def get_past_game_dates(self, last_n=10):
+        # Get all game dates from schedule
+        schedule = self.get_stat('Schedule')
+        dates = [x['Date'] for x in schedule]
+        dates = [' '.join(date.split()[1:3]) + ' ' + self._year
+                                              for date in dates]
+        # Format dates
+        datefrmt = [datetime.datetime.strptime(x, '%b %d %Y')
+                                     .strftime('%Y-%m-%d')
+                                              for x in dates]
+        # Find dates before current day
+        today = datetime.date.today().strftime('%Y-%m-%d')
+        game_dates = [date for date in datefrmt if date < today]
+
+        # Sort and return last_n dates
+        return sorted(game_dates, reverse=True)[:last_n]

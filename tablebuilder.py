@@ -107,7 +107,7 @@ class TableBuilder:
 
         def construct_table(data):
             cols = ['Order', 'Position', 'Number', 'Name', 'WAR',
-                    'Slash Line', 'HR', 'RBI', 'SB', 'Off', 'Def']
+                    'Slash', 'HR', 'RBI', 'SB', 'Off', 'Def']
             df = pd.DataFrame(data)
 
             df['Order'] = df.index + 1
@@ -306,3 +306,65 @@ class TableBuilder:
         df['Rank'] = df.index + 1
 
         return df[cols]
+
+    def elo(self):
+        t = Team()
+        data = list(t.get_elo_stats())
+        df = pd.DataFrame(data)
+
+        df = df.sort_values(by='Rating', ascending=False)
+
+        # Round rating column
+        df['Rating'] = df.Rating.round().astype(int)
+
+        # Make Rank column
+        df['Rank'] = df.Rating.rank(ascending=False).astype(int)
+
+        # Format columns with percantages
+        perc_cols = ['Division%', 'Playoff%', 'WorldSeries%']
+        for col in perc_cols:
+            df[col] = df[col].apply(lambda x: "{:.1%}".format(round(x, 3)))
+
+        cols = ['Rank', 'Rating',
+                'Team', 'Division%',
+                'Playoff%', 'WorldSeries%']
+
+        return df[cols]
+
+    def pitcher_history(self, last_n=10):
+        team = self.game._team
+        t = Team(name=team)
+
+        dates = t.get_past_game_dates(last_n=last_n)
+
+        last_date = None
+        data = []
+        for date in dates:
+
+            # Check if game is a double header
+            if date == last_date:
+                idx = 1
+            else:
+                idx = 0
+
+            g = Game()
+            g.query_game_preview_by_date(team=team, date=date, idx=idx)
+            g.parse_all()
+
+            pitch_stats = g._pitcher_gamestats[g._side]
+
+            short_date = datetime.datetime.strptime(date, '%Y-%m-%d')\
+                                          .strftime('%m/%d %a')
+
+            pitch_stats.update({'date' : short_date})
+            pitch_stats.update({'opp' : g._opp})
+            data.append(pitch_stats)
+
+            last_date = date
+
+        cols = ['date',  'opp', 'name', 'ipit',
+                'hrun', 'runs', 'walk', 'strk', 'gsc']
+
+        df = pd.DataFrame(data)[cols]
+        df = df.sort_values(by='date', ascending=False)
+        return df
