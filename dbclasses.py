@@ -1,6 +1,9 @@
-from dbcontroller import DBController
 import datetime
+import math
+from fractions import Fraction
 from unidecode import unidecode
+
+from dbcontroller import DBController
 
 class Player(DBController):
     def __init__(self, test=True, name=None):
@@ -188,60 +191,41 @@ class Game(DBController):
 
     def parse_starting_pitchers(self):
 
-        if self._state == 'Scheduled':
-            pitchers = self._preview['gameData']['probablePitchers']
-            players = self._preview['gameData']['players']
+        def extract_data(side):
+            if self._state == 'Scheduled':
+                pitchers = self._preview['gameData']['probablePitchers']
+                players = self._preview['gameData']['players']
 
-            away_pit_id = 'ID' + str(pitchers['away']['id'])
-            home_pit_id = 'ID' + str(pitchers['home']['id'])
+                pid  = 'ID' + str(pitchers[side]['id'])
+                data = players[pid]
+                name = data['fullName']
+                num  = data['primaryNumber']
+                hand = data['pitchHand']['code']
 
-            away_pit_data = players[away_pit_id]
-            home_pit_data = players[home_pit_id]
+            else:
+                pitchers = self._preview['liveData']['boxscore']['teams']
+                players  = self._preview['liveData']['players']['allPlayers']
 
-            away_pit_name = away_pit_data['fullName']
-            home_pit_name = home_pit_data['fullName']
+                pid = 'ID' + str(pitchers[side]['pitchers'][0])
+                data = players[pid]
+                name = ' '.join((data['name']['first'],
+                                 data['name']['last']))
+                num = data['shirtNum']
+                hand = data['rightLeft']
 
-            away_pit_num = away_pit_data['primaryNumber']
-            home_pit_num = home_pit_data['primaryNumber']
+            team = self._game[side]
 
-            away_pit_hand = away_pit_data['pitchHand']['code']
-            home_pit_hand = home_pit_data['pitchHand']['code']
+            return {'pid'  : pid,
+                    'name' : name,
+                    'num'  : num,
+                    'hand' : hand,
+                    'team' : team}
 
-        else:
-            pitchers = self._preview['liveData']['boxscore']['teams']
-            players  = self._preview['liveData']['players']['allPlayers']
+        home_pitcher = extract_data('home')
+        away_pitcher = extract_data('away')
 
-            away_pit_id = 'ID' + str(pitchers['away']['pitchers'][0])
-            home_pit_id = 'ID' + str(pitchers['home']['pitchers'][0])
-
-            away_pit_data = players[away_pit_id]
-            home_pit_data = players[home_pit_id]
-
-            away_pit_name = ' '.join((away_pit_data['name']['first'],
-                                      away_pit_data['name']['last']))
-
-            home_pit_name = ' '.join((home_pit_data['name']['first'],
-                                      home_pit_data['name']['last']))
-
-            away_pit_num = away_pit_data['shirtNum']
-            home_pit_num = home_pit_data['shirtNum']
-
-            away_pit_hand = away_pit_data['rightLeft']
-            home_pit_hand = home_pit_data['rightLeft']
-
-        away_pit_team = self._game['away']
-        home_pit_team = self._game['home']
-
-        self._pitchers = {'home': {'name' : home_pit_name,
-                                   'hand' : home_pit_hand,
-                                   'num'  : home_pit_num,
-                                   'team' : home_pit_team,
-                                   'pid'  : home_pit_id},
-                          'away': {'name' : away_pit_name,
-                                   'hand' : away_pit_hand,
-                                   'num'  : away_pit_num,
-                                   'team' : away_pit_team,
-                                   'pid'  : away_pit_id}}
+        self._pitchers = {'home': home_pitcher,
+                          'away': away_pitcher}
 
     def parse_pitcher_game_stats(self):
         """
@@ -277,6 +261,36 @@ class Game(DBController):
 
             self._pitcher_gamestats[side] = stats
 
+    def parse_br_pitching_data(self):
+        """
+        Parse pitching stats from BR boxscores:
+        - WPA, Pitches, IP, Inning entered
+        """
+        self._br_pit_data = {'home' : {}, 'away' : {}}
+
+        for side in ['home', 'away']:
+
+            team = self._game[side]
+            pit_data = self._game[team]['pitching'][1:]
+            inning_idx = 0
+
+            for data in pit_data:
+                name = data['Pitching']
+                ip = float(data['IP'])
+
+                # Infer inning that pitcher entered the game
+                inning_idx += math.floor(ip)
+                remainder = round((ip % 1) * 10)
+                if remainder > 0:
+                    inning_idx += Fraction(remainder, 3)
+                entered = math.floor((inning_idx - ip) + 1)
+
+                pdata = {'wpa'  : data['WPA'],
+                         'pit'  : data['Pit'],
+                         'ip'   : data['IP'],
+                         'entered'  : entered}
+
+                self._br_pit_data[side][name] = pdata
 
     def parse_bullpen(self):
         live_data = self._preview['liveData']['boxscore']
@@ -383,6 +397,7 @@ class Game(DBController):
         self.parse_bullpen()
         if self._state == "Final":
             self.parse_pitcher_game_stats()
+            self.parse_br_pitching_data()
 
 
 class Team(DBController):

@@ -122,78 +122,6 @@ def get_pitch_counts(player):
     return counts
 
 
-def previous_week_bullpen(team):
-    """
-    For each day in the week:
-    Inning entered the game, number of pitches thrown,
-    WPA, warmed up (if this exists anywhere)
-    """
-    today = datetime.date.today()
-    weekday = today.weekday()
-
-    start = datetime.timedelta(days=weekday, weeks=1)
-    start_of_week = today - start
-    end_of_week = start_of_week + datetime.timedelta(6)
-    date_range = pd.date_range(start=start_of_week, end=end_of_week)
-
-    df_data = {}
-    for dt_date in date_range:
-        date = dt_date.strftime('%Y-%m-%d')
-        try:
-            game = dbc.get_team_game_preview(team, date)
-            game_data = list(game)[0]
-            side = 'home' if game_data['home'] == team else 'away'
-            team_data = game_data['preview'][0]['liveData']\
-                                 ['boxscore']['teams'][side]
-            players = team_data['players']
-            bullpen = team_data['bullpen']
-            pitch_data = game_data[team]['pitching'][1:]
-
-            pitchers_data = []
-            inning_idx = 0
-            for player_stats in pitch_data:
-                name = player_stats['Pitching']
-                wpa  = float(player_stats['WPA'])
-                pits = int(player_stats['Pit'])
-                ip = float(player_stats['IP'])
-
-                # Infer inning that pitcher entered the game
-                inning_idx += math.floor(ip)
-                remainder = round((ip % 1) * 10)
-                if remainder > 0:
-                    inning_idx += Fraction(remainder, 3)
-                entered = math.floor((inning_idx - ip) + 1)
-
-                if entered > 1:
-                    player_data = [name, entered, pits, wpa]
-                    data_str = '{} - Entered: {} Pitch count: {} WPA: {}'.format(name, entered, pits, wpa)
-                    pitchers_data.append(data_str)
-
-            #Find the rest of the bullpen that did not play
-            for player_id in bullpen:
-                pid = 'ID' + player_id
-                name = ' '.join((players[pid]['name']['first'],
-                                 players[pid]['name']['last']))
-                player_data = name
-                pitchers_data.append(player_data)
-
-            df_data[date] = pitchers_data
-
-        except: # When there was no game on that day
-            continue
-
-    # Add padding so array lengths match
-    max_ = max([len(df_data[k]) for k in df_data.keys()])
-    for k in df_data.keys():
-        pad_len = max_ - len(df_data[k])
-        padding = [None for _ in range(pad_len)]
-        df_data[k].extend(padding)
-
-    df = pd.DataFrame(df_data)
-
-    return df
-
-
 def series_results(team):
     """
     Table with date, time, score, starter,
@@ -294,7 +222,7 @@ def scrape_update(home, away, year):
 
 if __name__ == '__main__':
     g = Game()
-    g.query_game_preview_by_date(team='NYY', date='2018-06-16')
+    g.query_game_preview_by_date(team='NYY', date='2018-06-20')
     g.parse_all()
     tb=TableBuilder(g)
 
@@ -312,7 +240,7 @@ if __name__ == '__main__':
     rel_df = tb.pit_leaders(stat='WAR', n=10, role='reliever')
     elo_df = tb.elo()
     pit_hist = tb.pitcher_history()
-
+    last_week_bp = tb.previous_week_bullpen()
 
     print(summary)
     print(pitchers)
@@ -329,5 +257,5 @@ if __name__ == '__main__':
     print(rel_df)
     print(elo_df)
     print(pit_hist)
-    # print(last_week_bullpen)
+    print(last_week_bp)
     # print(series_table)

@@ -5,7 +5,7 @@ import datetime
 from unidecode import unidecode
 
 from dbclasses import Player, Game, Team
-from utils import get_stadium_location
+from utils import get_stadium_location, get_last_week_dates
 
 class TableBuilder:
     def __init__(self, game):
@@ -144,6 +144,9 @@ class TableBuilder:
                 (away_bench_df, home_bench_df))
 
     def bullpen(self):
+        if self.game._state == 'Scheduled':
+            return None
+
         bullpen = self.game._bullpen
 
         def construct_table(side):
@@ -367,4 +370,74 @@ class TableBuilder:
 
         df = pd.DataFrame(data)[cols]
         df = df.sort_values(by='date', ascending=False)
+        return df
+
+    def previous_week_bullpen(self):
+        team = self.game._team
+        side = self.game._side
+        t = Team(name=team)
+
+        last_week = get_last_week_dates()
+        schedule  = t.get_past_game_dates(last_n=20)
+
+        dates = [date for date in schedule if date in last_week]
+
+        # dates = sorted(list(last_week.intersection(schedule)), reverse=True)
+
+        last_date = None
+        data = {}
+        for date in schedule:
+
+            # Check if game is a double header
+            if date == last_date:
+                idx = 1
+            else:
+                idx = 0
+
+            g = Game()
+            g.query_game_preview_by_date(team=team, date=date, idx=idx)
+            g.parse_all()
+
+            pit_data = g._br_pit_data[side]
+            data_strs = []
+            for pitcher in pit_data.keys():
+                if pit_data[pitcher]['entered'] > 1:
+                    data_str = '{} - Entered: {} Pitch count: {} WPA: {}'\
+                               .format(pitcher,
+                                       pit_data[pitcher]['entered'],
+                                       pit_data[pitcher]['pit'],
+                                       pit_data[pitcher]['wpa'])
+                    data_strs.append(data_str)
+
+            # Account for double headers
+            if date not in data.keys():
+                data[date] = data_strs
+                game_date = date
+            else:
+                game1_date = '{} (1)'.format(date)
+                data[game1_date] = data[date]
+
+                data.pop(date)
+
+                game2_date = '{} (2)'.format(date)
+                data[game2_date] = data_strs
+
+                game_date = game2_date
+
+            #Find the rest of the bullpen that did not play
+            bullpen = g._bullpen[side]
+            data[game_date] += bullpen.keys()
+
+            # Store last seen date
+            last_date = date
+
+        # Add padding so array lengths match
+        max_ = max([len(data[k]) for k in data.keys()])
+        for k in data.keys():
+            pad_len = max_ - len(data[k])
+            padding = [None for _ in range(pad_len)]
+            data[k].extend(padding)
+
+        df = pd.DataFrame(data)
+
         return df

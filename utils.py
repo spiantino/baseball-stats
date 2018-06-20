@@ -180,6 +180,19 @@ def subtract_dates(date1, date2):
     days = (date1-date2).days
     return str(days).strip('-')
 
+def get_last_week_dates():
+    """
+    Find dates from last week and return in a sorted list
+    """
+    today = datetime.date.today()
+    weekday = today.weekday()
+
+    start = datetime.timedelta(days=weekday, weeks=1)
+    start_of_week = today - start
+    end_of_week = start_of_week + datetime.timedelta(6)
+
+    date_range = pd.date_range(start_of_week, end_of_week).astype(str)
+    return list(date_range)[::-1]
 
 def parse_types(d):
     """
