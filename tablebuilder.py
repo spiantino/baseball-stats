@@ -441,3 +441,75 @@ class TableBuilder:
         df = pd.DataFrame(data)
 
         return df
+
+    def series_results(self):
+        """
+        Table with date, time, score, starter,
+        ip, game score, for the current series
+        """
+        team = self.game._team
+        t = Team(name=team)
+
+        all_game_dates = t.get_past_game_dates(last_n=-1)
+
+        today = datetime.date.today().strftime('%Y-%m-%d')
+        last_opp,  last_date = None, None
+        data = []
+        for date in all_game_dates:
+
+            # Check if game is a double header
+            if date == last_date:
+                idx = 1
+            else:
+                idx = 0
+
+            g = Game()
+            g.query_game_preview_by_date(team=team, date=date, idx=idx)
+            g.parse_all()
+
+            # Skip over today's game
+            if date == today and g._state != 'Final':
+                continue
+
+            # Stop collecting data when opponent changes
+            if last_opp and last_opp != g._opp:
+                break
+
+            game_time = g._game_details['gameTime']
+            am_or_pm  = g._game_details['am_or_pm']
+            time = '{}{}'.format(game_time, am_or_pm)
+
+            home_abbr = g._game_details['homeAbbr']
+            away_abbr = g._game_details['awayAbbr']
+
+            away_score = g._game_details['awayScore']
+            home_score = g._game_details['homeScore']
+
+            score = '{}-{}'.format(home_score, away_score)
+
+            home_starter = unidecode(g._pitchers['home']['name'])
+            away_starter = unidecode(g._pitchers['away']['name'])
+
+            home_pit_data = g._br_pit_data['home'][home_starter]
+            away_pit_data = g._br_pit_data['away'][away_starter]
+
+            home_ip = home_pit_data['ip']
+            away_ip = away_pit_data['ip']
+
+            home_gsc = home_pit_data['gsc']
+            away_gsc = away_pit_data['gsc']
+
+            data.append([date, time, home_abbr,
+                         away_abbr, score,
+                         home_starter, home_ip,
+                         home_gsc, away_starter,
+                         away_ip, away_gsc])
+
+            last_opp  = g._opp
+            last_date = date
+
+        cols = ['date', 'time', 'home', 'away', 'score',
+                'home starter', 'home ip', 'home gs',
+                'away starter', 'away ip', 'away gs']
+        df = pd.DataFrame(data, columns=cols)
+        return df

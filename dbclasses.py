@@ -138,6 +138,8 @@ class Game(DBController):
 
     def parse_game_details(self):
         game_data = self._preview['gameData']
+        live_data = self._preview['liveData']
+
         home = game_data['teams']['home']
         away = game_data['teams']['away']
 
@@ -156,6 +158,9 @@ class Game(DBController):
 
             wind_dir = ''
 
+            home_score = None
+            away_score = None
+
         else:
             home_name = home['name']['full']
             away_name = away['name']['full']
@@ -166,6 +171,10 @@ class Game(DBController):
             game_time = game_data['datetime']['time']
 
             wind_dir = game_data['weather']['wind']
+
+            home_score = live_data['linescore']['home']['runs']
+            away_score = live_data['linescore']['away']['runs']
+
 
         home_wins = home_rec['wins']
         away_wins = away_rec['wins']
@@ -180,10 +189,12 @@ class Game(DBController):
                               'homeAbbr' : home_abbr,
                               'homeWins' : home_wins,
                               'homeLoss' : home_losses,
+                              'homeScore': home_score,
                               'awayName' : away_name,
                               'awayAbbr' : away_abbr,
                               'awayWins' : away_wins,
                               'awayLoss' : away_losses,
+                              'awayScore': away_score,
                               'gameTime' : game_time,
                               'windDir'  : wind_dir,
                               'am_or_pm' : am_or_pm,
@@ -288,6 +299,7 @@ class Game(DBController):
                 pdata = {'wpa'  : data['WPA'],
                          'pit'  : data['Pit'],
                          'ip'   : data['IP'],
+                         'gsc'  : data['GSc'],
                          'entered'  : entered}
 
                 self._br_pit_data[side][name] = pdata

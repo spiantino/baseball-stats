@@ -122,76 +122,6 @@ def get_pitch_counts(player):
     return counts
 
 
-def series_results(team):
-    """
-    Table with date, time, score, starter,
-    ip, game score, for the current series
-    """
-    today = datetime.date.today().strftime('%Y-%m-%d')
-    opponent = None
-    df_data = []
-    cols = ['date', 'time', 'home', 'away', 'score',
-            'home starter', 'home ip', 'home gs',
-            'away starter', 'away ip', 'away gs']
-    all_game_dates = dbc.get_past_game_dates_by_team(team)
-
-    double_header = False
-    for date in all_game_dates:
-        game = dbc.get_team_game_preview(team, date)
-        games = list(game)
-        if len(games) > 1:
-            if double_header:
-                game_data = games[0]
-            else:
-                game_data = games[1]
-                double_header = True
-        else:
-            game_data = games[0]
-        preview = game_data['preview'][0]
-        state = preview['gameData']['status']['detailedState']
-        if date == today and state != 'Final':
-            continue
-        home = game_data['home']
-        away = game_data['away']
-
-        # Stop collecting data when opponent changes
-        this_opponent = away if team == home else home
-        if not opponent:
-            opponent = this_opponent
-        elif opponent != this_opponent:
-            break
-
-        game_time = preview['gameData']['datetime']['time']
-        am_or_pm = preview['gameData']['datetime']['ampm']
-        time = '{}{}'.format(game_time, am_or_pm)
-
-        h_score = preview['liveData']['linescore']['home']['runs']
-        a_score = preview['liveData']['linescore']['away']['runs']
-
-        score = '{}-{}'.format(h_score, a_score)
-
-        try:
-            home_pit_data = game_data[home]['pitching'][1]
-            away_pit_data = game_data[away]['pitching'][1]
-        except:
-            print("Need boxscores for {}".format(date))
-            continue
-
-        home_starter = home_pit_data['Pitching']
-        away_starter = away_pit_data['Pitching']
-
-        home_ip = home_pit_data['IP']
-        away_ip = away_pit_data['IP']
-
-        home_gsc = home_pit_data['GSc']
-        away_gsc = away_pit_data['GSc']
-
-        df_data.append([date, time, home, away, score, home_starter, home_ip,
-                        home_gsc, away_starter, away_ip, away_gsc])
-
-    df = pd.DataFrame(df_data, columns=cols)
-    return df
-
 
 def scrape_update(home, away, year):
     print("Gathering game previews...")
@@ -222,7 +152,7 @@ def scrape_update(home, away, year):
 
 if __name__ == '__main__':
     g = Game()
-    g.query_game_preview_by_date(team='NYY', date='2018-06-20')
+    g.query_game_preview_by_date(team='NYY', date='2018-06-19')
     g.parse_all()
     tb=TableBuilder(g)
 
@@ -241,6 +171,7 @@ if __name__ == '__main__':
     elo_df = tb.elo()
     pit_hist = tb.pitcher_history()
     last_week_bp = tb.previous_week_bullpen()
+    series_table = tb.series_results()
 
     print(summary)
     print(pitchers)
@@ -258,4 +189,4 @@ if __name__ == '__main__':
     print(elo_df)
     print(pit_hist)
     print(last_week_bp)
-    # print(series_table)
+    print(series_table)
