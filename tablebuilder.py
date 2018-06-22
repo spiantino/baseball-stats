@@ -376,8 +376,8 @@ class TableBuilder:
 
             last_date = date
 
-        cols = ['date',  'opp', 'name', 'ipit',
-                'hrun', 'runs', 'walk', 'strk', 'gsc']
+        cols = ['date',  'opp', 'name', 'ipit', 'hrun',
+                'runs', 'erun', 'walk', 'strk', 'gsc']
 
         df = pd.DataFrame(data)[cols]
         df = df.sort_values(by='date', ascending=False)

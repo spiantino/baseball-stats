@@ -29,7 +29,7 @@ class Latex:
             return formatted + " \\%"
         else:
             return formatted
-    
+
     def format_col_name(s):
         return Latex.tex_escape(s)
 
@@ -41,14 +41,14 @@ class Latex:
         return s
 
     def pd_to_rows(self, pd, formats=None):
-        
+
         rows = pd.to_dict(orient='records')
         if formats is None:
             formats = [{}] * len(rows[0].keys())
 
         for i, row in enumerate(rows):
             rows[i] = [Latex.format_row_value(v,f) for v, f in zip(row.values(), formats)]
-        
+
         t = jinja2.Template(
             r"""
             {% for row in data %}{% for v in row %} {{ v }} {% if not loop.last %}&{% endif %}{% endfor %} \\
@@ -94,20 +94,20 @@ class Latex:
                 \begin{document}
                 """)
 
-    def title(self, summary):
+    def title(self, summary, pitchers):
         t = jinja2.Template(
             r"""
             \section*{ Game {{ game }}: {{ title }} }
             \subsection*{ {{ details }} $\cdot$ {{ temp }}$\,^{\circ}$ {{ condition }} $\cdot$ Wind {{ wind }} }
             """)
-        self._f.write( 
-            t.render(game = summary['game'], 
+        self._f.write(
+            t.render(game = summary['game'],
                      title = summary['title'],
                      details = summary['details'],
                      temp = summary['temp'],
                      condition = summary['condition'],
                      wind = summary['wind'],
-                     pitchers = summary['pit_df'].to_dict(orient='records')
+                     pitchers = pitchers.to_dict(orient='records')
                      )
         )
 
@@ -116,7 +116,7 @@ class Latex:
             r"""
             \subsection*{ {{ title }} }
             """)
-        self._f.write( 
+        self._f.write(
             t.render(title = title)
         )
 
@@ -125,7 +125,7 @@ class Latex:
             r"""
             \subsubsection*{ {{ title }} }
             """)
-        self._f.write( 
+        self._f.write(
             t.render(title = title)
         )
 
@@ -189,7 +189,7 @@ class Latex:
 
         for i, row in enumerate(rows):
             rows[i] = [Latex.format_row_value(v,f) for v, f in zip(row.values(), formats)]
-        
+
         t = jinja2.Template(
             r"""
             {% for row in data %}{% for v in row %} {{ v }} {% if not loop.last %}&{% endif %}{% endfor %} \\
@@ -207,6 +207,6 @@ class Latex:
     def make_pdf(self):
         self._f.close()
         subprocess.call(['xelatex', self._filename])
-        
-        
+
+
 
