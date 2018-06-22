@@ -1,5 +1,6 @@
 import datetime
 import math
+from collections import Counter, defaultdict
 from fractions import Fraction
 from unidecode import unidecode
 
@@ -54,6 +55,7 @@ class Player(DBController):
                 stat_array[stat] = val
 
         return stat_array
+
 
 class Game(DBController):
     def __init__(self, test=True):
@@ -402,6 +404,36 @@ class Game(DBController):
                          'away_bench'   : away_bench,
                          'home_bench'   : home_bench}
 
+    def parse_pitch_types(self):
+        player_data = self._preview['liveData']['players']['allPlayers']
+        all_plays = self._preview['liveData']['plays']['allPlays']
+        pit_data = defaultdict(list)
+
+        for play in all_plays:
+            pid = 'ID' + play['matchup']['pitcher']
+            player = ' '.join((player_data[pid]['name']['first'],
+                               player_data[pid]['name']['last']))
+            decoded = unidecode(player)
+
+            for event in play['playEvents']:
+                try:
+                    pitch = event['details']['type']
+                    pit_data[decoded].append(pitch)
+                except:
+                    continue
+        self._pit_counts = {k : Counter(v) for k,v in pit_data.items()}
+
+    def find_pitch_dates(self, pitcher, team, n=99):
+        path = '{}.pitching.Pitching'.format(team)
+        res = list(self._db.Games.aggregate([{'$match': {path : pitcher}},
+                                             {'$sort': {'date' : -1}},
+                                             {'$project': {'date' : '$date'}},
+                                             {'$limit': n}]))
+        if res:
+            return [x['date'] for x in res]
+        else:
+            return None
+
     def parse_all(self):
         self.parse_game_details()
         self.parse_starting_pitchers()
@@ -410,6 +442,7 @@ class Game(DBController):
         if self._state == "Final":
             self.parse_pitcher_game_stats()
             self.parse_br_pitching_data()
+            self.parse_pitch_types()
 
 
 class Team(DBController):
@@ -478,3 +511,16 @@ class Team(DBController):
 
         # Sort and return last_n dates
         return sorted(game_dates, reverse=True)[:last_n]
+
+    def get_games_behind_history(self):
+        res = self._db.Teams.aggregate([{'$match': {'Tm' : self._team}},
+                                        {'$unwind': '$Schedule'},
+                                        {'$project':
+                                            {'_id' : 0,
+                                             'Date' : '$Schedule.Date',
+                                             'GB': '$Schedule.GB'}}])
+        hist = [x for x in list(res) if 'GB' in x.keys()]
+        return hist
+
+
+

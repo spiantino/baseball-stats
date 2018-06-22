@@ -5,7 +5,7 @@ import datetime
 from unidecode import unidecode
 
 from dbclasses import Player, Game, Team
-from utils import get_stadium_location, get_last_week_dates
+from utils import get_stadium_location, get_last_week_dates, subtract_dates
 
 class TableBuilder:
     def __init__(self, game):
@@ -157,14 +157,28 @@ class TableBuilder:
             for pitcher, vals in bullpen[side].items():
                 decoded = unidecode(pitcher)
                 p = Player(name=decoded)
+
                 pstats = p.get_stats(stats, pos='pit')
                 pstats.update({'Name' : pitcher})
                 pstats.update({'#' : vals['number']})
+
+                # Find days since last active
+                today = datetime.date.today().strftime('%Y-%m-%d')
+                team = self.game._game[side]
+                last = self.game.find_pitch_dates(decoded, team, n=1)
+                if last:
+                    days = subtract_dates(today, last[0])
+                else:
+                    days = None
+
+                pstats.update({'Days' : days})
+
                 df_data.append(pstats)
 
-            cols = ['Name', '#'] + stats
+            cols = ['Name', '#'] + stats + ['Days']
             df = pd.DataFrame(df_data)[cols]
 
+            df = df.sort_values(by='IP', ascending=False)
             df = df.fillna(value='-')
             return df
 
@@ -345,10 +359,7 @@ class TableBuilder:
         for date in dates:
 
             # Check if game is a double header
-            if date == last_date:
-                idx = 1
-            else:
-                idx = 0
+            idx = 1 if date == last_date else 0
 
             g = Game()
             g.query_game_preview_by_date(team=team, date=date, idx=idx)
@@ -389,10 +400,7 @@ class TableBuilder:
         for date in schedule:
 
             # Check if game is a double header
-            if date == last_date:
-                idx = 1
-            else:
-                idx = 0
+            idx = 1 if date == last_date else 0
 
             g = Game()
             g.query_game_preview_by_date(team=team, date=date, idx=idx)
@@ -442,12 +450,12 @@ class TableBuilder:
 
         return df
 
-    def series_results(self):
+    def series_results(self, team_name=None):
         """
         Table with date, time, score, starter,
         ip, game score, for the current series
         """
-        team = self.game._team
+        team = self.game._team if team_name == None else team_name
         t = Team(name=team)
 
         all_game_dates = t.get_past_game_dates(last_n=-1)
@@ -458,10 +466,7 @@ class TableBuilder:
         for date in all_game_dates:
 
             # Check if game is a double header
-            if date == last_date:
-                idx = 1
-            else:
-                idx = 0
+            idx = 1 if date == last_date else 0
 
             g = Game()
             g.query_game_preview_by_date(team=team, date=date, idx=idx)
@@ -513,3 +518,39 @@ class TableBuilder:
                 'away starter', 'away ip', 'away gs']
         df = pd.DataFrame(data, columns=cols)
         return df
+
+    def games_behind(self, *teams):
+        dfs = []
+        for team in teams:
+            t = Team(name=team)
+
+            gb = t.get_games_behind_history()
+            df = pd.DataFrame(gb)
+
+            def format_date(x):
+                m, d = x.split()[1], x.split()[2]
+                date = '{} {} {}'.format(m, d, self.game._year)
+                dt_date = datetime.datetime.strptime(date, '%b %d %Y')
+                return dt_date.strftime("%m-%d-%Y")
+
+            df['Date'] = df.Date.apply(lambda x: format_date(x))
+
+            # Drop duplicate rows (double headers)
+            df = df.drop_duplicates()
+
+            # Fill missing dates
+            df = df.set_index('Date')
+            start, end = df.index[0], df.index[-1]
+            idx = pd.date_range(start, end).strftime('%m-%d-%Y')
+            df = df.reindex(idx, fill_value=None)
+            df = df.fillna(method='ffill')
+            df = df.reset_index().rename(columns={'index' : 'Date'})
+
+            df['GB'] = df.GB.apply(lambda x: 0 if isinstance(x, str) else x)
+            dfs.append(df)
+
+        return dfs
+
+
+
+
