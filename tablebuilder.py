@@ -145,7 +145,7 @@ class TableBuilder:
 
     def bullpen(self):
         if self.game._state == 'Scheduled':
-            return None
+            return (pd.DataFrame(), pd.DataFrame())
 
         bullpen = self.game._bullpen
 

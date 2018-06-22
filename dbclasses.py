@@ -56,6 +56,73 @@ class Player(DBController):
 
         return stat_array
 
+    def get_starters_or_relievers(self, role, pos, year):
+        """
+        Return list of  starter or reliver object ids
+        """
+        cond    = '$lt' if role=='reliever' else '$gt'
+        gp      = 'fg.{}.{}.G'.format(pos, year)
+        war_val = '$fg.{}.{}.WAR'.format(pos, year)
+        gp_val  = '$fg.{}.{}.G'.format(pos, year)
+        gs_val  = '$fg.{}.{}.GS'.format(pos, year)
+
+        objs = self._db.Players.aggregate([{'$match' : {gp: {'$gt':  0}}},
+                                           {'$project':
+                                               {'GS%' :
+                                                    {'$divide': [gs_val,
+                                                                 gp_val]}}},
+                                            {'$match':
+                                                {'GS%': {cond: 0.5}}}
+                                            ])
+        return [x['_id'] for x in objs]
+
+    def get_top_n_pitchers(self, role, year, stat, ascending, n):
+        """
+        Return top n pitchers sorted by stat
+        """
+        sort_key = 'fg.pit.{}.{}'.format(year, stat)
+        ids = self.get_starters_or_relievers(role=role, year=year, pos='pit')
+        sort_direction = 1 if ascending else -1
+
+        if stat == 'ERA':
+            pit_data = '$fg.pit.{}'.format(year)
+            ip = '$fg.pit.{}.IP'.format(year)
+            res = self._db.Players.aggregate([
+                                {'$match': {'_id': {'$in' : ids}}},
+                                {'$lookup': {'from': 'Teams',
+                                             'localField': 'Team',
+                                             'foreignField': 'Tm',
+                                             'as': 'td'}},
+                                {'$unwind': '$td'},
+                                {'$project': {'_id': 0,
+                                              'pit' : pit_data,
+                                              'qual': {'$subtract':
+                                                            [ip, '$td.G']}}},
+                                {'$match': {'qual': {'$gte': 0}}},
+                                {'$project': {'pit': '$pit'}},
+                                {'$sort': {'pit.ERA': 1}}])
+            return [x['pit'] for x in list(res)[:n]]
+
+        else:
+            res = self._db.Players.find({'_id' : {'$in' : ids}})\
+                                  .sort(sort_key, sort_direction).limit(n)
+            return [x['fg']['pit'][str(year)] for x in res]
+
+
+    def get_top_n_leaders(self, pos, stat, year, n):
+        """
+        Query top 10 batting or pitching leaderboard
+        """
+        sort_key = 'fg.{}.{}.{}'.format(pos, year, stat)
+
+        lb = self._db.Players.find({}).sort(sort_key, -1).limit(n)
+
+        return [x['fg'][pos][str(year)] for x in lb]
+
+    def get_top_n_homerun_leaders(self, year, n):
+        sort_key = '{}.bat.HR'.format(year)
+        return self._db.Players.find({}).sort(sort_key, -1)
+
 
 class Game(DBController):
     def __init__(self, test=True):
@@ -521,6 +588,3 @@ class Team(DBController):
                                              'GB': '$Schedule.GB'}}])
         hist = [x for x in list(res) if 'GB' in x.keys()]
         return hist
-
-
-
