@@ -782,7 +782,7 @@ def espn_preview_text(date, team):
     mlbid = 'mlbid' + cid
 
     article = soup.find('article', {'data-id' : '{}'.format(mlbid)})
-    text = ' '.join([p.text for p in article.find_all('p')])
+    text = '\n\n'.join([p.text for p in article.find_all('p')])
     text = text.replace("\'", "'")
 
     # Find correct game object

@@ -60,7 +60,7 @@ class Latex:
     def header(self):
         self._f.write(r"""
                 \documentclass{article}
-                \usepackage[margin=0.4in,a4paper]{geometry}
+                \usepackage[margin=0.5in,a4paper]{geometry}
                 \usepackage{booktabs}
                 \usepackage{caption}
                 \usepackage{float}
@@ -89,7 +89,11 @@ class Latex:
 
                 \usepackage[T1]{fontenc}
                 \usepackage{fontspec}
-                \setmainfont[Scale=0.80]{TeX Gyre Schola}
+                \setmainfont[Scale=0.90]{TeX Gyre Schola}
+
+                \setlength{\parindent}{0em}
+                \setlength{\parskip}{.5em}
+                \renewcommand{\baselinestretch}{1}
 
                 \begin{document}
                 """)
@@ -107,7 +111,6 @@ class Latex:
                      temp = summary['temp'],
                      condition = summary['condition'],
                      wind = summary['wind'],
-                     pitchers = summary['pit_df'].to_dict(orient='records')
                      )
         )
 
@@ -118,6 +121,24 @@ class Latex:
             """)
         self._f.write( 
             t.render(title = title)
+        )
+
+    def add_text(self, text):
+        t = jinja2.Template(
+            r"""
+            { \font\imp="Imperial" at 10pt \imp {{ text }} }
+            """)
+        self._f.write( 
+            t.render(text = text.replace('\n', '\n \\par '))
+        )
+
+    def add_space(self, space):
+        t = jinja2.Template(
+            r"""
+            \vspace{ {{ space }} }
+            """)
+        self._f.write( 
+            t.render(space = space)
         )
 
     def add_subsection(self, title):
