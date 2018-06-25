@@ -71,6 +71,8 @@ def summary_table(data, year, team):
 
     details = '{}{} {}'.format(game_time, am_or_pm, stadium)
 
+    preview_text = data['preview_text']
+
     # Forecast from darsky.net api
     key = 'fb8f30e533bb7ae1a9a26b0ff68a0ed8'
     loc  = get_stadium_location(home_abbr)
@@ -180,6 +182,7 @@ def summary_table(data, year, team):
             'condition' : condition,
             'temp' : temp,
             'wind' : wind,
+            'preview' : preview_text,
             'pit_df': pit_df}
 
 
@@ -305,8 +308,8 @@ def rosters(who, data, year):
         away_df = away_df.sort_values(by='WAR', ascending=False)
         home_df = home_df.sort_values(by='WAR', ascending=False)
 
-        away_df = away_df.drop(columns='Order')
-        home_df = home_df.drop(columns='Order')
+        # away_df = away_df.drop(columns='Order')
+        # home_df = home_df.drop(columns='Order')
 
     away_df = away_df.fillna(value='-')
     home_df = home_df.fillna(value='-')
@@ -954,11 +957,15 @@ if __name__ == '__main__':
 
     year = args.date.split('-')[0]
 
+    # print("Gathering game previews...")
+    # scrape.game_previews()
+    # scrape.espn_preview_text(args.date, args.team)
+
     # Create database controller object
     dbc = DBController()
 
-    print("Gathering game previews...")
-    scrape.game_previews()
+    # print("Gathering game previews...")
+    # scrape.game_previews()
 
     # Query upcomming game and populate data
     game = dbc.get_team_game_preview(team=args.team, date=args.date)
@@ -971,7 +978,8 @@ if __name__ == '__main__':
     else:
         raise ValueError("NO GAME FOUND")
 
-    scrape_update(home, away, year)
+    # scrape_update(home, away, year)
+    # scrape.espn_preview_text(args.date, args.team)
 
     summary   = summary_table(data=game_data, year=year, team=args.team)
     if state == 'Scheduled':
@@ -1021,6 +1029,11 @@ if __name__ == '__main__':
     l.add_headers(['Team', 'R/L', '#', 'Name', 'war', 'w', 'l', 'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
     l.add_rows(summary['pit_df'], ['', '', '{:.0f}', '', '{:.1f}', '{:.0f}', '{:.0f}', '{:.2f}', '{:.1f}', '{:.2f}', '{:.2f}', '{:.2f}', '{:.2f}'])
     l.end_table()
+
+    l.add_space('.5cm')
+    l.start_multicol(2)
+    l.add_text(summary['preview'])
+    l.end_multicol()
 
     l.add_section("{} Lineup".format(away))
     l.start_table('lcclrcrrrrr')
