@@ -126,6 +126,7 @@ class Player(DBController):
 
 class Game(DBController):
     def __init__(self, test=True):
+        self._game = None
         self.reset_internals()
 
         super().__init__(test)
@@ -151,7 +152,7 @@ class Game(DBController):
             game = self.extract_game(games)
 
         if not game:
-            print("Error: No game found for that date")
+            print("Error: No game found for {}".format(date))
 
         else:
             self._date = date
@@ -502,14 +503,15 @@ class Game(DBController):
             return None
 
     def parse_all(self):
-        self.parse_game_details()
-        self.parse_starting_pitchers()
-        self.parse_batters()
-        self.parse_bullpen()
-        if self._state == "Final":
-            self.parse_pitcher_game_stats()
-            self.parse_br_pitching_data()
-            self.parse_pitch_types()
+        if self._game:
+            self.parse_game_details()
+            self.parse_starting_pitchers()
+            self.parse_batters()
+            self.parse_bullpen()
+            if self._state == "Final":
+                self.parse_pitcher_game_stats()
+                self.parse_br_pitching_data()
+                self.parse_pitch_types()
 
 
 class Team(DBController):
