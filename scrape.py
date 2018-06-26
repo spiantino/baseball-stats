@@ -24,58 +24,61 @@ def fangraphs(state, year):
     """
     tid = 0 # Scrape all teams for now, add individual teams later if needed
 
-    url = """http://www.fangraphs.com/leaders.aspx?pos=all&stats={0}\
-             &lg=all&qual=0&type=8&season={1}\
-             &month=0&season1={1}\
-             &ind=0&team={2}&page=1_1000"""\
-             .format(state, year, tid)\
-             .replace(' ', '')
+    stat_groups = {'Dashboard' : 8,
+                   'Standard'  : 0,
+                   'Advanced'  : 1}
 
-    soup = open_url(url)
+    data = {}
+    for val in stat_groups.values():
 
-    # Extract column headers
-    thead = soup.find('thead')
-    cols = [x.text for x in thead.find_all('th')]
+        url = """http://www.fangraphs.com/leaders.aspx?pos=all&stats={0}\
+                 &lg=all&qual=0&type={1}&season={2}\
+                 &month=0&season1={2}\
+                 &ind=0&team={3}&page=1_1000"""\
+                 .format(state, val, year, tid)\
+                 .replace(' ', '')
 
-    # Extract stats from table bdoy
-    tbody = soup.find_all('tbody')[-1]
-    all_rows = tbody.find_all('tr')
-    all_row_data = [x.find_all('td') for x in all_rows]
+        soup = open_url(url)
 
-    for row in tqdm(all_row_data):
-        row_data = [x.text for x in row]
-        player = row_data[1]
-        db_data = {k:v for k,v in zip(cols, row_data)}
+        # Extract column headers
+        thead = soup.find('thead')
+        cols = [x.text for x in thead.find_all('th')]
 
-        # # Rename common keys with batting or pitching prefixes
-        # rank = '{}_rank'.format(state)
-        # db_data[rank] = db_data.pop('#')
+        # Extract stats from table bdoy
+        tbody = soup.find_all('tbody')[-1]
+        all_rows = tbody.find_all('tr')
+        all_row_data = [x.find_all('td') for x in all_rows]
 
-        # war = '{}_WAR'.format(state)
-        # db_data[war] = db_data.pop('WAR')
+        for row in tqdm(all_row_data):
+            row_data = [x.text for x in row]
+            player = row_data[1]
+            player_data = {k:v for k,v in zip(cols, row_data)}
 
-        # games = '{}_G'.format(state)
-        # db_data[games] = db_data.pop('G')
+            # Convert team name to abbreviation
+            try:
+                player_data['Team'] = convert_name(player_data['Team'])
+            except:
+                player_data['Team'] = None
 
-        # Convert team name to abbreviation
-        try:
-            db_data['Team'] = convert_name(db_data['Team'])
-        except:
-            pass # any need to pull team value from br here?
-            # print("(fangraphs) No team listed for {}".format(player))
+            player_data = parse_types(player_data)
 
-        # Store type as numeric if possible
-        db_data = parse_types(db_data)
+            if player in data.keys():
+                data[player].update(player_data)
+            else:
+                data[player] = player_data
 
-        # Insert row into database
-        db_path = 'fg.{}.{}'.format(state, year)
-        db.Players.update({'Name': player},
-                          {'$set' : {db_path : db_data}}, upsert=True)
+    db_data = [pstats for pstats in data.values()]
 
-        # Add current team to top level
+    db_path = 'fg.{}.{}'.format(state, year)
+
+    for pdata in db_data:
+        db.Players.update({'Name' : pdata['Name']},
+                          {'$set' : {db_path : pdata}}, upsert=True)
+
         if year == dbc._year:
-            db.Players.update({'Name' : player},
-                              {'$set': {'Team' : db_data['Team']}})
+            db.Players.update({'Name' : pdata['Name']},
+                              {'$set' : {'Team' : pdata['Team']}})
+
 
 def fangraph_splits(year):
     # 5 is for left handed batters, 6 for right handed batters
@@ -828,14 +831,16 @@ def league_elo():
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    # # fangraph_splits(year=year)
 
     # print("Scraping past boxscores...")
     # boxscores(date='all')
 
     print("Scraping batter and pitcher leaderboards")
-    fangraphs('bat', year)
+    # fangraphs('bat', year)
     fangraphs('pit', year)
+
+    # fangraph_splits(year=year)
+
 
     # print("Scraping league elo and division standings")
     # standings()

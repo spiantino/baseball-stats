@@ -52,6 +52,7 @@ def scrape_update(home, away, year):
 
     print("Scraping pitching leaderboard...")
     scrape.fangraphs(state='pit', year=year)
+    scrape.fangraphs_splits(year=year)
 
     print("Scraping league standings...")
     scrape.standings()
