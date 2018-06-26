@@ -58,7 +58,7 @@ class TableBuilder:
     def starting_pitchers(self):
         pitchers = self.game._pitchers
         stats = ['Team', 'R/L', '#', 'Name', 'WAR', 'W', 'L',
-                 'ERA', 'IP', 'K/9', 'BB/9', 'HR/9', 'GB%']
+                 'ERA', 'IP', 'K/9', 'BB/9', 'HR/9', 'WHIP', 'GB%']
 
         def extract_data(side):
             decoded = unidecode(pitchers[side]['name'])
@@ -137,8 +137,8 @@ class TableBuilder:
             away_bench_df = construct_table(away_bench_data)
             home_bench_df = construct_table(home_bench_data)
         else:
-            away_bench_df = None
-            home_bench_df = None
+            away_bench_df = pd.DataFrame()
+            home_bench_df = pd.DataFrame()
 
         return ((away_starter_df, home_starter_df),
                 (away_bench_df, home_bench_df))
@@ -150,8 +150,8 @@ class TableBuilder:
         bullpen = self.game._bullpen
 
         def construct_table(side):
-            stats = ['WAR', 'SV', 'ERA', 'IP',
-                     'K/9', 'BB/9', 'HR/9', 'GB%']
+            stats = ['WAR', 'SV', 'ERA', 'IP', 'K/9',
+                     'BB/9', 'HR/9', 'WHIP', 'GB%']
 
             df_data = []
             for pitcher, vals in bullpen[side].items():
@@ -317,8 +317,8 @@ class TableBuilder:
 
         df['W/L'] = df[['W', 'L']].apply(lambda x: format_wl(*x), axis=1)
 
-        cols = ['Rank', 'Name', 'Team', 'WAR', 'W', 'L',
-                'ERA', 'IP', 'K/9', 'BB/9', 'HR/9', 'GB%']
+        cols = ['Rank', 'Name', 'Team', 'WAR', 'W', 'L', 'ERA',
+                'IP', 'K/9', 'BB/9', 'HR/9', 'WHIP', 'GB%']
 
         df['Rank'] = df.index + 1
 

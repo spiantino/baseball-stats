@@ -836,8 +836,8 @@ if __name__ == '__main__':
     # boxscores(date='all')
 
     print("Scraping batter and pitcher leaderboards")
-    # fangraphs('bat', year)
-    fangraphs('pit', year)
+    fangraphs('bat', year)
+    # fangraphs('pit', year)
 
     # fangraph_splits(year=year)
 

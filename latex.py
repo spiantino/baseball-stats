@@ -218,12 +218,13 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
     l.header()
     l.title(summary, pitchers)
 
-    l.start_table('lcclrrrrrrrrr')
+    l.start_table('lcclrrrrrrrrrr')
     l.add_headers(['Team', 'R/L', '#', 'Name', 'war', 'w', 'l',
-                   'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'gb%'])
-    l.add_rows(pitchers, ['', '', '{:.0f}', '', '{:.1f}', '{:.0f}', '{:.0f}',
-                                  '{:.2f}', '{:.1f}', '{:.2f}', '{:.2f}',
-                                  '{:.2f}', '{:.2f}'])
+                   'era', 'ip', 'k/9', 'bb/9', 'hr/9', 'whip', 'gb%'])
+    l.add_rows(pitchers, ['', '', '{:.0f}', '', '{:.1f}',
+                          '{:.0f}', '{:.0f}', '{:.2f}',
+                          '{:.1f}', '{:.2f}', '{:.2f}',
+                          '{:.2f}', '{:.2f}', '{:.2f}'])
     l.end_table()
 
     l.add_section("{} Lineup".format(away))
@@ -233,7 +234,7 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
     l.add_rows(starters[0], ['{:.0f}', '', '{:.0f}', '',
                              '{:.1f}', '', '{:.0f}', '{:.0f}',
                              '{:.0f}', '{:.1f}', '{:.1f}'])
-    if bench[0]:
+    if not bench[0].empty:
         l.add_divider()
         l.add_rows(bench[0], ['{:.0f}', '', '{:.0f}', '',
                               '{:.1f}', '', '{:.0f}', '{:.0f}',
@@ -246,11 +247,11 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
     l.add_rows(starters[1], ['{:.0f}', '', '{:.0f}', '',
                              '{:.1f}', '', '{:.0f}', '{:.0f}',
                              '{:.0f}', '{:.1f}', '{:.1f}'])
-    if bench[1]:
+    if not bench[1].empty:
         l.add_divider()
         l.add_rows(bench[1], ['{:.0f}', '', '{:.0f}', '',
                               '{:.1f}', '', '{:.0f}', '{:.0f}',
-                               '{:.0f}', '{:.1f}', '{:.1f}'])
+                              '{:.0f}', '{:.1f}', '{:.1f}'])
     l.end_table()
 
     l.add_section("Standings")
@@ -266,21 +267,23 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
 
     l.page_break()
     l.add_subsection("{} Bullpen".format(away))
-    l.start_table('lcrrrrrrrrr')
+    l.start_table('lcrrrrrrrrrr')
     l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip',
-                   'k/9', 'bb/9', 'hr/9', 'gb%', 'days'])
+                   'k/9', 'bb/9', 'hr/9', 'whip', 'gb%', 'days'])
     l.add_rows(bullpen[0], ['', '{:.0f}', '{:.1f}', '{:.0f}',
                                 '{:.1f}', '{:.1f}', '{:.1f}',
-                                '{:.1f}', '{:.1f}', '{:.1f}', '{:.0f}'])
+                                '{:.1f}', '{:.1f}', '{:.1f}',
+                                '{:.1f}', '{:.0f}'])
     l.end_table()
 
     l.add_subsection("{} Bullpen".format(home))
-    l.start_table('lcrrrrrrrrr')
+    l.start_table('lcrrrrrrrrrr')
     l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip',
-                   'k/9', 'bb/9', 'hr/9', 'gb%', 'days'])
+                   'k/9', 'bb/9', 'hr/9', 'whip', 'gb%', 'days'])
     l.add_rows(bullpen[1], ['', '{:.0f}', '{:.1f}', '{:.0f}',
                                 '{:.1f}', '{:.1f}', '{:.1f}',
-                                '{:.1f}', '{:.1f}', '{:.1f}', '{:.0f}'])
+                                '{:.1f}', '{:.1f}', '{:.1f}',
+                                '{:.1f}', '{:.0f}'])
     l.end_table()
 
     l.add_section("{} Recent Starts".format(team))
@@ -333,12 +336,12 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
 
     l.add_section("Pitching Leaderboards")
     l.add_subsection("WAR")
-    l.start_table('rllrrrrrrrrr')
-    l.add_headers(['','Name','Team','war','w','l',
-                   'era','ip', 'k/9','bb/9','hr/9','gb%'])
+    l.start_table('rllrrrrrrrrrr')
+    l.add_headers(['','Name','Team','war','w','l', 'era',
+                   'ip', 'k/9','bb/9','hr/9', 'whip', 'gb%'])
     l.add_rows(pit_df, ['{:.0f}', '', '', '{:.1f}', '{:.0f}',
                         '{:.0f}', '{:.2f}', '{:.1f}', '{:.1f}',
-                        '{:.1f}', '{:.1f}', '{:.2f}'])
+                        '{:.1f}', '{:.1f}', '{:.1f}', '{:.2f}'])
     l.end_table()
 
     l.add_subsection("WAR - Relivers")
