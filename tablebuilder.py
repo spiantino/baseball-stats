@@ -290,7 +290,7 @@ class TableBuilder:
         df['Rank'] = df.index + 1
 
         if stat in ['HR', 'RBI']:
-            cols = ['Name', 'Team'] + [stat]
+            cols = ['Name', 'Team'] + [stat] + ['Rank']
         else:
             cols = ['Rank', 'Name', 'Team', 'WAR',
                     'Slash', 'HR', 'RBI', 'SB', 'BB%',
