@@ -67,19 +67,15 @@ def scrape_update(home, away, year):
 
     scrape.league_elo()
 
+def run(team, date=None, scrape=False):
+    today = datetime.datetime.today().strftime('%Y-%m-%d')
+    date = today if not date else date
 
-if __name__ == '__main__':
-    today = datetime.date.today().strftime('%Y-%m-%d')
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--team', default='NYY')
-    parser.add_argument('-d', '--date', default=today)
-    parser.add_argument('-s', '--scrape', default=True)
-    args = parser.parse_args()
-
-    scrape_games()
+    if scrape:
+        scrape_games()
 
     g = Game()
-    g.query_game_preview_by_date(team=args.team, date=args.date)
+    g.query_game_preview_by_date(team=team, date=date)
     g.parse_all()
 
     if g._game:
@@ -109,7 +105,7 @@ if __name__ == '__main__':
         pit_hist = tb.pitcher_history()
         last_week_bp = tb.previous_week_bullpen()
         series_table = tb.series_results()
-        gb = tb.games_behind(args.team, opp)
+        gb = tb.games_behind(team, opp)
 
         # print(summary)
         # print(pitchers)
@@ -130,10 +126,19 @@ if __name__ == '__main__':
         # print(series_table)
         # print(gb)
 
-        latex.make_pdf(args.team, args.date, home, away,
+        latex.make_pdf(team, date, home, away,
                        summary, pitchers, starters,
                        bench, bullpen, standings,
                        history, bat_df, hr_df, rbi_df,
                        pit_df, era_df, rel_df, elo_df,
                        pit_hist, last_week_bp, series_table, gb)
 
+
+if __name__ == '__main__':
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-t', '--team', default='NYY')
+    parser.add_argument('-d', '--date', default=today)
+    parser.add_argument('-s', '--scrape', default=True)
+    args = parser.parse_args()
+    run(team=args.team, date=args.date, scrape=args.scrape)

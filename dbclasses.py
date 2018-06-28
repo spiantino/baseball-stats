@@ -1,5 +1,7 @@
 import datetime
 import math
+import pytz
+from  dateutil.parser import parse
 from collections import Counter, defaultdict
 from fractions import Fraction
 from unidecode import unidecode
@@ -501,6 +503,36 @@ class Game(DBController):
             return [x['date'] for x in res]
         else:
             return None
+
+    def get_all_start_times(self):
+        today = self._day
+        dt_path = '$preview.gameData.datetime.dateTime'
+
+        res = list(self._db.Games.aggregate([{'$match' : {'date': today}},
+                                             {'$project': {'_id' : 0,
+                                                           'away' : '$away',
+                                                           'home' : '$home',
+                                                           'time' : dt_path}}
+                                            ]))
+
+        times = {}
+
+        for game in res:
+            home, away, dt = game.values()
+
+            if not dt:
+                continue
+
+            time = parse(dt[0]).astimezone(pytz.timezone('America/New_York'))
+
+            times.update({home : time})
+            times.update({away : time})
+
+        return times
+
+    def todays_games_in_db(self):
+        in_db = list(self._db.Games.find({'date' : self._day}))
+        return bool(in_db)
 
     def parse_all(self):
         if self._game:
