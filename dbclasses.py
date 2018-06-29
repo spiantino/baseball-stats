@@ -333,12 +333,18 @@ class Game(DBController):
             # Find GSc from BR boxscore data
             decoded = unidecode(name)
             team = self._pitchers[side]['team']
-            br_data = self._game[team]['pitching']
-            pdata = [data for data in br_data if data['Pitching'] == decoded]
             try:
-                gsc = pdata[0]['GSc']
+                br_data = self._game[team]['pitching']
+                pdata = [data for data in br_data
+                               if data['Pitching'] == decoded]
+                try:
+                    gsc = pdata[0]['GSc']
+                except:
+                    gsc = None
             except:
                 gsc = None
+                print("BR Boxscores missing for {} - {}"\
+                                .format(team, self._date))
 
             stats.update({'gsc' : gsc})
 

@@ -6,6 +6,7 @@ import time
 
 from dbclasses import Game
 import main
+import scrape
 
 class Automator:
     def __init__(self, teams=['NYY', 'NYM', 'HOU']):
@@ -14,17 +15,19 @@ class Automator:
         self.priority = 1
         self.today = datetime.datetime.today().strftime('%Y-%m-%d')
         self.game = Game()
-        self.tasks_completed = False
         self.new_day = False
 
-    def scrape_games(self):
-        print("scraping today's games...")
-        main.scrape_games()
+    def scrape_previews(self):
+        self.store_current_time()
 
-    def schedule_scrape(self):
-        if not self.game.todays_games_in_db():
-            self.sched.enter(3600, self.priority, self.scrape_games)
-            self.sched.run()
+        print("Scraping today's games at {}".format(self.nowf))
+
+        scrape.game_previews()
+
+    # def schedule_scrape(self):
+    #     if not self.game.todays_games_in_db():
+    #         self.sched.enter(3600, self.priority, self.scrape_games)
+    #         self.sched.run()
 
     def find_start_times(self):
         all_times = self.game.get_all_start_times()
@@ -37,13 +40,14 @@ class Automator:
     def store_current_time(self):
         now = datetime.datetime.now()
         self.now = now.astimezone(pytz.timezone('America/New_York'))
+        self.nowf = now.strftime("%-I:%M%p")
 
     def get_delays(self):
         # 1 second for testing:
         # self.delays = {team : 1 for team in self.execute_times.keys()}
 
-        self.delays = {team : (self.now - time).total_seconds()
-                                for team, time in self.execute_times.items()}
+        self.delays = {team : (time -self.now).total_seconds()
+                           for team, time in self.execute_times.items()}
 
     def schedule_tasks(self):
         for team, delay in self.delays.items():
@@ -76,7 +80,7 @@ class Automator:
 
     def execute_tasks(self, team):
         self.pull_code()
-        self.scrape_games()
+        self.scrape_previews()
         self.make_pdf(team)
         self.send_emails(team)
 
@@ -88,7 +92,6 @@ class Automator:
 
     def reset(self):
         self.priority = 1
-        self.tasks_completed = False
         self.new_day = False
 
 
@@ -97,16 +100,15 @@ if __name__ == '__main__':
 
     while True:
 
-        while not auto.game.todays_games_in_db():
-            auto.scrape_games()
+        # Scrape to get game start times
+        auto.scrape_previews()
 
-            if not auto.game.todays_games_in_db():
-                time.sleep(3600)
+        # Add tasks to scheduler
+        auto.run()
+        print("All tasks completed. Waiting for tomorrow's games...")
 
-        if not auto.tasks_completed:
-            auto.run()
-            auto.tasks_completed = True
-
+        # Change this to wait until the next day
+        # instead of checking each hour for the next day?
         while not auto.new_day:
             auto.check_for_new_day()
 
@@ -114,4 +116,5 @@ if __name__ == '__main__':
                 time.sleep(3600)
 
         auto.reset()
+
 

@@ -67,7 +67,7 @@ def scrape_update(home, away, year):
 
     scrape.league_elo()
 
-def run(team, date=None, scrape=False):
+def run(team, date=None, scrape=True):
     today = datetime.datetime.today().strftime('%Y-%m-%d')
     date = today if not date else date
 
