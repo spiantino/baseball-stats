@@ -5,7 +5,10 @@ import datetime
 from unidecode import unidecode
 
 from dbclasses import Player, Game, Team
-from utils import get_stadium_location, get_last_week_dates, subtract_dates
+from utils import (get_stadium_location,
+                   get_last_week_dates,
+                   subtract_dates,
+                   normalize_name)
 
 class TableBuilder:
     def __init__(self, game):
@@ -495,8 +498,28 @@ class TableBuilder:
             home_starter = unidecode(g._pitchers['home']['name'])
             away_starter = unidecode(g._pitchers['away']['name'])
 
-            home_pit_data = g._br_pit_data['home'][home_starter]
-            away_pit_data = g._br_pit_data['away'][away_starter]
+            def extract_pit_data(side, starter):
+                """
+                If there is a name mismatch between mlb and br data,
+                try normalizing the name first, then try returning
+                the pitcher that entered in inning 1
+                """
+                try:
+                    return g._br_pit_data[side][starter]
+                except:
+                    try:
+                        name = normalize_name(starter)
+                        return g._br_pit_data[side][name]
+                    except:
+                        try:
+                            data = g._br_pit_data[side]
+                            return [player for player in data.keys()
+                                           if data[player]['entered'] == 1][0]
+                        except:
+                            return {'ip' : None, 'gsc' : None}
+
+            home_pit_data = extract_pit_data('home', home_starter)
+            away_pit_data = extract_pit_data('away', away_starter)
 
             home_ip = home_pit_data['ip']
             away_ip = away_pit_data['ip']

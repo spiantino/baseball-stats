@@ -3,6 +3,7 @@ import requests
 import datetime
 from collections import defaultdict
 import pandas as pd
+import re
 
 def open_url(url):
     page = requests.get(url)
@@ -209,3 +210,7 @@ def parse_types(d):
             except:
                 new_dict[k] = v
     return new_dict
+
+def normalize_name(name):
+    pattern = 'Jr.|Sr.|II|III|'
+    return re.sub(pattern, '', name).strip()
