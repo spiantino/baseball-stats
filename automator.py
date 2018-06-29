@@ -3,6 +3,11 @@ import datetime
 import pytz
 import sched
 import time
+import pickle
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.application import MIMEApplication
+from email.mime.text import MIMEText
 
 from dbclasses import Game
 import main
@@ -16,6 +21,8 @@ class Automator:
         self.today = datetime.datetime.today().strftime('%Y-%m-%d')
         self.game = Game()
         self.new_day = False
+        with open('elist.pkl', 'rb') as f:
+            self.elist = pickle.load(f)
 
     def scrape_previews(self):
         self.store_current_time()
@@ -57,7 +64,13 @@ class Automator:
                              argument=(team,))
             self.priority += 1
 
+        self.display_tasks()
         self.sched.run()
+
+    def display_tasks(self):
+        for team, time in self.execute_times.items():
+            timef = time.strftime("%-I:%M%p")
+            print("Tasks for {} scheduled at {}".format(team, timef))
 
     def pull_code(self):
         print("pulling code...")
@@ -70,7 +83,33 @@ class Automator:
         main.run(team)
 
     def send_emails(self, team):
-        pass
+        fn = '{}-{}.pdf'.format(team, self.today)
+        recips = self.elist[team]
+
+        msg = MIMEMultipart()
+        msg['Subject'] = "{} Game Preview".format(team)
+        msg['From'] = 'mlbpreviews@gmail.com'
+        msg['To'] = '{}-fans@not-a-real-email.com'.format(team)
+
+        text = "Game preview for {}".format(team)
+        body = MIMEText(text)
+        msg.attach(body)
+
+        with open(fn, 'rb') as f:
+            pdf = f.read()
+            attachment = MIMEApplication(pdf)
+            attachment['Content-Disposition'] = 'attachment; filename={}'\
+                                                             .format(fn)
+            msg.attach(attachment)
+
+        s = smtplib.SMTP('smtp.gmail.com', 587)
+        s.ehlo()
+        s.starttls()
+        s.ehlo()
+        s.login('mlbpreviews@gmail.com', 'mlb$913ab')
+        s.send_message(msg, 'mlbpreviews@gmail.com', recips)
+        s.close() # or s.quit() ?
+
 
     def check_for_new_day(self):
         today = datetime.datetime.today().strftime('%Y-%m-%d')

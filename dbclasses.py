@@ -510,11 +510,12 @@ class Game(DBController):
         else:
             return None
 
-    def get_all_start_times(self):
-        today = self._day
+    def get_all_start_times(self, date=None):
+        today = datetime.datetime.today().strftime('%Y-%m-%d')
+        date = today if not date else date
         dt_path = '$preview.gameData.datetime.dateTime'
 
-        res = list(self._db.Games.aggregate([{'$match' : {'date': today}},
+        res = list(self._db.Games.aggregate([{'$match' : {'date': date}},
                                              {'$project': {'_id' : 0,
                                                            'away' : '$away',
                                                            'home' : '$home',
