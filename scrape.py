@@ -833,10 +833,12 @@ if __name__ == '__main__':
 
 
     # print("Scraping past boxscores...")
-    # boxscores(date='all')
+    boxscores(date='all')
+    # boxscores(date='2018-06-18')
 
-    print("Scraping batter and pitcher leaderboards")
-    fangraphs('bat', year)
+
+    # print("Scraping batter and pitcher leaderboards")
+    # fangraphs('bat', year)
     # fangraphs('pit', year)
 
     # fangraph_splits(year=year)

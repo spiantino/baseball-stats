@@ -373,7 +373,7 @@ class DBController:
     def get_missing_array_dates(self, array):
         """
         Return dates from docs in Game collection
-        where no 'preview' array exists
+        where no input array exists ('summary', 'preview', etc...)
         """
         data =  self._db.Games.aggregate([{'$match':
                                               {array : {'$exists' : False}}},

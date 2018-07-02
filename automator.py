@@ -27,7 +27,7 @@ class Automator:
     def scrape_previews(self):
         self.store_current_time()
 
-        print("Scraping today's games at {}".format(self.nowf))
+        print("Scraping today's games at {} EST".format(self.nowf))
 
         scrape.game_previews()
 
@@ -47,7 +47,7 @@ class Automator:
     def store_current_time(self):
         now = datetime.datetime.now()
         self.now = now.astimezone(pytz.timezone('America/New_York'))
-        self.nowf = now.strftime("%-I:%M%p")
+        self.nowf = self.now.strftime("%-I:%M%p")
 
     def get_delays(self):
         # 1 second for testing:
@@ -70,7 +70,7 @@ class Automator:
     def display_tasks(self):
         for team, time in self.execute_times.items():
             timef = time.strftime("%-I:%M%p")
-            print("Tasks for {} scheduled at {}".format(team, timef))
+            print("Tasks for {} scheduled at {} EST".format(team, timef))
 
     def pull_code(self):
         print("pulling code...")
@@ -155,5 +155,7 @@ if __name__ == '__main__':
                 time.sleep(3600)
 
         auto.reset()
+
+# If script is run after the execute time but before the game starts, change execute time to now
 
 
