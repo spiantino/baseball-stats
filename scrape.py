@@ -701,7 +701,8 @@ def game_previews(dbc=dbc):
                         'Pre-Game',
                         'Warmup',
                         'In Progress',
-                        'Final']
+                        'Final',
+                        'Game Over']
         valid_games = [game for game in gdata if game[2] in valid_states]
         game_urls += valid_games
 
@@ -730,6 +731,8 @@ def game_previews(dbc=dbc):
             away = game_data['gameData']['teams']['away']['name']['abbrev']
 
         # Change game state to match state on the preview page
+        if state == 'Game Over':
+            state = 'Final'
         game_data['gameData']['status']['detailedState'] = state
 
         home = convert_name(home, how='abbr')
