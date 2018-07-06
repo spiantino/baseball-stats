@@ -21,6 +21,7 @@ class Automator:
         self.today = datetime.datetime.today().strftime('%Y-%m-%d')
         self.game = Game()
         self.new_day = False
+        self.boxes_need_scraping = True
         with open('elist.pkl', 'rb') as f:
             self.elist = pickle.load(f)
 
@@ -31,10 +32,14 @@ class Automator:
 
         scrape.game_previews()
 
-    # def schedule_scrape(self):
-    #     if not self.game.todays_games_in_db():
-    #         self.sched.enter(3600, self.priority, self.scrape_games)
-    #         self.sched.run()
+    def scrape_boxes(self):
+        """
+        Scrape past box scores only one time per day
+        !!! Maybe check if boxes are missing from db instead of scraping one time automatically
+        """
+        if self.boxes_need_scraping:
+            scrape.boxscores(date='all')
+            self.boxes_need_scraping = False
 
     def find_start_times(self):
         all_times = self.game.get_all_start_times()
@@ -118,10 +123,14 @@ class Automator:
             self.new_day = True
 
     def execute_tasks(self, team):
+        print("Running tasks for {}...".format(team))
         self.pull_code()
         self.scrape_previews()
+        self.scrape_boxes()
         self.make_pdf(team)
-        self.send_emails(team)
+
+        if self.elist[team]:
+            self.send_emails(team)
 
     def run(self):
         self.store_current_time()
@@ -132,6 +141,7 @@ class Automator:
     def reset(self):
         self.priority = 1
         self.new_day = False
+        self.boxes_need_scraping = True
 
 
 if __name__ == '__main__':

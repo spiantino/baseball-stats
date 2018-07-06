@@ -67,7 +67,7 @@ def scrape_update(home, away, year):
 
     scrape.league_elo()
 
-def run(team, date=None, scrape=True):
+def run(team, date=None, scrape=False):
     today = datetime.datetime.today().strftime('%Y-%m-%d')
     date = today if not date else date
 
@@ -139,6 +139,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-t', '--team', default='NYY')
     parser.add_argument('-d', '--date', default=today)
-    parser.add_argument('-s', '--scrape', default=True)
+    parser.add_argument('-s', '--scrape', default='True')
     args = parser.parse_args()
-    run(team=args.team, date=args.date, scrape=args.scrape)
+
+    scrape_previews = True if args.scrape == 'True' else False
+
+    run(team=args.team, date=args.date, scrape=scrape_previews)

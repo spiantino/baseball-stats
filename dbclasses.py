@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime, time
 import math
 import pytz
 from  dateutil.parser import parse
@@ -511,29 +511,37 @@ class Game(DBController):
             return None
 
     def get_all_start_times(self, date=None):
-        today = datetime.datetime.today().strftime('%Y-%m-%d')
-        date = today if not date else date
-        dt_path = '$preview.gameData.datetime.dateTime'
+        today = datetime.today()
+        todayf = today.strftime('%Y-%m-%d')
+        default_date = datetime.combine(datetime.now(),
+                       time(0, tzinfo=pytz.timezone("America/New_York")))
+        date = todayf if not date else date
+        dtime = '$preview.gameData.datetime.dateTime'
+        gtime = '$preview.gameData.datetime.time'
 
         res = list(self._db.Games.aggregate([{'$match' : {'date': date}},
                                              {'$project': {'_id' : 0,
-                                                           'away' : '$away',
-                                                           'home' : '$home',
-                                                           'time' : dt_path}}
+                                                           'away'  : '$away',
+                                                           'home'  : '$home',
+                                                           'dtime' : dtime,
+                                                           'gtime' : gtime}}
                                             ]))
 
         times = {}
 
         for game in res:
-            home, away, dt = game.values()
+            home, away, dtime, gtime = game.values()
 
-            if not dt:
+            if not dtime and not gtime:
+                print("No start time listed for {} vs {}".format(away, home))
                 continue
 
-            time = parse(dt[0]).astimezone(pytz.timezone('America/New_York'))
+            parse_time = dtime if not gtime else gtime
 
-            times.update({home : time})
-            times.update({away : time})
+            parsed_time = parse(parse_time[0], default=default_date)
+
+            times.update({home : parsed_time})
+            times.update({away : parsed_time})
 
         return times
 
@@ -610,11 +618,10 @@ class Team(DBController):
         dates = [' '.join(date.split()[1:3]) + ' ' + self._year
                                               for date in dates]
         # Format dates
-        datefrmt = [datetime.datetime.strptime(x, '%b %d %Y')
-                                     .strftime('%Y-%m-%d')
-                                              for x in dates]
+        datefrmt = [datetime.strptime(x, '%b %d %Y').strftime('%Y-%m-%d')
+                                                          for x in dates]
         # Find dates before current day
-        today = datetime.date.today().strftime('%Y-%m-%d')
+        today = datetime.today().strftime('%Y-%m-%d')
         game_dates = [date for date in datefrmt if date < today]
 
         # Sort and return last_n dates
