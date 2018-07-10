@@ -22,6 +22,7 @@ class Automator:
         self.game = Game()
         self.new_day = False
         self.boxes_need_scraping = True
+        self.leaders_need_scraping = True
         with open('elist.pkl', 'rb') as f:
             self.elist = pickle.load(f)
 
@@ -32,14 +33,32 @@ class Automator:
 
         scrape.game_previews()
 
-    def scrape_boxes(self):
+    def scrape_daily_update(self):
         """
         Scrape past box scores only one time per day
         !!! Maybe check if boxes are missing from db instead of scraping one time automatically
         """
+        year = self.today.split('-')[0]
+
         if self.boxes_need_scraping:
+            print("Scraping boxscores...")
+
             scrape.boxscores(date='all')
+
             self.boxes_need_scraping = False
+
+        if self.leaders_need_scraping:
+            print("Scraping batting leaderboard...")
+            scrape.fangraphs(state='bat', year=year)
+
+            print("Scraping pitching leaderboard...")
+            scrape.fangraphs(state='pit', year=year)
+            scrape.fangraph_splits(year=year)
+
+            print("Scraping league standings...")
+            scrape.standings()
+
+            self.leaders_need_scraping = False
 
     def find_start_times(self):
         all_times = self.game.get_all_start_times()
@@ -58,8 +77,8 @@ class Automator:
         # 1 second for testing:
         # self.delays = {team : 1 for team in self.execute_times.keys()}
 
-        self.delays = {team : (time -self.now).total_seconds()
-                           for team, time in self.execute_times.items()}
+        self.delays = {team : (self.now - time).total_seconds()
+                                for team, time in self.execute_times.items()}
 
     def schedule_tasks(self):
         for team, delay in self.delays.items():
@@ -142,6 +161,7 @@ class Automator:
         self.priority = 1
         self.new_day = False
         self.boxes_need_scraping = True
+        self.leaders_need_scraping = True
 
 
 if __name__ == '__main__':

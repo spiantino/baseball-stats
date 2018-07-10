@@ -38,6 +38,7 @@ def get_pitch_counts(player):
 
     return counts
 
+
 def scrape_games():
     print("Gathering game previews...")
     scrape.game_previews()
@@ -46,7 +47,7 @@ def scrape_games():
     scrape.boxscores(date='all')
 
 
-def scrape_update(home, away, year):
+def scrape_leaders(year):
     print("Scraping batting leaderboard...")
     scrape.fangraphs(state='bat', year=year)
 
@@ -57,6 +58,8 @@ def scrape_update(home, away, year):
     print("Scraping league standings...")
     scrape.standings()
 
+
+def scrape_team_data(home, away, year):
     print("Scraping schedule, roster, pitch logs, injuries, transactions...")
     for team in [home, away]:
         scrape.schedule(team)
@@ -73,6 +76,7 @@ def run(team, date=None, scrape=False):
 
     if scrape:
         scrape_games()
+        scrape_leaders()
 
     g = Game()
     g.query_game_preview_by_date(team=team, date=date)
@@ -85,7 +89,7 @@ def run(team, date=None, scrape=False):
         away = g._game['away']
         year = g._date.split('-')[0]
 
-        scrape_update(home, away, year)
+        scrape_team_data(home, away, year)
 
         tb=TableBuilder(g)
 
