@@ -557,8 +557,11 @@ class Game(DBController):
             self.parse_bullpen()
             if self._state == "Final":
                 self.parse_pitcher_game_stats()
-                self.parse_br_pitching_data()
                 self.parse_pitch_types()
+                try: # Change this to check if game date != today
+                    self.parse_br_pitching_data()
+                except:
+                    pass
 
 
 class Team(DBController):
