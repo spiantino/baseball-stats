@@ -425,7 +425,14 @@ class Game(DBController):
                 pids = plyrs.keys()
 
                 names = [plyrs[pid]['person']['fullName'] for pid in pids]
-                nums = [plyrs[pid]['jerseyNumber'] for pid in pids]
+
+                nums = []
+                for pid in pids:
+                    try:
+                        nums.append(plyrs[pid]['jerseyNumber'])
+                    except:
+                        nums.append(None)
+
                 pos = [plyrs[pid]['position']['abbreviation'] for pid in pids]
 
                 batters_list = list(zip(names, pos, nums))
