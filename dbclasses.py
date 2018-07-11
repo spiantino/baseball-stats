@@ -525,27 +525,32 @@ class Game(DBController):
         date = todayf if not date else date
         dtime = '$preview.gameData.datetime.dateTime'
         gtime = '$preview.gameData.datetime.time'
+        ampm  = '$preview.gameData.datetime.ampm'
 
         res = list(self._db.Games.aggregate([{'$match' : {'date': date}},
                                              {'$project': {'_id' : 0,
                                                            'away'  : '$away',
                                                            'home'  : '$home',
                                                            'dtime' : dtime,
-                                                           'gtime' : gtime}}
+                                                           'gtime' : gtime,
+                                                           'ampm'  : ampm}}
                                             ]))
-
         times = {}
 
         for game in res:
-            home, away, dtime, gtime = game.values()
+            home, away, dtime, gtime, ampm = game.values()
 
             if not dtime and not gtime:
                 print("No start time listed for {} vs {}".format(away, home))
                 continue
 
-            parse_time = dtime if not gtime else gtime
+            if dtime:
+                tz = pytz.timezone("America/New_York")
+                parsed_time = parse(dtime[0]).astimezone(tz)
 
-            parsed_time = parse(parse_time[0], default=default_date)
+            else:
+                timef = gtime[0] + ' ' + ampm
+                parsed_time = parse(timef, default=default_date)
 
             times.update({home : parsed_time})
             times.update({away : parsed_time})

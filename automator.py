@@ -77,8 +77,8 @@ class Automator:
         # 1 second for testing:
         # self.delays = {team : 1 for team in self.execute_times.keys()}
 
-        self.delays = {team : (self.now - time).total_seconds()
-                                for team, time in self.execute_times.items()}
+        self.delays = {team : (time - self.now).total_seconds()
+                       for team, time in self.execute_times.items()}
 
     def schedule_tasks(self):
         for team, delay in self.delays.items():
