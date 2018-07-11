@@ -520,8 +520,6 @@ class Game(DBController):
     def get_all_start_times(self, date=None):
         today = datetime.today()
         todayf = today.strftime('%Y-%m-%d')
-        default_date = datetime.combine(datetime.now(),
-                       time(0, tzinfo=pytz.timezone("America/New_York")))
         date = todayf if not date else date
         dtime = '$preview.gameData.datetime.dateTime'
         gtime = '$preview.gameData.datetime.time'
@@ -544,13 +542,10 @@ class Game(DBController):
                 print("No start time listed for {} vs {}".format(away, home))
                 continue
 
-            if dtime:
-                tz = pytz.timezone("America/New_York")
-                parsed_time = parse(dtime[0]).astimezone(tz)
-
             else:
-                timef = gtime[0] + ' ' + ampm
-                parsed_time = parse(timef, default=default_date)
+                timef = gtime[0] + ' ' + ampm[0] if not dtime else dtime[0]
+                tz = pytz.timezone("America/New_York")
+                parsed_time = parse(timef).astimezone(tz)
 
             times.update({home : parsed_time})
             times.update({away : parsed_time})
