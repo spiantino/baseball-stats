@@ -145,7 +145,7 @@ class Automator:
         print("Running tasks for {}...".format(team))
         self.pull_code()
         self.scrape_previews()
-        self.scrape_boxes()
+        self.scrape_daily_update()
         self.make_pdf(team)
 
         if self.elist[team]:
