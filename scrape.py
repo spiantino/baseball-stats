@@ -675,7 +675,7 @@ def game_previews(dbc=dbc):
     Collect data on upcomming game
     from mlb.com/gameday
     """
-    dates = set(find_missing_dates(dbc=dbc)).union({'2018-06-29'})
+    dates = set(find_missing_dates(dbc=dbc))
     outdated = set(dbc.find_outdated_game_dates())
 
     dates = dates.union(outdated)
