@@ -15,7 +15,7 @@ import scrape
 
 class Automator:
     def __init__(self, teams=['NYY', 'NYM', 'HOU']):
-        self.teams = teams
+        self.teams = teams + ['{}_2'.format(team) for team in teams]
         self.sched = sched.scheduler(time.time, time.sleep)
         self.priority = 1
         self.today = datetime.datetime.today().strftime('%Y-%m-%d')
@@ -142,6 +142,9 @@ class Automator:
             self.new_day = True
 
     def execute_tasks(self, team):
+        # Format double headers
+        team = team.split('_')[0]
+
         print("Running tasks for {}...".format(team))
         self.pull_code()
         self.scrape_previews()

@@ -534,7 +534,6 @@ class Game(DBController):
                                                            'ampm'  : ampm}}
                                             ]))
         times = {}
-
         for game in res:
             home, away, dtime, gtime, ampm = game.values()
 
@@ -547,8 +546,17 @@ class Game(DBController):
                 tz = pytz.timezone("America/New_York")
                 parsed_time = parse(timef).astimezone(tz)
 
-            times.update({home : parsed_time})
-            times.update({away : parsed_time})
+            # Check for double header before updating times dict
+            if home and away in times.keys():
+                home2 = home + '_2'
+                away2 = away + '_2'
+
+                times[home2] = parsed_time
+                times[away2] = parsed_time
+
+            else:
+                times[home] = parsed_time
+                times[away] = parsed_time
 
         return times
 
