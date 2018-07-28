@@ -572,7 +572,10 @@ def boxscores(date, dbc=dbc):
             idx = gnums.index(url_id) if url_id > 0 else 0
         except:
             idx = 0
-        gid = games[idx]['gid']
+        try:    #!!! why are some games not added to db in preview scrape?
+            gid = games[idx]['gid']
+        except:
+            continue
 
         # Extract summary stats
         summary = soup.find('table', {'class' : 'linescore'})
@@ -690,6 +693,10 @@ def game_previews(dbc=dbc):
     for date, url in tqdm(urls):
         res = requests.get(url).text
         schedule_data = json.loads(res)
+
+        # Skip days where no games are played
+        if schedule_data['totalGames'] == 0:
+            continue
 
         games_data = schedule_data['dates'][0]['games']
 
@@ -836,7 +843,7 @@ if __name__ == '__main__':
 
 
     # print("Scraping past boxscores...")
-    boxscores(date='all')
+    # boxscores(date='all')
     # boxscores(date='2018-06-18')
 
 

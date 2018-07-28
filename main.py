@@ -73,10 +73,11 @@ def scrape_team_data(home, away, year):
 def run(team, date=None, scrape=False):
     today = datetime.datetime.today().strftime('%Y-%m-%d')
     date = today if not date else date
+    year = date.split('-')[0]
 
     if scrape:
         scrape_games()
-        scrape_leaders()
+        scrape_leaders(year)
 
     g = Game()
     g.query_game_preview_by_date(team=team, date=date)

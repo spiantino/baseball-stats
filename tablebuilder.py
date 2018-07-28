@@ -504,19 +504,37 @@ class TableBuilder:
                 try normalizing the name first, then try returning
                 the pitcher that entered in inning 1
                 """
+                # try:
+                #     return g._br_pit_data[side][starter]
+                # except:
+                #     try:
+                #         name = normalize_name(starter)
+                #         return g._br_pit_data[side][name]
+                #     except:
+                #         try:
+                #             data = g._br_pit_data[side]
+                #             return [player for player in data.keys()
+                #                            if data[player]['entered'] == 1][0]
+                #         except:
+                #             return {'ip' : None, 'gsc' : None}
                 try:
                     return g._br_pit_data[side][starter]
                 except:
-                    try:
-                        name = normalize_name(starter)
-                        return g._br_pit_data[side][name]
-                    except:
-                        try:
-                            data = g._br_pit_data[side]
-                            return [player for player in data.keys()
-                                           if data[player]['entered'] == 1][0]
-                        except:
-                            return {'ip' : None, 'gsc' : None}
+                    pass
+
+                try:
+                    name = normalize_name(starter)
+                    return g._br_pit_data[side][name]
+                except:
+                    pass
+
+                try:
+                    data = g._br_pit_data[side]
+                    return [player for player in data.keys()
+                                   if data[player]['entered'] == 1][0]
+                except:
+                    return {'ip' : None, 'gsc' : None}
+
 
             home_pit_data = extract_pit_data('home', home_starter)
             away_pit_data = extract_pit_data('away', away_starter)
