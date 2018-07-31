@@ -182,7 +182,7 @@ class Game(DBController):
                 return games[idx]
 
             else:
-                idx = compare_game_times(games)
+                idx = self.compare_game_times(games)
                 return games[idx]
 
         elif len(games) == 1:

@@ -673,12 +673,35 @@ def boxscores(date, dbc=dbc):
                                 {'$push' : {db_array : db_data}})
 
 
+def get_past_schedule_dates():
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    year = today.split('-')[0]
+
+    url = 'https://www.baseball-reference.com/leagues/MLB/{}-schedule.shtml'\
+                                                                .format(year)
+    soup = open_url(url)
+
+    content = soup.find('div', {'class' : 'section_content'})
+    all_dates = [date.text for date in content.find_all('h3')]
+    end = all_dates.index("Today's Games")
+
+    past_dates = all_dates[:end]
+    past_dates = [datetime.datetime.strptime(x, '%A, %B %d, %Y')\
+                                   .strftime('%Y-%m-%d') for x in past_dates]
+    past_dates = set(past_dates).union(set([today]))
+    return past_dates
+
+
 def game_previews(dbc=dbc):
     """
     Collect data on upcomming game
     from mlb.com/gameday
     """
-    dates = set(find_missing_dates(dbc=dbc))
+    past_schedule_dates = get_past_schedule_dates()
+    past_database_dates = dbc.get_past_game_dates()
+
+    dates = past_schedule_dates - past_database_dates
+
     outdated = set(dbc.find_outdated_game_dates())
 
     dates = dates.union(outdated)
@@ -836,6 +859,7 @@ def league_elo():
 
         db.Teams.update({'Tm' : tm},
                         {'$push': {'elo' : db_data}})
+
 
 
 if __name__ == '__main__':
