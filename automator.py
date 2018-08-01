@@ -146,7 +146,7 @@ class Automator:
         team = team.split('_')[0]
 
         print("Running tasks for {}...".format(team))
-        self.pull_code()
+        # self.pull_code()
         self.scrape_previews()
         self.scrape_daily_update()
         self.make_pdf(team)
