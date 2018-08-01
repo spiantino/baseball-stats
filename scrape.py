@@ -674,6 +674,10 @@ def boxscores(date, dbc=dbc):
 
 
 def get_past_schedule_dates():
+    """
+    Return all dates on MLB schedule
+    from start of season through today
+    """
     today = datetime.date.today().strftime('%Y-%m-%d')
     year = today.split('-')[0]
 
@@ -702,6 +706,7 @@ def game_previews(dbc=dbc):
 
     dates = past_schedule_dates - past_database_dates
 
+    # Will always include current day when not all games are finished
     outdated = set(dbc.find_outdated_game_dates())
 
     dates = dates.union(outdated)
