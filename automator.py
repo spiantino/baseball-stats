@@ -14,7 +14,7 @@ import main
 import scrape
 
 class Automator:
-    def __init__(self, teams=['NYY', 'NYM', 'HOU']):
+    def __init__(self, teams=['NYY', 'NYM', 'HOU', 'BOS']):
         self.teams = teams + ['{}_2'.format(team) for team in teams]
         self.sched = sched.scheduler(time.time, time.sleep)
         self.priority = 1
