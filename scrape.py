@@ -11,7 +11,8 @@ import pandas as pd
 from io import StringIO
 
 from dbcontroller import DBController
-from utils import open_url, convert_name, find_missing_dates, parse_types
+from conflictresolver import ConflictResolver
+from utils import open_url, convert_name, parse_types
 
 # No push methods in DBController, so do it manually for now
 dbc = DBController()
@@ -504,46 +505,35 @@ def transactions(team, year):
                     {'$push' : {db_array : j}})
 
 
-def boxscores(date, dbc=dbc):
+def boxscores(dbc=dbc):
     """
     Extract all boxscores
     """
 
-    # Delete games with postponed status to avoid conflict
-    dbc.delete_duplicate_game_docs()
+    # # Delete games with postponed status to avoid conflict
+    # dbc.delete_duplicate_game_docs()
+
+    c = ConflictResolver()
 
     year = datetime.date.today().strftime('%Y')
 
-    if date == 'all':
-        url = 'https://www.baseball-reference.com/leagues/MLB/{}-schedule.shtml'.format(year)
+    url = 'https://www.baseball-reference.com/leagues/MLB/{}-schedule.shtml'\
+                                                                .format(year)
+    soup = open_url(url)
 
-        soup = open_url(url)
+    # Find links for each game this season
+    all_game_urls = [x['href'] for x in soup.find_all('a', href=True)
+                                     if x.text=='Boxscore']
 
-        # Find links for each game this season
-        all_game_urls = [x['href'] for x in soup.find_all('a', href=True)
-                                         if x.text=='Boxscore']
+    dates = c.get_missing_array_dates('summary')
 
-        dates = dbc.get_missing_array_dates('summary')
+    # Format dates to match date in url
+    datesf = [x.replace('-', '') for x in dates]
 
-        # Format dates to match date in url
-        datesf = [x.replace('-', '') for x in dates]
+    # Filter games by missing dates
+    game_urls = [game for game in all_game_urls
+                               if any(date in game for date in datesf)]
 
-        # Filter games by missing dates
-        game_urls = [game for game in all_game_urls
-                                   if any(date in game for date in datesf)]
-    else:
-        y, m, d = date.split('-')
-
-        url = "http://www.baseball-reference.com/boxes/?year={}\
-               &month={}\
-               &day={}"\
-               .format(y,m,d)\
-               .replace(' ', '')
-
-        soup = open_url(url)
-
-        game_urls = [x.a['href'] for x in
-                     soup.find_all('td', {'class' : 'right gamelink'})]
 
     # Collect boxscore stats on each game
     for game in tqdm(game_urls):
@@ -575,6 +565,7 @@ def boxscores(date, dbc=dbc):
         try:    #!!! why are some games not added to db in preview scrape?
             gid = games[idx]['gid']
         except:
+            print(date, url)
             continue
 
         # Extract summary stats
@@ -701,12 +692,13 @@ def game_previews(dbc=dbc):
     Collect data on upcomming game
     from mlb.com/gameday
     """
+
     past_schedule_dates = get_past_schedule_dates()
     past_database_dates = dbc.get_past_game_dates()
 
     dates = past_schedule_dates - past_database_dates
 
-    # Will always include current day when not all games are finished
+    # Finds all dates without boxscores (including today)
     outdated = set(dbc.find_outdated_game_dates())
 
     dates = dates.union(outdated)
@@ -731,25 +723,33 @@ def game_previews(dbc=dbc):
         # Gather all game urls
         gdata = [(date, game['link'], game['status']['detailedState'])
                                               for game in games_data]
-        # Only collect data on scheduled games (not postponed or other)
-        valid_states = ['Scheduled',
-                        'Pre-Game',
-                        'Warmup',
-                        'In Progress',
-                        'Final',
-                        'Game Over']
-        valid_games = [game for game in gdata if game[2] in valid_states]
-        game_urls += valid_games
+        game_urls += [game for game in gdata]
 
-        # Remove postponed game docs from database
-        all_urls   = [g[1] for g in gdata]
-        valid_urls = [g[1] for g in valid_games]
-        invalid_urls = list(set(all_urls) - set(valid_urls))
-        invalid_gids  = [url.split('/')[4] for url in invalid_urls]
-        invalid_games = dbc.query_by_gids(invalid_gids)
-        if invalid_games.count():
-            dbc.remove_games(invalid_gids)
+        # Is this needed? Or just resolve later? If game is suspended
+        # then mark that and skip over it here. but what is suspended state?
 
+        # # Only collect data on scheduled games (not postponed or other)
+        # valid_states = ['Scheduled',
+        #                 'Pre-Game',
+        #                 'Warmup',
+        #                 'In Progress',
+        #                 'Final',
+        #                 'Completed Early',
+        #                 'Game Over']
+        # invalid = [(game[1], game[2]) for game in gdata if game[2] not in valid_states]
+        # if invalid:
+        #     print('invalid state:', invalid)
+        # valid_games = [game for game in gdata if game[2] in valid_states]
+        # game_urls += valid_games
+
+        # # Remove postponed game docs from database
+        # all_urls   = [g[1] for g in gdata]
+        # valid_urls = [g[1] for g in valid_games]
+        # invalid_urls = list(set(all_urls) - set(valid_urls))
+        # invalid_gids  = [url.split('/')[4] for url in invalid_urls]
+        # invalid_games = dbc.query_by_gids(invalid_gids)
+        # if invalid_games.count():
+        #     dbc.remove_games(invalid_gids)
     # Collect data on all upcoming games
     print("Collecting game data on past and upcoming games...")
     for date, url, state in tqdm(game_urls):
@@ -758,17 +758,18 @@ def game_previews(dbc=dbc):
         game_data = json.loads(res)
 
         # Get HOME and AWAY team names
-        if state == 'Scheduled':
+        try:
             home = game_data['gameData']['teams']['home']['abbreviation']
             away = game_data['gameData']['teams']['away']['abbreviation']
-        else:
+
+        except:
             home = game_data['gameData']['teams']['home']['name']['abbrev']
             away = game_data['gameData']['teams']['away']['name']['abbrev']
 
         # Change game state to match state on the preview page
-        if state == 'Game Over':
-            state = 'Final'
-        game_data['gameData']['status']['detailedState'] = state
+        # if state == 'Game Over':
+        #     state = 'Final'
+        # game_data['gameData']['status']['detailedState'] = state
 
         home = convert_name(home, how='abbr')
         away = convert_name(away, how='abbr')
@@ -870,7 +871,7 @@ def league_elo():
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-
+    game_previews()
     # print("Scraping past boxscores...")
     # boxscores(date='all')
     # boxscores(date='2018-06-18')

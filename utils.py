@@ -56,7 +56,8 @@ def convert_name(name, how='abbr'):
                 'tb'  : 'tbr',
                 'cws' : 'chw',
                 'was' : 'wsn',
-                'wsh' : 'wsn'
+                'wsh' : 'wsn',
+                'nya' : 'nyy'
                 }
 
     name = name.lower()
@@ -116,31 +117,31 @@ def get_stadium_location(team):
     return locs[team]
 
 
-def find_missing_dates(dbc):
-    """
-    Find dates between start of season and yesterday
-    where no Games docs have been recorded for that date
-    !!! return all_dates and do set operations elsewhere,
-    so that dbc doesn't need to be used here
-    """
-    dates = dbc.get_past_game_dates()
+# def find_missing_dates(dbc):
+#     """
+#     Find dates between start of season and yesterday
+#     where no Games docs have been recorded for that date
+#     !!! return all_dates and do set operations elsewhere,
+#     so that dbc doesn't need to be used here
+#     """
+#     dates = dbc.get_past_game_dates()
 
-    url = 'https://www.baseball-reference.com/leagues/MLB/2018-schedule.shtml'
-    soup = open_url(url)
+#     url = 'https://www.baseball-reference.com/leagues/MLB/2018-schedule.shtml'
+#     soup = open_url(url)
 
-    # Find and format season start date
-    start = soup.find('div', {'class' : 'section_content'}).find('h3').text
-    start = ' '.join(start.split()[1:4])
-    start = str(datetime.datetime.strptime(start, '%B %d, %Y').date())
+#     # Find and format season start date
+#     start = soup.find('div', {'class' : 'section_content'}).find('h3').text
+#     start = ' '.join(start.split()[1:4])
+#     start = str(datetime.datetime.strptime(start, '%B %d, %Y').date())
 
-    # yesterday = ((datetime.date.today() -
-    #               datetime.timedelta(1))
-    #                       .strftime('%Y-%m-%d'))
-    today = datetime.date.today()
-    date_range = pd.date_range(start=start, end=today)
-    all_dates = set([str(x.date()) for x in date_range])
+#     # yesterday = ((datetime.date.today() -
+#     #               datetime.timedelta(1))
+#     #                       .strftime('%Y-%m-%d'))
+#     today = datetime.date.today()
+#     date_range = pd.date_range(start=start, end=today)
+#     all_dates = set([str(x.date()) for x in date_range])
 
-    return list(sorted(all_dates - dates))
+#     return list(sorted(all_dates - dates))
 
 
 def combine_dicts_in_list(list_of_dicts):

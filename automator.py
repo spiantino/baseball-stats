@@ -10,6 +10,7 @@ from email.mime.application import MIMEApplication
 from email.mime.text import MIMEText
 
 from dbclasses import Game
+from conflictresolver import ConflictResolver
 import main
 import scrape
 
@@ -20,6 +21,7 @@ class Automator:
         self.priority = 1
         self.today = datetime.datetime.today().strftime('%Y-%m-%d')
         self.game = Game()
+        self.cres = ConflictResolver()
         self.new_day = False
         self.boxes_need_scraping = True
         self.leaders_need_scraping = True
@@ -41,6 +43,10 @@ class Automator:
         year = self.today.split('-')[0]
 
         if self.boxes_need_scraping:
+
+            # Resolve conflicts before scraping boxes
+            self.cres.run()
+
             print("Scraping boxscores...")
 
             scrape.boxscores(date='all')

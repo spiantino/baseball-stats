@@ -9,7 +9,7 @@ class DBController:
         if test:
             address='localhost'
             port=27017
-            db='mlbDB'
+            db='newdb'
             self._client = MongoClient(address, port)
         else:
             url="mongodb://alex:Q8b5^SR5Oh@ds123110-a0.mlab.com:23110,ds123110-a1.mlab.com:23110/heroku_kcpx1gp1?replicaSet=rs-ds123110"
@@ -370,20 +370,6 @@ class DBController:
                   if x['date'].split('-')[0] == year])
         return dates
 
-    def get_missing_array_dates(self, array):
-        """
-        Return dates from docs in Game collection
-        where no input array exists ('summary', 'preview', etc...)
-        """
-        data =  self._db.Games.aggregate([{'$match':
-                                              {array : {'$exists' : False}}},
-                                          {'$project':
-                                              {'_id' : 0,
-                                               'date': 1}}])
-        dates = set([x['date'] for x in data])
-        return dates
-
-
     def find_outdated_game_dates(self):
         """
         Return dates where games have not been updated.
@@ -393,31 +379,32 @@ class DBController:
         old = self._db.Games.find({state : {'$nin' : ['Final']}})
         return set([x['date'] for x in old])
 
-    def find_duplicate_game_docs(self):
+    def get_gid_dates(self, gid):
         """
-        Find documents with the same gid.
-        This happens when a game is postponed
-        and played at a later date.
+        Return dates associated with gid
         """
-        gids = self._db.Games.aggregate([{'$group':
-                                             {'_id'   : '$gid',
-                                              'count' : {'$sum' : 1}}},
-                                         {'$match':
-                                             {'count' : {'$gt' : 1}}}])
-        return [x['_id'] for x in gids]
+        data = self._db.Games.aggregate([{'$match': {'gid' : gid}},
+                                         {'$project': {'_id' : 1,
+                                                       'gid' : 1,
+                                                       'date': 1}}])
+        return list(data)
 
-    def delete_duplicate_game_docs(self):
+    def game_is_finished(self, _id):
         """
-        Delete duplicate document with earlier dates
+        Determine if game has ended given ObjectId
         """
-        gids = self.find_duplicate_game_docs()
-        for gid in gids:
-            games = list(self._db.Games.aggregate([{'$match':
-                                                       {'gid' : gid}},
-                                                   {'$project':
-                                                       {'date': 1}}]))
-            delete = find_earlier_date(games)
-            self._db.Games.remove(delete)
+        state = '$preview.gameData.status.detailedState'
+        data = list(self._db.Games.aggregate([{'$match':
+                                                         {'_id' : _id}},
+                                              {'$project' :
+                                                         {'state' : state}}]))
+        if data and data[0]['state'][0] in ['Final', 'Game Over']:
+            return True
+        else:
+            return False
+
+    def query_by_gid(self, gid):
+        return self._db.Games.find({'gid' : gid})
 
     def query_by_gids(self, gids):
         """
