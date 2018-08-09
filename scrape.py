@@ -514,6 +514,7 @@ def boxscores(dbc=dbc):
     # dbc.delete_duplicate_game_docs()
 
     c = ConflictResolver()
+    c.run()
 
     year = datetime.date.today().strftime('%Y')
 
@@ -725,31 +726,6 @@ def game_previews(dbc=dbc):
                                               for game in games_data]
         game_urls += [game for game in gdata]
 
-        # Is this needed? Or just resolve later? If game is suspended
-        # then mark that and skip over it here. but what is suspended state?
-
-        # # Only collect data on scheduled games (not postponed or other)
-        # valid_states = ['Scheduled',
-        #                 'Pre-Game',
-        #                 'Warmup',
-        #                 'In Progress',
-        #                 'Final',
-        #                 'Completed Early',
-        #                 'Game Over']
-        # invalid = [(game[1], game[2]) for game in gdata if game[2] not in valid_states]
-        # if invalid:
-        #     print('invalid state:', invalid)
-        # valid_games = [game for game in gdata if game[2] in valid_states]
-        # game_urls += valid_games
-
-        # # Remove postponed game docs from database
-        # all_urls   = [g[1] for g in gdata]
-        # valid_urls = [g[1] for g in valid_games]
-        # invalid_urls = list(set(all_urls) - set(valid_urls))
-        # invalid_gids  = [url.split('/')[4] for url in invalid_urls]
-        # invalid_games = dbc.query_by_gids(invalid_gids)
-        # if invalid_games.count():
-        #     dbc.remove_games(invalid_gids)
     # Collect data on all upcoming games
     print("Collecting game data on past and upcoming games...")
     for date, url, state in tqdm(game_urls):
@@ -765,11 +741,6 @@ def game_previews(dbc=dbc):
         except:
             home = game_data['gameData']['teams']['home']['name']['abbrev']
             away = game_data['gameData']['teams']['away']['name']['abbrev']
-
-        # Change game state to match state on the preview page
-        # if state == 'Game Over':
-        #     state = 'Final'
-        # game_data['gameData']['status']['detailedState'] = state
 
         home = convert_name(home, how='abbr')
         away = convert_name(away, how='abbr')
@@ -871,9 +842,9 @@ def league_elo():
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    game_previews()
+    # game_previews()
     # print("Scraping past boxscores...")
-    # boxscores(date='all')
+    boxscores()
     # boxscores(date='2018-06-18')
 
 

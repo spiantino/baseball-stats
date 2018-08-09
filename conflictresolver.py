@@ -1,5 +1,5 @@
 """
-- resolve duplication conflicts
+- resolve db conflicts
 
 Postponed games get MOVED to rescheduled date on baseball-reference, and their game state changes to 'Postponed'.
 
@@ -7,9 +7,14 @@ Suspended games DO NOT get moved - listed in boxscores as original date. Gamesta
 
 - preserve baseball-reference ordering
 
-- missing array dates (no boxscore data on br for date):
+missing array dates (no boxscore data on br for date):
 - 2018-06-18 = NYY issue noted above
-- 2018-07-17 = AL vs NL game (delete this?)
+- 2018-07-17 = AL vs NL game
+
+Random errors:
+- 2018-08-04 = KCR vs MIN game state is 'Game Over' instead of final
+- 2018-07-23 = PIT vs CLE game state is 'Completed Early'
+    * start using abstractGameState insetad of detailedState?
 
 Use this class in place of dbc.find_oudated_game_dates, dbc.delete_duplicate_game_docs, etc...
 """
@@ -137,17 +142,10 @@ class ConflictResolver(DBController):
                                      'reason': 'suspended'})
 
             # Don't remove a game that is still in progress
-            if c.game_is_finished(_id):
+            if self.game_is_finished(_id):
                 self._db.Games.remove(_id)
 
 
-    def check_status(self, list_of_games):
-        """
-        Filter out 'Postponed' games
-        so that these do not get added to the database
-        """
-        pass
-
-    def run():
+    def run(self):
         self.remove_postponed_games()
         self.remove_suspended_games()
