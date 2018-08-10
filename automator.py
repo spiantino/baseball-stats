@@ -14,7 +14,7 @@ import main
 import scrape
 
 class Automator:
-    def __init__(self, teams=['NYY', 'NYM', 'HOU', 'BOS']):
+    def __init__(self, teams=['NYY', 'NYM', 'HOU', 'BOS', 'ATL', 'MIL']):
         self.teams = teams + ['{}_2'.format(team) for team in teams]
         self.sched = sched.scheduler(time.time, time.sleep)
         self.priority = 1
@@ -82,11 +82,12 @@ class Automator:
 
     def schedule_tasks(self):
         for team, delay in self.delays.items():
-            self.sched.enter(delay,
-                             self.priority,
-                             self.execute_tasks,
-                             argument=(team,))
-            self.priority += 1
+            if delay > 0:   # Don't execute on games already finished
+                self.sched.enter(delay,
+                                 self.priority,
+                                 self.execute_tasks,
+                                 argument=(team,))
+                self.priority += 1
 
         self.display_tasks()
         self.sched.run()
