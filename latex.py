@@ -261,28 +261,28 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
         l.add_headers([table.columns[0], 'w', 'l', 'l10', 'gb',
                                          'strk', 'home', 'away'])
         l.add_rows(table, ['', '{:.0f}', '{:.0f}',
-                           '', '{:.0f}', '', '{:.3f}', '{:.3f}'])
+                           '', '{:.1f}', '', '{:.3f}', '{:.3f}'])
         l.end_table()
     l.end_multicol()
 
     l.page_break()
-    l.add_subsection("{} Bullpen".format(away))
+    l.add_subsection("{} Bullpen".format(home))
     l.start_table('lcrrrrrrrrrr')
     l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip',
                    'k/9', 'bb/9', 'hr/9', 'whip', 'gb%', 'days'])
     l.add_rows(bullpen[0], ['', '{:.0f}', '{:.1f}', '{:.0f}',
                                 '{:.1f}', '{:.1f}', '{:.1f}',
-                                '{:.1f}', '{:.1f}', '{:.1f}',
+                                '{:.1f}', '{:.1f}', '{:.2f}',
                                 '{:.1f}', '{:.0f}'])
     l.end_table()
 
-    l.add_subsection("{} Bullpen".format(home))
+    l.add_subsection("{} Bullpen".format(away))
     l.start_table('lcrrrrrrrrrr')
     l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip',
                    'k/9', 'bb/9', 'hr/9', 'whip', 'gb%', 'days'])
     l.add_rows(bullpen[1], ['', '{:.0f}', '{:.1f}', '{:.0f}',
                                 '{:.1f}', '{:.1f}', '{:.1f}',
-                                '{:.1f}', '{:.1f}', '{:.1f}',
+                                '{:.1f}', '{:.1f}', '{:.2f}',
                                 '{:.1f}', '{:.0f}'])
     l.end_table()
 
@@ -323,14 +323,14 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
     l.start_multicol(2)
     l.add_subsection("HR")
     l.start_table('llrr')
-    l.add_headers(['Name','Team', 'hr', '#'])
-    l.add_rows(hr_df, ['', '', '{:.0f}', '{:.0f}'])
+    l.add_headers(['#', 'Name','Team', 'hr'])
+    l.add_rows(hr_df, ['{:.0f}', '', '', '{:.0f}'])
     l.end_table()
 
     l.add_subsection("RBI")
     l.start_table('llrr')
-    l.add_headers(['Name','Team', 'rbi', '#'])
-    l.add_rows(rbi_df, ['', '', '{:.0f}', '{:.0f}'])
+    l.add_headers(['#', 'Name','Team', 'rbi'])
+    l.add_rows(rbi_df, ['{:.0f}', '', '', '{:.0f}'])
     l.end_table()
     l.end_multicol()
 
@@ -341,7 +341,7 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
                    'ip', 'k/9','bb/9','hr/9', 'whip', 'gb%'])
     l.add_rows(pit_df, ['{:.0f}', '', '', '{:.1f}', '{:.0f}',
                         '{:.0f}', '{:.2f}', '{:.1f}', '{:.1f}',
-                        '{:.1f}', '{:.1f}', '{:.1f}', '{:.2f}'])
+                        '{:.1f}', '{:.1f}', '{:.2f}', '{:.2f}'])
     l.end_table()
 
     l.add_subsection("WAR - Relivers")

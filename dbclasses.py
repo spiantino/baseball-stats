@@ -60,7 +60,7 @@ class Player(DBController):
 
     def get_starters_or_relievers(self, role, pos, year):
         """
-        Return list of  starter or reliver object ids
+        Return list of starter or reliver object ids
         """
         cond    = '$lt' if role=='reliever' else '$gt'
         gp      = 'fg.{}.{}.G'.format(pos, year)
@@ -466,7 +466,13 @@ class Game(DBController):
                     except:
                         posn.append(None)
 
-                nums = [batter['shirtNum'] for batter in data]
+                nums = []
+                for batter in data:
+                    try:
+                        nums.append(batter['shirtNum'])
+                    except:
+                        nums.append(None)
+                # nums = [batter['shirtNum'] for batter in data]
 
                 data = list(zip(names, posn, nums))
 

@@ -375,7 +375,7 @@ class DBController:
         Return dates where games have not been updated.
         Delete games that are postponed but state hasn't changed.
         """
-        state = 'preview.gameData.status.detailedState'
+        state = 'preview.gameData.status.abstractGameState'
         old = self._db.Games.find({state : {'$nin' : ['Final']}})
         return set([x['date'] for x in old])
 

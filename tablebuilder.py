@@ -47,9 +47,9 @@ class TableBuilder:
         weather = json.loads(requests.get(url).text)
 
         condition = weather['currently']['summary']
-        temp = weather['currently']['temperature']
+        temp = round(weather['currently']['temperature'])
         wind_speed = str(weather['currently']['windSpeed'])
-        wind = wind_speed + 'mph ' + details['windDir']
+        wind = wind_speed + 'mph' + details['windDir'].split('mph')[-1]
 
         return {'game' : game_num,
                 'title' : title,
@@ -259,7 +259,7 @@ class TableBuilder:
                                             .strip(), axis=1)
 
             df['Score'] = df[['R', 'RA']].apply(lambda x: '{}-{}'
-                                         .format(x[0], x[1]), axis=1)
+                                         .format(int(x[0]),int(x[1])), axis=1)
 
             def format_date(x):
                 _, m, d = x.split()[:3]
@@ -275,7 +275,6 @@ class TableBuilder:
 
         home_df = construct_table('home')
         away_df = construct_table('away')
-
         return (home_df, away_df)
 
     def bat_leaders(self, stat, n=10):
@@ -293,7 +292,7 @@ class TableBuilder:
         df['Rank'] = df.index + 1
 
         if stat in ['HR', 'RBI']:
-            cols = ['Name', 'Team'] + [stat] + ['Rank']
+            cols = ['Rank'] + ['Name', 'Team'] + [stat]
         else:
             cols = ['Rank', 'Name', 'Team', 'WAR',
                     'Slash', 'HR', 'RBI', 'SB', 'BB%',

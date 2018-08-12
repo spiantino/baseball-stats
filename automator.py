@@ -82,11 +82,12 @@ class Automator:
 
     def schedule_tasks(self):
         for team, delay in self.delays.items():
-            self.sched.enter(delay,
-                             self.priority,
-                             self.execute_tasks,
-                             argument=(team,))
-            self.priority += 1
+            if delay > 0:   # Don't execute on games already started
+                self.sched.enter(delay,
+                                 self.priority,
+                                 self.execute_tasks,
+                                 argument=(team,))
+                self.priority += 1
 
         self.display_tasks()
         self.sched.run()

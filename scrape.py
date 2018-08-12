@@ -693,7 +693,6 @@ def game_previews(dbc=dbc):
     Collect data on upcomming game
     from mlb.com/gameday
     """
-
     past_schedule_dates = get_past_schedule_dates()
     past_database_dates = dbc.get_past_game_dates()
 
@@ -837,6 +836,15 @@ def league_elo():
         db.Teams.update({'Tm' : tm},
                         {'$push': {'elo' : db_data}})
 
+# def team_logos():
+#     url = 'https://www.mlb.com/team'
+#     soup = open_url(url)
+
+#     teams = soup.find_all('div', {'class' : 'p-featured-content'})
+
+#     for team in teams:
+#         team.find('div', {'class' : 'p-image'}).img.get('data-srcset')
+
 
 
 if __name__ == '__main__':
@@ -844,31 +852,31 @@ if __name__ == '__main__':
 
     # game_previews()
     # print("Scraping past boxscores...")
-    boxscores()
+    # boxscores()
     # boxscores(date='2018-06-18')
 
 
-    # print("Scraping batter and pitcher leaderboards")
-    # fangraphs('bat', year)
-    # fangraphs('pit', year)
+    print("Scraping batter and pitcher leaderboards")
+    fangraphs('bat', year)
+    fangraphs('pit', year)
 
-    # fangraph_splits(year=year)
+    fangraph_splits(year=year)
 
 
-    # print("Scraping league elo and division standings")
-    # standings()
+    print("Scraping league elo and division standings")
+    standings()
 
-    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
-    #          'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
-    #          'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
-    #          'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
-    #          'col', 'kcr', 'det', 'min', 'chw', 'nyy']
-    # for team in tqdm(teams):
-    #     schedule(team)
-    #     pitching_logs(team, year)
-    #     current_injuries(team)
-    #     transactions(team, year)
-    #     forty_man(team, year)
+    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
+             'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
+             'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
+             'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
+             'col', 'kcr', 'det', 'min', 'chw', 'nyy']
+    for team in tqdm(teams):
+        schedule(team)
+        pitching_logs(team, year)
+        current_injuries(team)
+        transactions(team, year)
+        forty_man(team, year)
 
-    # league_elo()
+    league_elo()

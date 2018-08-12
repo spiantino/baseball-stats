@@ -14,7 +14,7 @@ missing array dates (no boxscore data on br for date):
 Random errors:
 - 2018-08-04 = KCR vs MIN game state is 'Game Over' instead of final
 - 2018-07-23 = PIT vs CLE game state is 'Completed Early'
-    * start using abstractGameState insetad of detailedState?
+    * using abstractGameState insetad of detailedState in find_outdated_game_docs() fixes this
 
 Use this class in place of dbc.find_oudated_game_dates, dbc.delete_duplicate_game_docs, etc...
 """

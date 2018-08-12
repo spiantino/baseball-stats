@@ -44,7 +44,7 @@ def scrape_games():
     scrape.game_previews()
 
     print("Scraping past boxscores...")
-    scrape.boxscores(date='all')
+    scrape.boxscores()
 
 
 def scrape_leaders(year):
@@ -90,7 +90,7 @@ def run(team, date=None, scrape=False):
         away = g._game['away']
         year = g._date.split('-')[0]
 
-        scrape_team_data(home, away, year)
+        # scrape_team_data(home, away, year)
 
         tb=TableBuilder(g)
 
