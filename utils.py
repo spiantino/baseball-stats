@@ -146,6 +146,18 @@ def get_stadium_location(team):
 
 #     return list(sorted(all_dates - dates))
 
+def access_array(array, *path):
+    """
+    Search for path's value in array
+    Return None if it does not exist
+    """
+    try:
+        for key in path:
+            array = array.__getitem__(key)
+        return array
+    except:
+        return None
+
 
 def combine_dicts_in_list(list_of_dicts):
     """

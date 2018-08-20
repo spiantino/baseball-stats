@@ -7,6 +7,7 @@ from fractions import Fraction
 from unidecode import unidecode
 
 from dbcontroller import DBController
+from utils import convert_name, access_array
 
 class Player(DBController):
     def __init__(self, test=True, name=None):
@@ -129,20 +130,12 @@ class Player(DBController):
 class Game(DBController):
     def __init__(self, test=True):
         self._game = None
-        self.reset_internals()
-
         super().__init__(test)
-
-    def reset_internals(self):
-        self._game_details = None
-        self._pitchers = None
-        self._batters = None
 
     def get_game_preview(self):
         return self._preview
 
     def query_game_preview_by_date(self, team, date, idx=None):
-        self.reset_internals()
 
         games = self._db.Games.find({'date' : date,
                                      '$or' : [{'home' : team},
@@ -177,7 +170,7 @@ class Game(DBController):
                           ['status']['detailedState']
                                    for game in games]
 
-            if any([state == 'Final' for state in status]):
+            if any([state in ['Final', 'Game Over'] for state in status]):
                 idx = [status.index(x) for x in status if x!='Final'][0]
                 return games[idx]
 
@@ -207,6 +200,15 @@ class Game(DBController):
             time_ints = [int(time.replace(':', '')) for time in times]
             earlier_time = min(time_ints)
             return time_ints.index(earlier_time)
+
+    def get_team_game_preview(self, team, date):
+        """
+        Query game preview for specific team
+        """
+        abbr = convert_name(team, how='abbr')
+        return self._db.Games.find({'date' : date,
+                                    '$or' : [{'home' : abbr},
+                                             {'away' : abbr}]})
 
     def parse_game_details(self):
         game_data = self._preview['gameData']
@@ -257,6 +259,21 @@ class Game(DBController):
         am_or_pm = game_data['datetime']['ampm']
         stadium = game_data['venue']['name']
 
+        # Five Thirty Eight prediction
+        # If past games do not have this data, just assign None
+        try:
+            preds = self._game['fte'][0]
+            if self._side == 'home':
+                home_pred = preds[self._team]
+                away_pred = preds[self._opp]
+            else:
+                home_pred = preds[self._opp]
+                away_pred = preds[self._team]
+        except:
+            home_pred = None
+            away_pred = None
+
+
         self._game_details = {'homeName' : home_name,
                               'homeAbbr' : home_abbr,
                               'homeWins' : home_wins,
@@ -267,6 +284,8 @@ class Game(DBController):
                               'awayWins' : away_wins,
                               'awayLoss' : away_losses,
                               'awayScore': away_score,
+                              'homePred' : home_pred,
+                              'awayPred' : away_pred,
                               'gameTime' : game_time,
                               'windDir'  : wind_dir,
                               'am_or_pm' : am_or_pm,
@@ -281,9 +300,9 @@ class Game(DBController):
 
                 pid  = 'ID' + str(pitchers[side]['id'])
                 data = players[pid]
-                name = data['fullName']
-                num  = data['primaryNumber']
-                hand = data['pitchHand']['code']
+                name = access_array(data, 'fullName')
+                num  = access_array(data, 'primaryNumber')
+                hand = access_array(data, 'pitchHand', 'code')
 
             else:
                 pitchers = self._preview['liveData']['boxscore']['teams']
@@ -293,8 +312,9 @@ class Game(DBController):
                 data = players[pid]
                 name = ' '.join((data['name']['first'],
                                  data['name']['last']))
-                num = data['shirtNum']
-                hand = data['rightLeft']
+
+                num = access_array(data, 'shirtNum')
+                hand = access_array(data, 'rightLeft')
 
             team = self._game[side]
 
@@ -322,29 +342,27 @@ class Game(DBController):
                                 ['players'][pid]['gameStats']['pitching']
 
             stats = {'name' : name,
-                     'ipit' : data['inningsPitched'],
-                     'hrun' : data['homeRuns'],
-                     'erun' : data['earnedRuns'],
-                     'hits' : data['hits'],
-                     'runs' : data['runs'],
-                     'walk' : data['baseOnBalls'],
-                     'strk' : data['strikeOuts']}
+                     'ipit' : access_array(data, 'inningsPitched'),
+                     'hrun' : access_array(data, 'homeRuns'),
+                     'erun' : access_array(data, 'earnedRuns'),
+                     'hits' : access_array(data, 'hits'),
+                     'runs' : access_array(data, 'runs'),
+                     'walk' : access_array(data, 'baseOnBalls'),
+                     'strk' : access_array(data, 'strikeOuts')}
 
             # Find GSc from BR boxscore data
             decoded = unidecode(name)
             team = self._pitchers[side]['team']
-            try:
-                br_data = self._game[team]['pitching']
-                pdata = [data for data in br_data
-                               if data['Pitching'] == decoded]
-                try:
-                    gsc = pdata[0]['GSc']
-                except:
-                    gsc = None
-            except:
-                gsc = None
-                print("BR Boxscores missing for {} - {}"\
-                                .format(team, self._date))
+
+            br_data = self._game[team]['pitching']
+            pdata = [data for data in br_data
+                           if data['Pitching'] == decoded]
+
+            gsc = access_array(pdata, 0, 'GSc')
+
+            if not gsc:
+                print("BR Boxscores missing for {} - {}".format(team,
+                                                                self._date))
 
             stats.update({'gsc' : gsc})
 
@@ -391,16 +409,17 @@ class Game(DBController):
             bullpen = {}
             for playerid in bullpen_ids:
                 pitcher = live_data['teams'][side]['players'][playerid]
+                pit_stats = pitcher['seasonStats']['pitching']
+
                 name = ' '.join((pitcher['name']['first'],
                                  pitcher['name']['last']))
-                try:
-                    num = pitcher['shirtNum']
-                except:
-                    num = None
-                hits = pitcher['seasonStats']['pitching']['hits']
-                runs = pitcher['seasonStats']['pitching']['runs']
-                eruns = pitcher['seasonStats']['pitching']['earnedRuns']
-                strikeouts = pitcher['seasonStats']['pitching']['strikeOuts']
+
+                num = access_array(pitcher, 'shirtNum')
+
+                hits = access_array(pit_stats, 'hits')
+                runs = access_array(pit_stats, 'runs')
+                eruns = access_array(pit_stats, 'earnedRuns')
+                strikeouts = access_array(pit_stats, 'strikeOuts')
 
                 pitcher_data = {'number' : num,
                                 'hits' : hits,
@@ -426,14 +445,10 @@ class Game(DBController):
 
                 names = [plyrs[pid]['person']['fullName'] for pid in pids]
 
-                nums = []
-                for pid in pids:
-                    try:
-                        nums.append(plyrs[pid]['jerseyNumber'])
-                    except:
-                        nums.append(None)
+                nums = [access_array(plyrs, pid, 'jerseyNumber')
+                                                for pid in pids]
 
-                pos = [plyrs[pid]['position']['abbreviation'] for pid in pids]
+                pos = [access_array(plyrs, pid, 'position') for pid in pids]
 
                 batters_list = list(zip(names, pos, nums))
 
@@ -459,21 +474,9 @@ class Game(DBController):
                 names = [' '.join((batter['name']['first'],
                                    batter['name']['last']))
                                         for batter in data]
-                posn = []
-                for batter in data:
-                    try:
-                        posn.append(batter['position'])
-                    except:
-                        posn.append(None)
 
-                nums = []
-                for batter in data:
-                    try:
-                        nums.append(batter['shirtNum'])
-                    except:
-                        nums.append(None)
-                # nums = [batter['shirtNum'] for batter in data]
-
+                posn = [access_array(batter, 'position') for batter in data]
+                nums = [access_array(batter, 'shirtNum') for batter in data]
                 data = list(zip(names, posn, nums))
 
                 # Convert tuples to dicts
@@ -576,12 +579,15 @@ class Game(DBController):
             self.parse_starting_pitchers()
             self.parse_batters()
             self.parse_bullpen()
-            if self._state == "Final":
+
+            if self._state in ["Final", "Game Over"]:
                 self.parse_pitcher_game_stats()
                 self.parse_pitch_types()
+
                 try: # Change this to check if game date != today
                     self.parse_br_pitching_data()
-                except:
+                except Exception as e:
+                    print(e)
                     pass
 
 
@@ -656,7 +662,7 @@ class Team(DBController):
                                         {'$unwind': '$Schedule'},
                                         {'$project':
                                             {'_id' : 0,
-                                             'Date' : '$Schedule.Date',
-                                             'GB': '$Schedule.GB'}}])
+                                             'Date': '$Schedule.Date',
+                                             'GB'  : '$Schedule.GB'}}])
         hist = [x for x in list(res) if 'GB' in x.keys()]
         return hist
