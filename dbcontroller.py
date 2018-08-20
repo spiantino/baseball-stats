@@ -200,6 +200,16 @@ class DBController:
                                     '$or' : [{'home' : abbr},
                                              {'away' : abbr}]})
 
+    # def get_gid_by_date_team(self, team, date):
+    #     abbr = convert_name(team, how='abbr')
+    #     res = self._db.Games.aggregate([{'$match':
+    #                                         {'date' : date,
+    #                                            '$or' : [{'home' : abbr},
+    #                                                     {'away' : abbr}]}},
+    #                                     {'$project': {'_id' : 0,
+    #                                                   'gid' : 1}}])
+    #     return list(res)[0]['gid']
+
     def get_all_team_previews(self):
         abbr = convert_name(team, how='abbr')
         year = '^{}'.format(self._year)

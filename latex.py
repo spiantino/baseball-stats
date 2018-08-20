@@ -271,7 +271,7 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
     l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip',
                    'k/9', 'bb/9', 'hr/9', 'whip', 'gb%', 'days'])
     l.add_rows(bullpen[0], ['', '{:.0f}', '{:.1f}', '{:.0f}',
-                                '{:.1f}', '{:.1f}', '{:.1f}',
+                                '{:.2f}', '{:.1f}', '{:.1f}',
                                 '{:.1f}', '{:.1f}', '{:.2f}',
                                 '{:.1f}', '{:.0f}'])
     l.end_table()
@@ -281,7 +281,7 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
     l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip',
                    'k/9', 'bb/9', 'hr/9', 'whip', 'gb%', 'days'])
     l.add_rows(bullpen[1], ['', '{:.0f}', '{:.1f}', '{:.0f}',
-                                '{:.1f}', '{:.1f}', '{:.1f}',
+                                '{:.2f}', '{:.1f}', '{:.1f}',
                                 '{:.1f}', '{:.1f}', '{:.2f}',
                                 '{:.1f}', '{:.0f}'])
     l.end_table()

@@ -29,11 +29,11 @@ class TableBuilder:
         game_num = wins + loss + 1
 
         title = "{} ({}-{}) @ {} ({}-{})".format(details['awayName'],
-                                                 details['awayWins'],
-                                                 details['awayLoss'],
-                                                 details['homeName'],
-                                                 details['homeWins'],
-                                                 details['homeLoss'])
+                                                       details['awayWins'],
+                                                       details['awayLoss'],
+                                                       details['homeName'],
+                                                       details['homeWins'],
+                                                       details['homeLoss'])
 
         time_and_place ='{}{} {}'.format(details['gameTime'],
                                          details['am_or_pm'],

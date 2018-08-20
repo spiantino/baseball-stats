@@ -9,7 +9,6 @@ from tablebuilder import TableBuilder
 from dbclasses import Player, Game, Team
 
 
-
 def get_pitch_counts(player):
     """
     Return counts of all pitch types for input player
@@ -90,7 +89,7 @@ def run(team, date=None, scrape=False):
         away = g._game['away']
         year = g._date.split('-')[0]
 
-        # scrape_team_data(home, away, year)
+        scrape_team_data(home, away, year)
 
         tb=TableBuilder(g)
 
@@ -150,3 +149,4 @@ if __name__ == '__main__':
     scrape_previews = True if args.scrape == 'True' else False
 
     run(team=args.team, date=args.date, scrape=scrape_previews)
+

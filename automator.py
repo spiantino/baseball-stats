@@ -14,7 +14,7 @@ import main
 import scrape
 
 class Automator:
-    def __init__(self, teams=['NYY', 'NYM', 'HOU']):
+    def __init__(self, teams):
         self.teams = teams + ['{}_2'.format(team) for team in teams]
         self.sched = sched.scheduler(time.time, time.sleep)
         self.priority = 1
@@ -44,6 +44,7 @@ class Automator:
             print("Scraping boxscores...")
 
             scrape.boxscores()
+            scrape.fte_prediction()
 
             self.boxes_need_scraping = False
 
@@ -169,7 +170,9 @@ class Automator:
 
 
 if __name__ == '__main__':
-    auto = Automator()
+    teams = ['NYY', 'NYM', 'HOU', 'BOS', 'ATL', 'MIL', 'KCR']
+
+    auto = Automator(teams)
 
     while True:
 
@@ -189,7 +192,4 @@ if __name__ == '__main__':
                 time.sleep(3600)
 
         auto.reset()
-
-# If script is run after the execute time but before the game starts, change execute time to now
-
 
