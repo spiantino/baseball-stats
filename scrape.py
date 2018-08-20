@@ -9,10 +9,12 @@ import pickle
 import inspect
 import pandas as pd
 from io import StringIO
+from collections import defaultdict
 
 from dbcontroller import DBController
 from conflictresolver import ConflictResolver
 from utils import open_url, convert_name, parse_types
+from dbclasses import Game
 
 # No push methods in DBController, so do it manually for now
 dbc = DBController()
@@ -845,6 +847,88 @@ def league_elo():
 #     for team in teams:
 #         team.find('div', {'class' : 'p-image'}).img.get('data-srcset')
 
+def fte_prediction():
+    """
+    Scrape game predictions from:
+    https://projects.fivethirtyeight.com/2018-mlb-predictions/games/
+    """
+    today = datetime.date.today().strftime('%Y-%m-%d')
+
+    url = 'https://projects.fivethirtyeight.com/2018-mlb-predictions/games/'
+    soup = open_url(url)
+
+    table = soup.find('table', {'class' : 'table'}).find('tbody')
+    rows = table.find_all('tr')
+
+    def extract_date(datestr):
+        date = ''
+        for char in datestr:
+            if not char.isalpha():
+                date += char
+            else:
+                break
+        m, d = date.split('/')
+
+        if len(m) < 2:
+            m = '0' + m
+        if len(d) < 2:
+            d = '0'
+
+        datef = '2018-{}-{}'.format(m, d)
+        return datef
+
+    # Iterate over rows and account for double headers
+    games, game = defaultdict(list), {}
+    date, dh = None, False
+    for row in rows:
+        data = [x.text for x in row.find_all('td')]
+
+        # Home and away teams on separate row. Only one row has the date.
+        if not date:
+            date, team, win = extract_date(data[0]), data[1][:3], data[7]
+
+            if team in game.keys():
+                tmp = team + '_2'
+                game[tmp] = win
+            else:
+                game[team] = win
+        else:
+            team, win = data[0][:3], data[6]
+
+            if team in game.keys():
+                tmp = team + '_2'
+                game.update({tmp : win})
+            else:
+                game.update({team : win})
+
+            games[date].append(game)
+            date = None
+            game = {}
+
+    # Add win % to db for each game today
+    for game in games[today]:
+        home, away = [team.strip('_2') for team in list(game.keys())]
+
+        g = Game()
+        todays_game = list(g.get_team_game_preview(home, today))
+
+        if not todays_game:
+            continue
+
+        # Double headers will have two games in todays_game array
+        if len(todays_game) > 1:
+            earlier_idx = g.compare_game_times(todays_game)
+            if todays_game[earlier_idx]['fte']:
+                later_idx = 1 if earlier_idx == 0 else 0
+                todays_game[later_idx]['gid']
+            else:
+                todays_game[earlier_idx]['gid']
+        else:
+            gid = todays_game[0]['gid']
+
+        g._db.Games.update({'gid' : gid}, {'$set':  {'fte' : []}})
+        g._db.Games.update({'gid' : gid}, {'$push': {'fte' : game}})
+
 
 
 if __name__ == '__main__':
@@ -854,29 +938,29 @@ if __name__ == '__main__':
     # print("Scraping past boxscores...")
     # boxscores()
     # boxscores(date='2018-06-18')
+    fte_prediction()
+
+    # print("Scraping batter and pitcher leaderboards")
+    # fangraphs('bat', year)
+    # fangraphs('pit', year)
+
+    # fangraph_splits(year=year)
 
 
-    print("Scraping batter and pitcher leaderboards")
-    fangraphs('bat', year)
-    fangraphs('pit', year)
+    # print("Scraping league elo and division standings")
+    # standings()
 
-    fangraph_splits(year=year)
+    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
+    #          'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
+    #          'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
+    #          'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
+    #          'col', 'kcr', 'det', 'min', 'chw', 'nyy']
+    # for team in tqdm(teams):
+    #     schedule(team)
+    #     pitching_logs(team, year)
+    #     current_injuries(team)
+    #     transactions(team, year)
+    #     forty_man(team, year)
 
-
-    print("Scraping league elo and division standings")
-    standings()
-
-    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
-             'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
-             'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
-             'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
-             'col', 'kcr', 'det', 'min', 'chw', 'nyy']
-    for team in tqdm(teams):
-        schedule(team)
-        pitching_logs(team, year)
-        current_injuries(team)
-        transactions(team, year)
-        forty_man(team, year)
-
-    league_elo()
+    # league_elo()
