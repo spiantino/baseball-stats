@@ -18,6 +18,10 @@ class TableBuilder:
     def summary_info(self):
         details = self.game._game_details
 
+        # Logos
+        home = details['homeAbbr']
+        away = details['awayAbbr']
+
         if self.game._side == 'home':
             wins = int(details['homeWins'])
             loss = int(details['homeLoss'])
@@ -51,7 +55,9 @@ class TableBuilder:
         wind_speed = str(weather['currently']['windSpeed'])
         wind = wind_speed + 'mph' + details['windDir'].split('mph')[-1]
 
-        return {'game' : game_num,
+        return {'home' : home,
+                'away' : away,
+                'game' : game_num,
                 'title' : title,
                 'details' : time_and_place,
                 'condition' : condition,
@@ -367,6 +373,10 @@ class TableBuilder:
             g.query_game_preview_by_date(team=team, date=date, idx=idx)
             g.parse_all()
 
+            # Skip if current game is not finalized
+            if g._state not in ['Final', 'Game Over', 'Completed Early']:
+                continue
+
             pitch_stats = g._pitcher_gamestats[g._side]
 
             short_date = datetime.datetime.strptime(date, '%Y-%m-%d')\
@@ -407,6 +417,10 @@ class TableBuilder:
             g = Game()
             g.query_game_preview_by_date(team=team, date=date, idx=idx)
             g.parse_all()
+
+            # Skip if current game is not finalized
+            if g._state not in ['Final', 'Game Over', 'Completed Early']:
+                continue
 
             pit_data = g._br_pit_data[side]
             data_strs = []
@@ -475,7 +489,7 @@ class TableBuilder:
             g.parse_all()
 
             # Skip over today's game
-            if date == today and g._state != 'Final':
+            if date == today and g._state not in ['Final', 'Game Over']:
                 continue
 
             # Stop collecting data when opponent changes

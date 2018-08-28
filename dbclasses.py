@@ -5,6 +5,7 @@ from  dateutil.parser import parse
 from collections import Counter, defaultdict
 from fractions import Fraction
 from unidecode import unidecode
+from PIL import Image
 
 from dbcontroller import DBController
 from utils import convert_name, access_array
@@ -220,8 +221,8 @@ class Game(DBController):
         if self._state == 'Scheduled':
             home_name = home['name']
             away_name = away['name']
-            home_abbr = home['abbreviation']
-            away_abbr = away['abbreviation']
+            home_abbr = convert_name(home['abbreviation'])
+            away_abbr = convert_name(away['abbreviation'])
             home_rec  = home['record']['leagueRecord']
             away_rec  = away['record']['leagueRecord']
 
@@ -238,8 +239,8 @@ class Game(DBController):
         else:
             home_name = home['name']['full']
             away_name = away['name']['full']
-            home_abbr = home['name']['abbrev']
-            away_abbr = away['name']['abbrev']
+            home_abbr = convert_name(home['name']['abbrev'])
+            away_abbr = convert_name(away['name']['abbrev'])
             home_rec  = home['record']
             away_rec  = away['record']
             game_time = game_data['datetime']['time']
@@ -580,7 +581,7 @@ class Game(DBController):
             self.parse_batters()
             self.parse_bullpen()
 
-            if self._state in ["Final", "Game Over"]:
+            if self._state in ["Final", "Game Over", "Completed Early"]:
                 self.parse_pitcher_game_stats()
                 self.parse_pitch_types()
 
@@ -617,6 +618,18 @@ class Team(DBController):
 
         stat_array = list(res)[0]
         return stat_array
+
+    def get_logo(self, team=None):
+        team = self._team if not team else team
+        res = self._db.Teams.aggregate([{'$match': {'Tm': team}},
+                                        {'$project': {'_id'  : 0,
+                                                      'logo' : 1}}])
+        try:
+            binary_data = list(res)[0]['logo']
+            image = Image.frombytes('RGB', (320, 180), binary_data)
+            return image
+        except:
+            return None
 
     def get_team_division(self):
         return self._db.Teams.find_one({'Tm' : self._team})['div']

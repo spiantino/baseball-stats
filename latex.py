@@ -67,6 +67,7 @@ class Latex:
                 \usepackage{titlesec}
                 \usepackage{capt-of}
                 \usepackage{multicol}
+                \usepackage{graphicx}
 
                 %dashed line
                 \usepackage{array}
@@ -94,6 +95,13 @@ class Latex:
                 \begin{document}
                 """)
 
+    def logos(self, home, away):
+        self._f.write(r"""
+            \graphicspath{{{{logos/}}}}
+            \includegraphics[scale=0.6]{{{}.png}}
+            \includegraphics[scale=0.6]{{{}.png}}""".format(away, home)
+            )
+
     def title(self, summary, pitchers):
         t = jinja2.Template(
             r"""
@@ -101,7 +109,8 @@ class Latex:
             \subsection*{ {{ details }} $\cdot$ {{ temp }}$\,^{\circ}$ {{ condition }} $\cdot$ Wind {{ wind }} }
             """)
         self._f.write(
-            t.render(game = summary['game'],
+            t.render(
+                     game = summary['game'],
                      title = summary['title'],
                      details = summary['details'],
                      temp = summary['temp'],
@@ -216,6 +225,7 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
 
     l = Latex("{}-{}.tex".format(team, date))
     l.header()
+    l.logos(summary['home'], summary['away'])
     l.title(summary, pitchers)
 
     l.start_table('lcclrrrrrrrrrr')
