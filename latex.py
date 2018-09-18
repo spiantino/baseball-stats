@@ -98,8 +98,8 @@ class Latex:
     def logos(self, home, away):
         self._f.write(r"""
             \graphicspath{{{{logos/}}}}
-            \includegraphics[scale=0.6]{{{}.png}}
-            \includegraphics[scale=0.6]{{{}.png}}""".format(away, home)
+            \includegraphics[scale=0.5]{{{}.png}}
+            \includegraphics[scale=0.5]{{{}.png}}""".format(away, home)
             )
 
     def title(self, summary, pitchers):
@@ -228,7 +228,7 @@ class Latex:
 def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
              bullpen, standings, history, bat_df, hr_df, rbi_df,
              pit_df, era_df, rel_df, elo_df, pit_hist, last_week_bp,
-             series_table, gb, injuries, txs):
+             series_table, gb, injuries, txs, upcoming):
 
     l = Latex("{}-{}.tex".format(team, date))
     l.header()
@@ -337,40 +337,49 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
     l.add_headers(['Transaction Date', 'Player', 'Type', 'Note'])
     l.add_rows(txs[1], ['', '', '', ''])
     l.end_table()
-
-    l.add_subsection("{} Game Log".format(away))
-    l.start_table('lrlccc')
-    l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
-    l.add_rows(history[1], ['', '', '', '', '', ''])
-    l.end_table()
-    l.page_break()
-
-    l.add_subsection("{} Game Log".format(home))
-    l.start_table('lrlccc')
-    l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
-    l.add_rows(history[0], ['', '', '', '', '', ''])
-    l.end_table()
     l.page_break()
 
     # l.add_subsection("{} Game Log".format(away))
-    # l.start_multicol(2)
-    # for table in history[1]:
-    #     l.start_table('lrlccc')
-    #     l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
-    #     l.add_rows(table, ['', '', '', '', '', ''])
-    #     l.end_table()
-    # l.end_multicol()
+    # l.start_table('lrlccc')
+    # l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
+    # l.add_rows(history[1], ['', '', '', '', '', ''])
+    # l.end_table()
     # l.page_break()
 
     # l.add_subsection("{} Game Log".format(home))
-    # l.start_multicol(2)
-    # for table in history[0]:
-    #     l.start_table('lrlccc')
-    #     l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
-    #     l.add_rows(table, ['', '', '', '', '', ''])
-    #     l.end_table()
-    # l.end_multicol()
+    # l.start_table('lrlccc')
+    # l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
+    # l.add_rows(history[0], ['', '', '', '', '', ''])
+    # l.end_table()
     # l.page_break()
+
+    l.add_subsection("{} Game Log".format(away))
+    l.start_multicol(2)
+    l.start_table('lrlccc')
+    l.add_headers(['Gm#', 'Date', 'Field', 'Opp', 'Time'])
+    l.add_rows(upcoming[0], ['{:.0f}', '', '', '', ''])
+    l.end_table()
+    for table in history[1]:
+        l.start_table('lrlccc')
+        l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
+        l.add_rows(table, ['', '', '', '', '', ''])
+        l.end_table()
+    l.end_multicol()
+    l.page_break()
+
+    l.add_subsection("{} Game Log".format(home))
+    l.start_multicol(2)
+    l.start_table('lrlccc')
+    l.add_headers(['Gm#', 'Date', 'Field', 'Opp', 'Time'])
+    l.add_rows(upcoming[1], ['{:.0f}', '', '', '', ''])
+    l.end_table()
+    for table in history[0]:
+        l.start_table('lrlccc')
+        l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
+        l.add_rows(table, ['', '', '', '', '', ''])
+        l.end_table()
+    l.end_multicol()
+    l.page_break()
 
     l.add_section("Batting Leaderboards")
     l.start_table('rllrcrrrrrrrr')

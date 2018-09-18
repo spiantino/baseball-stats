@@ -277,16 +277,39 @@ class TableBuilder:
 
             df['Date'] = df.Date.apply(lambda x: format_date(x))
 
-            # df['groups'] = df.Date.apply(lambda x: x.split('-')[0])
-            # month_dfs = [frame[1][cols] for frame in df.groupby('groups')]
-            # return month_dfs[::-1]
+            df['groups'] = df.Date.apply(lambda x: x.split('-')[0])
+            month_dfs = [frame[1][cols] for frame in df.groupby('groups')]
+            return month_dfs[::-1]
 
-            df = df[cols]
-            return df
+            # df = df[cols]
+            # return df
 
         home_df = construct_table('home')
         away_df = construct_table('away')
         return (home_df, away_df)
+
+    def upcoming_games(self, *teams):
+        dfs = []
+        for team in teams:
+            t = Team(name=team)
+            sched = t.get_stat('Schedule')
+
+            cols = ['Gm#', 'Date', 'Field', 'Opp', 'Time']
+            df = pd.DataFrame(sched)
+
+            # Remove past games
+            df = df.loc[df.Win.isnull()]
+
+            def format_date(x):
+                _, m, d = x.split()[:3]
+                df_date = '{} {}'.format(m, d)
+                dt_date = datetime.datetime.strptime(df_date, '%b %d')
+                return dt_date.strftime("%m-%d")
+
+            df['Date'] = df.Date.apply(format_date)
+            df = df[cols]
+            dfs.append(df)
+        return dfs
 
     def bat_leaders(self, stat, n=10):
         p = Player()
@@ -609,13 +632,14 @@ class TableBuilder:
 
             inj = t.get_stat('Injuries')
             df = pd.DataFrame(inj)
+            df = df.sort_values(by='Last Updated', ascending=False)
 
             def format_date(x):
                 dt = datetime.datetime.strptime(x, '%B %d, %Y')
-                return dt.strftime('%m-%d-%Y')
+                return dt.strftime('%m-%d')
 
             # Is date formatting necessary here?
-            # df['Last Updated'] = df['Last Updated'].apply(format_date)
+            df['Last Updated'] = df['Last Updated'].apply(format_date)
 
             # Organize columns
             df = df[['Last Updated', 'Name', 'Injury Type', 'Injury Details']]
@@ -643,8 +667,14 @@ class TableBuilder:
 
             df = df.loc[df.trans_date >= last_week]
 
+            def format_date(x):
+                return x.strftime('%m-%d-%Y')
+
+            df['tdate'] = df.trans_date.apply(format_date)
+            df['edate'] = df.effective_date.apply(format_date)
+
             # Organize columns ??
-            df = df[['trans_date', 'player', 'type', 'note']]
+            df = df[['tdate', 'player', 'type', 'note']]
 
             dfs.append(df)
 

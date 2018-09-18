@@ -112,6 +112,7 @@ def run(team, date=None, scrape=False):
         gb = tb.games_behind(away, home)
         inj = tb.injuries(away, home)
         txs = tb.transactions(away, home)
+        upcoming = tb.upcoming_games(away, home)
 
         # print(summary)
         # print(pitchers)
@@ -138,7 +139,7 @@ def run(team, date=None, scrape=False):
                        history, bat_df, hr_df, rbi_df,
                        pit_df, era_df, rel_df, elo_df,
                        pit_hist, last_week_bp, series_table,
-                       gb, inj, txs)
+                       gb, inj, txs, upcoming)
 
 
 if __name__ == '__main__':
