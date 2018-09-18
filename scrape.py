@@ -7,8 +7,10 @@ import json
 import datetime
 import pickle
 import inspect
+import os
 import pandas as pd
-from io import StringIO
+from io import StringIO, BytesIO
+from PIL import Image
 from collections import defaultdict
 
 from dbcontroller import DBController
@@ -753,13 +755,15 @@ def game_previews(dbc=dbc):
         db.Games.update({'home' : home,
                          'away' : away,
                          'date' : date,
-                         'gid'  : gid},
+                         'gid'  : gid,
+                         'state': state},
                         {'$set' : {'preview': []}})
 
         db.Games.update({'home' : home,
                          'away' : away,
                          'date' : date,
-                         'gid'  : gid},
+                         'gid'  : gid,
+                         'state': state},
                          {'$push': {'preview': game_data}}, upsert=True)
 
 
@@ -838,14 +842,43 @@ def league_elo():
         db.Teams.update({'Tm' : tm},
                         {'$push': {'elo' : db_data}})
 
-# def team_logos():
-#     url = 'https://www.mlb.com/team'
-#     soup = open_url(url)
+def team_logos():
+    url = 'https://www.mlb.com/team'
+    soup = open_url(url)
 
-#     teams = soup.find_all('div', {'class' : 'p-featured-content'})
+    teams = soup.find_all('div', {'class' : 'p-featured-content'})
 
-#     for team in teams:
-#         team.find('div', {'class' : 'p-image'}).img.get('data-srcset')
+    for team in tqdm(teams):
+
+        # Get team abbreviation from url
+        team_url = team.find('a', href=True)['href'].lstrip('/help/')
+
+        if 'form' in team_url:
+            name = team_url.split('.com/')[-1].split('/')[0]
+        elif '=' in team_url:
+            name = team_url.split('=')[-1]
+        else:
+            name = 'nym'
+        abbr = convert_name(name)
+
+        # Save image data
+        imgs = team.find('div', {'class' : 'p-image'}).img.get('data-srcset')
+        url_str = [url for url in imgs.split() if '320x180' in url][0]
+        img_url = url_str.split(',')[-1]
+
+        req = requests.get(img_url).content
+        img = Image.open(BytesIO(req))
+
+        # db.Teams.update({'Tm' : abbr},
+        #                 {'$set': {'logo': img.tobytes()}})
+
+        # Save locally
+        path = os.path.join(os.getcwd(), 'logos')
+        if not os.path.exists(path):
+            os.mkdir(path)
+
+        fn = "{}/{}.png".format(path, abbr)
+        img.save(fn)
 
 def fte_prediction():
     """
@@ -886,28 +919,19 @@ def fte_prediction():
         # Home and away teams on separate row. Only one row has the date.
         if not date:
             date, team, win = extract_date(data[0]), data[1][:3], data[7]
-
-            if team in game.keys():
-                tmp = team + '_2'
-                game[tmp] = win
-            else:
-                game[team] = win
+            game[team] = win
         else:
             team, win = data[0][:3], data[6]
-
-            if team in game.keys():
-                tmp = team + '_2'
-                game.update({tmp : win})
-            else:
-                game.update({team : win})
+            game.update({team : win})
 
             games[date].append(game)
             date = None
             game = {}
 
     # Add win % to db for each game today
+    seen = []
     for game in games[today]:
-        home, away = [team.strip('_2') for team in list(game.keys())]
+        home, away = list(game.keys())
 
         g = Game()
         todays_game = list(g.get_team_game_preview(home, today))
@@ -918,49 +942,51 @@ def fte_prediction():
         # Double headers will have two games in todays_game array
         if len(todays_game) > 1:
             earlier_idx = g.compare_game_times(todays_game)
-            if todays_game[earlier_idx]['fte']:
-                later_idx = 1 if earlier_idx == 0 else 0
-                todays_game[later_idx]['gid']
+            later_idx = 1 if earlier_idx == 0 else 0
+
+            if home in seen:
+                gid = todays_game[later_idx]['gid']
             else:
-                todays_game[earlier_idx]['gid']
+                gid = todays_game[earlier_idx]['gid']
         else:
             gid = todays_game[0]['gid']
 
         g._db.Games.update({'gid' : gid}, {'$set':  {'fte' : []}})
         g._db.Games.update({'gid' : gid}, {'$push': {'fte' : game}})
 
-
+        # Add home team to seen list to catch double headers
+        seen.append(home)
 
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    # game_previews()
-    # print("Scraping past boxscores...")
-    # boxscores()
-    # boxscores(date='2018-06-18')
+    game_previews()
+    print("Scraping past boxscores...")
+    boxscores()
     fte_prediction()
+    team_logos()
 
-    # print("Scraping batter and pitcher leaderboards")
-    # fangraphs('bat', year)
-    # fangraphs('pit', year)
+    print("Scraping batter and pitcher leaderboards")
+    fangraphs('bat', year)
+    fangraphs('pit', year)
 
-    # fangraph_splits(year=year)
+    fangraph_splits(year=year)
 
 
-    # print("Scraping league elo and division standings")
-    # standings()
+    print("Scraping league elo and division standings")
+    standings()
 
-    # print("Scraping schedule, roster, pitch logs, injuries, transactions...")
-    # teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
-    #          'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
-    #          'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
-    #          'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
-    #          'col', 'kcr', 'det', 'min', 'chw', 'nyy']
-    # for team in tqdm(teams):
-    #     schedule(team)
-    #     pitching_logs(team, year)
-    #     current_injuries(team)
-    #     transactions(team, year)
-    #     forty_man(team, year)
+    print("Scraping schedule, roster, pitch logs, injuries, transactions...")
+    teams = ['laa', 'hou', 'oak', 'tor', 'atl', 'mil',
+             'stl', 'chc', 'ari', 'lad', 'sfg', 'cle',
+             'sea', 'mia', 'nym', 'wsn', 'bal', 'sdp',
+             'phi', 'pit', 'tex', 'tbr', 'bos', 'cin',
+             'col', 'kcr', 'det', 'min', 'chw', 'nyy']
+    for team in tqdm(teams):
+        schedule(team)
+        pitching_logs(team, year)
+        current_injuries(team)
+        transactions(team, year)
+        forty_man(team, year)
 
-    # league_elo()
+    league_elo()

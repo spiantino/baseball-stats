@@ -93,9 +93,9 @@ class ConflictResolver(DBController):
         return dates
 
     def get_postponed_games(self):
-        state = 'preview.gameData.status.detailedState'
+        # state = 'preview.gameData.status.detailedState'
         data = self._db.Games.aggregate([{'$match':
-                                              {state : 'Postponed'}},
+                                              {'state' : 'Postponed'}},
                                          {'$project': {'_id' : 1,
                                                        'gid' : 1,
                                                        'date': 1 }}])
@@ -144,7 +144,6 @@ class ConflictResolver(DBController):
             # Don't remove a game that is still in progress
             if self.game_is_finished(_id):
                 self._db.Games.remove(_id)
-
 
     def run(self):
         self.remove_postponed_games()

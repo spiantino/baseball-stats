@@ -89,7 +89,7 @@ def run(team, date=None, scrape=False):
         away = g._game['away']
         year = g._date.split('-')[0]
 
-        scrape_team_data(home, away, year)
+        # scrape_team_data(home, away, year)
 
         tb=TableBuilder(g)
 
@@ -109,7 +109,9 @@ def run(team, date=None, scrape=False):
         pit_hist = tb.pitcher_history()
         last_week_bp = tb.previous_week_bullpen()
         series_table = tb.series_results()
-        gb = tb.games_behind(team, opp)
+        gb = tb.games_behind(away, home)
+        inj = tb.injuries(away, home)
+        txs = tb.transactions(away, home)
 
         # print(summary)
         # print(pitchers)
@@ -135,7 +137,8 @@ def run(team, date=None, scrape=False):
                        bench, bullpen, standings,
                        history, bat_df, hr_df, rbi_df,
                        pit_df, era_df, rel_df, elo_df,
-                       pit_hist, last_week_bp, series_table, gb)
+                       pit_hist, last_week_bp, series_table,
+                       gb, inj, txs)
 
 
 if __name__ == '__main__':

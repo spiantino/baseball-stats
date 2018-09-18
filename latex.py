@@ -181,10 +181,17 @@ class Latex:
            """)
         self._f.write(t.render())
 
+    def vspace(self):
+        t = jinja2.Template(
+            r"""
+            \vspace*{1mm}
+            """)
+        self._f.write(t.render())
+
     def add_headers(self, columns):
         t = jinja2.Template(
             r"""
-            {% for c in columns %}\textbf{ {{- c -}} }{% if not loop.last %} & {% endif %}{% endfor %} \\ \midrule
+            {% for c in columns %}\textbf{ {{- c -}} }{% if not loop.last %} & {% endif %}{% endfor %} \tabularnewline \midrule
             """)
 
         self._f.write(
@@ -201,7 +208,7 @@ class Latex:
 
         t = jinja2.Template(
             r"""
-            {% for row in data %}{% for v in row %} {{ v }} {% if not loop.last %}&{% endif %}{% endfor %} \\
+            {% for row in data %}{% for v in row %} {{ v }}{% if not loop.last %}&{% endif %}{% endfor %} \tabularnewline
             {% if not loop.last %}\hdashline{% endif %}{% endfor %}
             """)
 
@@ -221,7 +228,7 @@ class Latex:
 def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
              bullpen, standings, history, bat_df, hr_df, rbi_df,
              pit_df, era_df, rel_df, elo_df, pit_hist, last_week_bp,
-             series_table, gb):
+             series_table, gb, injuries, txs):
 
     l = Latex("{}-{}.tex".format(team, date))
     l.header()
@@ -275,7 +282,7 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
         l.end_table()
     l.end_multicol()
 
-    l.page_break()
+    # l.page_break()
     l.add_subsection("{} Bullpen".format(home))
     l.start_table('lcrrrrrrrrrr')
     l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip',
@@ -305,21 +312,65 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
                                       '{:.0f}', '{:.0f}',
                                       '{:.0f}', '{:.0f}'])
     l.end_table()
+    # l.page_break()
 
-    l.page_break()
-    l.start_multicol(2)
+    l.add_subsection("{} Injuries".format(away))
+    l.start_table('llcp{10cm}')
+    l.add_headers(['Last Updated', 'Name', 'Type', 'Details'])
+    l.add_rows(injuries[0], ['', '', '', ''])
+    l.end_table()
+
+    l.add_subsection("{} Injuries".format(home))
+    l.start_table('llcp{10cm}')
+    l.add_headers(['Last Updated', 'Name', 'Type', 'Details'])
+    l.add_rows(injuries[1], ['', '', '', ''])
+    l.end_table()
+
+    l.add_subsection("{} Recent Transactions".format(away))
+    l.start_table('llcp{10cm}')
+    l.add_headers(['Transaction Date', 'Player', 'Type', 'Note'])
+    l.add_rows(txs[0], ['', '', '', ''])
+    l.end_table()
+
+    l.add_subsection("{} Recent Transactions".format(home))
+    l.start_table('llcp{10cm}')
+    l.add_headers(['Transaction Date', 'Player', 'Type', 'Note'])
+    l.add_rows(txs[1], ['', '', '', ''])
+    l.end_table()
+
     l.add_subsection("{} Game Log".format(away))
     l.start_table('lrlccc')
     l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
     l.add_rows(history[1], ['', '', '', '', '', ''])
     l.end_table()
+    l.page_break()
 
     l.add_subsection("{} Game Log".format(home))
     l.start_table('lrlccc')
     l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
     l.add_rows(history[0], ['', '', '', '', '', ''])
     l.end_table()
-    l.end_multicol()
+    l.page_break()
+
+    # l.add_subsection("{} Game Log".format(away))
+    # l.start_multicol(2)
+    # for table in history[1]:
+    #     l.start_table('lrlccc')
+    #     l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
+    #     l.add_rows(table, ['', '', '', '', '', ''])
+    #     l.end_table()
+    # l.end_multicol()
+    # l.page_break()
+
+    # l.add_subsection("{} Game Log".format(home))
+    # l.start_multicol(2)
+    # for table in history[0]:
+    #     l.start_table('lrlccc')
+    #     l.add_headers(['Date', 'Time', 'Opp', ' ', 'Score', 'gb'])
+    #     l.add_rows(table, ['', '', '', '', '', ''])
+    #     l.end_table()
+    # l.end_multicol()
+    # l.page_break()
 
     l.add_section("Batting Leaderboards")
     l.start_table('rllrcrrrrrrrr')

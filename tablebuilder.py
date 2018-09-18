@@ -41,7 +41,8 @@ class TableBuilder:
 
         time_and_place ='{}{} {}'.format(details['gameTime'],
                                          details['am_or_pm'],
-                                         details['stadium'] )
+                                         details['stadium'].replace('&',
+                                                                    '\\&'))
 
         # Forecast from darsky.net api
         key = 'fb8f30e533bb7ae1a9a26b0ff68a0ed8'
@@ -259,6 +260,7 @@ class TableBuilder:
 
             # Remove upcoming games
             df = df.loc[df[''] == 'boxscore']
+            df = df.rename({'W/L' : 'Result'}, axis=1)
 
             df['Opp'] = df[['Field', 'Opp']].apply(lambda x: ' '
                                             .join((x[0], x[1]))
@@ -275,7 +277,10 @@ class TableBuilder:
 
             df['Date'] = df.Date.apply(lambda x: format_date(x))
 
-            df = df.rename({'W/L' : 'Result'}, axis=1)
+            # df['groups'] = df.Date.apply(lambda x: x.split('-')[0])
+            # month_dfs = [frame[1][cols] for frame in df.groupby('groups')]
+            # return month_dfs[::-1]
+
             df = df[cols]
             return df
 
@@ -370,7 +375,11 @@ class TableBuilder:
             idx = 1 if date == last_date else 0
 
             g = Game()
-            g.query_game_preview_by_date(team=team, date=date, idx=idx)
+            try:
+                g.query_game_preview_by_date(team=team, date=date, idx=idx)
+            except:
+                print(date)
+                g.query_game_preview_by_date(team=team, date=date, idx=idx)
             g.parse_all()
 
             # Skip if current game is not finalized
@@ -517,19 +526,6 @@ class TableBuilder:
                 try normalizing the name first, then try returning
                 the pitcher that entered in inning 1
                 """
-                # try:
-                #     return g._br_pit_data[side][starter]
-                # except:
-                #     try:
-                #         name = normalize_name(starter)
-                #         return g._br_pit_data[side][name]
-                #     except:
-                #         try:
-                #             data = g._br_pit_data[side]
-                #             return [player for player in data.keys()
-                #                            if data[player]['entered'] == 1][0]
-                #         except:
-                #             return {'ip' : None, 'gsc' : None}
                 try:
                     return g._br_pit_data[side][starter]
                 except:
@@ -585,9 +581,10 @@ class TableBuilder:
                 m, d = x.split()[1], x.split()[2]
                 date = '{} {} {}'.format(m, d, self.game._year)
                 dt_date = datetime.datetime.strptime(date, '%b %d %Y')
-                return dt_date.strftime("%m-%d-%Y")
+                return dt_date.strftime('%m-%d-%Y')
 
-            df['Date'] = df.Date.apply(lambda x: format_date(x))
+            df['Date'] = df.Date.apply(format_date)
+            # df['Date'] = df.Date.apply(lambda x: format_date(x))
 
             # Drop duplicate rows (double headers)
             df = df.drop_duplicates()
@@ -605,6 +602,51 @@ class TableBuilder:
 
         return dfs
 
+    def injuries(self, *teams):
+        dfs = []
+        for team in teams:
+            t = Team(name=team)
 
+            inj = t.get_stat('Injuries')
+            df = pd.DataFrame(inj)
 
+            def format_date(x):
+                dt = datetime.datetime.strptime(x, '%B %d, %Y')
+                return dt.strftime('%m-%d-%Y')
+
+            # Is date formatting necessary here?
+            # df['Last Updated'] = df['Last Updated'].apply(format_date)
+
+            # Organize columns
+            df = df[['Last Updated', 'Name', 'Injury Type', 'Injury Details']]
+            dfs.append(df)
+
+        return dfs
+
+    def transactions(self, *teams, n=7):
+        """
+        Build table for last n days of transactions
+        """
+        today = datetime.datetime.today()
+        last_week = today - datetime.timedelta(days=n)
+
+        dfs = []
+        for team in teams:
+            t = Team(name=team)
+
+            txs = t.get_transactions()
+            df = pd.DataFrame(txs)
+
+            # Filter by date
+            df['trans_date'] = pd.to_datetime(df.trans_date)
+            df['effective_date'] = pd.to_datetime(df.effective_date)
+
+            df = df.loc[df.trans_date >= last_week]
+
+            # Organize columns ??
+            df = df[['trans_date', 'player', 'type', 'note']]
+
+            dfs.append(df)
+
+        return dfs
 

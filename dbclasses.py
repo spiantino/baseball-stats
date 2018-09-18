@@ -171,10 +171,13 @@ class Game(DBController):
                           ['status']['detailedState']
                                    for game in games]
 
-            if any([state in ['Final', 'Game Over'] for state in status]):
+            # Return later game if earlier game has already started or
+            target_states = ['Final', 'Game Over', 'In Progress']
+            if any([state in target_states for state in status]):
                 idx = [status.index(x) for x in status if x!='Final'][0]
                 return games[idx]
 
+            # Find and return earlier game
             else:
                 idx = self.compare_game_times(games)
                 return games[idx]
@@ -449,7 +452,12 @@ class Game(DBController):
                 nums = [access_array(plyrs, pid, 'jerseyNumber')
                                                 for pid in pids]
 
-                pos = [access_array(plyrs, pid, 'position') for pid in pids]
+                try:
+                    pos = [access_array(plyrs, pid, 'position','abbreviation')
+                                                              for pid in pids]
+                except:
+                    pos = [access_array(plyrs, pid, 'position')
+                                               for pid in pids]
 
                 batters_list = list(zip(names, pos, nums))
 
@@ -679,3 +687,19 @@ class Team(DBController):
                                              'GB'  : '$Schedule.GB'}}])
         hist = [x for x in list(res) if 'GB' in x.keys()]
         return hist
+
+    def get_injuries(self):
+        res = self._db.Teams.aggregate([{'$match': {'Tm' : self._team}},
+                                        {'$project':
+                                            {'_id' : 0,
+                                             'Injuries': '$Injuries'}}])
+        return list(res)[0]['Injuries']
+
+    def get_transactions(self):
+        res = self._db.Teams.aggregate([{'$match': {'Tm' : self._team}},
+                                        {'$project':
+                                            {'_id' : 0,
+                                             'txs': '$Transactions'}}])
+
+        return list(res)[0]['txs']['2018'][0]['transaction_all']\
+                                         ['queryResults']['row']

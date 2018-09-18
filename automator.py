@@ -170,7 +170,7 @@ class Automator:
 
 
 if __name__ == '__main__':
-    teams = ['NYY', 'NYM', 'HOU', 'BOS', 'ATL', 'MIL', 'KCR']
+    teams = ['NYY', 'HOU', 'NYM', 'BOS', 'ATL', 'MIL', 'KCR']
 
     auto = Automator(teams)
 
