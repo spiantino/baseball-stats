@@ -755,15 +755,14 @@ def game_previews(dbc=dbc):
         db.Games.update({'home' : home,
                          'away' : away,
                          'date' : date,
-                         'gid'  : gid,
-                         'state': state},
-                        {'$set' : {'preview': []}})
+                         'gid'  : gid},
+                        {'$set' : {'state': state,
+                                   'preview': []}})
 
         db.Games.update({'home' : home,
                          'away' : away,
                          'date' : date,
-                         'gid'  : gid,
-                         'state': state},
+                         'gid'  : gid},
                          {'$push': {'preview': game_data}}, upsert=True)
 
 
