@@ -41,6 +41,7 @@ def get_pitch_counts(player):
 def scrape_games():
     print("Gathering game previews...")
     scrape.game_previews()
+    scrape.lineups()
 
     print("Scraping past boxscores...")
     scrape.boxscores()
@@ -52,7 +53,7 @@ def scrape_leaders(year):
 
     print("Scraping pitching leaderboard...")
     scrape.fangraphs(state='pit', year=year)
-    scrape.fangraph_splits(year=year)
+    scrape.fangraphs_splits(year=year)
 
     print("Scraping league standings...")
     scrape.standings()
@@ -95,8 +96,9 @@ def run(team, date=None, scrape=False):
 
         summary = tb.summary_info()
         pitchers = tb.starting_pitchers()
-        starters, bench = tb.rosters()
-        bullpen = tb.bullpen()
+        starters = tb.lineups()
+        _, bench = tb.rosters_savant()
+        bullpen = tb.bullpen2()
         standings = tb.standings()
         history = tb.game_history()
         bat_df = tb.bat_leaders(stat='WAR', n=30)
@@ -132,6 +134,9 @@ def run(team, date=None, scrape=False):
         # print(last_week_bp)
         # print(series_table)
         # print(gb)
+        # print(inj)
+        # print(txs)
+        # print(upcoming)
 
         latex.make_pdf(team, date, home, away,
                        summary, pitchers, starters,

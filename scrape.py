@@ -12,6 +12,10 @@ import pandas as pd
 from io import StringIO, BytesIO
 from PIL import Image
 from collections import defaultdict
+from urllib.parse import unquote
+
+from selenium.webdriver.chrome.options import Options
+from selenium import webdriver
 
 from dbcontroller import DBController
 from conflictresolver import ConflictResolver
@@ -77,15 +81,25 @@ def fangraphs(state, year):
     db_path = 'fg.{}.{}'.format(state, year)
 
     for pdata in db_data:
-        db.Players.update({'Name' : pdata['Name']},
-                          {'$set' : {db_path : pdata}}, upsert=True)
+        db.Players.update_many({'Name' : pdata['Name']},
+                               {'$set' : {db_path : pdata}}, upsert=True)
 
         if year == dbc._year:
-            db.Players.update({'Name' : pdata['Name']},
-                              {'$set' : {'Team' : pdata['Team']}})
+            db.Players.update_many({'Name' : pdata['Name']},
+                                   {'$set' : {'Team' : pdata['Team']}})
 
 
-def fangraph_splits(year):
+def fangraphs_splits(year):
+
+    # Set up headless chrome
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    browser = webdriver.Chrome(chrome_options=options)
+    browser.implicitly_wait(20)
+
+
     # 5 is for left handed batters, 6 for right handed batters
     for hand in [5, 6]:
         url = """https://www.fangraphs.com/leaderssplits.aspx?splitArr={0}\
@@ -94,35 +108,12 @@ def fangraph_splits(year):
                &autoPt=true&players=&sort=19,-1&pg=0"""\
                .format(hand, year).replace(' ', '')
 
-        soup = open_url(url)
-
-        # Send POST request to get data in csv format
-        params = {'__EVENTTARGET' : 'SplitsLeaderboard$cmdCSV',
-                  '__EVENTARGUMENT' : '',
-                  'SplitsLeaderboard$dataPlayerId': 'all',
-                  'SplitsLeaderboard$dataPos' : 'P',
-                  'SplitsLeaderboard$dataSplitArr': '[{}]'.format(hand),
-                  'SplitsLeaderboard$dataGroup' : 'season',
-                  'SplitsLeaderboard$dataType' : '1',
-                  'SplitsLeaderboard$dataStart' : '{}-03-01'.format(year),
-                  'SplitsLeaderboard$dataEnd' : '{}-11-01'.format(year),
-                  'SplitsLeaderboard$dataSplitTeams' : 'false',
-                  'SplitsLeaderboard$dataFilter' : '[]',
-                  'SplitsLeaderboard$dataAutoPt' : 'true',
-                  'SplitsLeaderboard$dataStatType' : 'player',
-                  'SplitsLeaderboard$dataPlayers' : ''}
-
-        elems = ['__VIEWSTATE',
-                 '__VIEWSTATEGENERATOR',
-                 '__EVENTVALIDATION']
-
-        # Find dynamic parameters in the page html
-        more_params = [soup.find('input', {'id' : elem}) for elem in elems]
-        for param in more_params:
-            params.update({param['id'] : param['value']})
-
-        req = requests.post(url, data=params).text
-        df = pd.read_csv(StringIO(req))
+        browser.get(url)
+        xpath = '//*[@id="react-drop-test"]/div[2]/a'
+        csv_btn = browser.find_element_by_xpath(xpath)
+        csv = unquote(csv_btn.get_attribute('href')\
+                    .replace('data:application/csv;charset=utf-8,', ''))
+        df = pd.read_csv(StringIO(csv))
 
         # Push one row at a time into database
         df_data = df.to_dict(orient='index')
@@ -135,8 +126,10 @@ def fangraph_splits(year):
             handstr = 'vLHH' if hand == 5 else 'vRHH'
             db_path = 'fg.{}.{}'.format(handstr, season)
 
-            db.Players.update({'Name' : name},
-                              {'$set' : {db_path : player_data}})
+            db.Players.update_one({'Name' : name},
+                                  {'$set' : {db_path : player_data}})
+
+    browser.quit()
 
 
 def standings():
@@ -203,13 +196,16 @@ def standings():
             db.Teams.update({'Tm' : team}, {'$set': db_data}, upsert=True)
 
 
-def schedule(team):
+def schedule(team, year=None):
     """
     Scrape yankees schedule with results
     from baseball-reference.com
     """
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    year = today.split('-')[0] if not year else year
+
     name = convert_name(team, how='abbr')
-    url = "http://www.baseball-reference.com/teams/{}/2018-schedule-scores.shtml".format(name)
+    url = "http://www.baseball-reference.com/teams/{}/{}-schedule-scores.shtml".format(name, year)
 
     soup = open_url(url)
     table = soup.find('table', {'id' : 'team_schedule'})
@@ -227,7 +223,7 @@ def schedule(team):
     trows = [x for x in trows if 'Gm#' not in x.text]
 
     # Clear existing Schedule document
-    db.Teams.update({'Tm' : name}, {'$set': {'Schedule' : []}})
+    db.Teams.update_one({'Tm' : name}, {'$set': {'Schedule' : []}})
 
     # Extract schedule data one row at a time
     for row in trows:
@@ -248,15 +244,18 @@ def schedule(team):
         db_data = parse_types(db_data)
 
         # Insert row into database
-        db.Teams.update({'Tm' : name},
-                        {'$push': {'Schedule': db_data}})
+        db.Teams.update_one({'Tm' : name},
+                            {'$push': {'Schedule': db_data}})
 
 
-def pitching_logs(team, year):
+def pitching_logs(team, year=None):
     """
     Scrape pitching logs from
     baseball-reference.com
     """
+    today = datetime.date.today().strftime('%Y-%m-%d')
+    year = today.split('-')[0] if not year else year
+
     team = convert_name(name=team, how='abbr')
     url = "http://www.baseball-reference.com/teams/tgl.cgi?team={}&t=p&year={}".format(team, year)
 
@@ -271,10 +270,10 @@ def pitching_logs(team, year):
     tbody = table.find('tbody')
     trows = tbody.find_all('tr')
 
-    # # Clear existing Pitlog document
+    # Clear existing Pitlog document
     db_array = 'Pitlog.{}'.format(year)
-    db.Teams.update({'Tm' : team},
-                    {'$set': {db_array : []}})
+    db.Teams.update_one({'Tm' : team},
+                        {'$set': {db_array : []}})
 
     # Extract pitching logs and push to databse
     for row in trows:
@@ -284,8 +283,8 @@ def pitching_logs(team, year):
         db_data = parse_types(db_data)
 
         # Insert row indo database
-        db.Teams.update({'Tm' : team},
-                        {'$push': {db_array : db_data}})
+        db.Teams.update_one({'Tm' : team},
+                            {'$push': {db_array : db_data}})
 
 
 def forty_man(team, year):
@@ -311,8 +310,8 @@ def forty_man(team, year):
 
     # Clear existing Fortyman document
     db_array = 'Fortyman.{}'.format(year)
-    db.Teams.update({'Tm' : team},
-                    {'$set': {db_array : []}})
+    db.Teams.update_one({'Tm' : team},
+                        {'$set': {db_array : []}})
 
     # Extract forty-man roster and push to database
     for row in tqdm(trows):
@@ -321,8 +320,8 @@ def forty_man(team, year):
                     row.find_all(lambda tag: tag.has_attr('data-stat'))]
         db_data = {k:v for k,v in zip(cols, row_data)}
         db_data.update({'bid' : bid})
-        db.Teams.update({'Tm' : team},
-                        {'$push': {db_array : db_data}})
+        db.Teams.update_one({'Tm' : team},
+                            {'$push': {db_array : db_data}})
 
         # Check if player exists in database
         player = db_data['Name']
@@ -432,8 +431,8 @@ def current_injuries(team):
     trows = tbody.find_all('tr')
 
     # Clear existing injuries document
-    db.Teams.update({'Tm' : team},
-                    {'$set': {'Injuries' : []}})
+    db.Teams.update_one({'Tm' : team},
+                        {'$set': {'Injuries' : []}})
 
     # Extract injuries table and push to database
     for row in trows:
@@ -441,8 +440,8 @@ def current_injuries(team):
                     row.find_all(lambda tag: tag.has_attr('data-stat'))]
         db_data = {k:v for k,v in zip(cols, row_data)}
         db_data = parse_types(db_data)
-        db.Teams.update({'Tm' : team},
-                        {'$push' : {'Injuries' : db_data}})
+        db.Teams.update_one({'Tm' : team},
+                            {'$push' : {'Injuries' : db_data}})
 
 
 def transactions(team, year):
@@ -496,17 +495,19 @@ def transactions(team, year):
     # Open and read json object
     res = requests.get(url).text
     j = json.loads(res)
+    db_data = [x for x in j['transaction_all']['queryResults']['row']]
 
     # Name transactions array by year in database
     db_array = 'Transactions.{}'.format(year)
 
     # Clear existing Transactions document
-    db.Teams.update({'Tm' : team.upper()},
-                    {'$set': {db_array : []}})
+    db.Teams.update_one({'Tm' : team.upper()},
+                        {'$set': {db_array : []}})
 
     # Add Transactions json data to database
-    db.Teams.update({'Tm' : team.upper()},
-                    {'$push' : {db_array : j}})
+    for row in db_data:
+        db.Teams.update_one({'Tm' : team.upper()},
+                            {'$push' : {db_array : row}})
 
 
 def boxscores(dbc=dbc):
@@ -669,13 +670,13 @@ def boxscores(dbc=dbc):
                                 {'$push' : {db_array : db_data}})
 
 
-def get_past_schedule_dates():
+def get_past_schedule_dates(year=None):
     """
     Return all dates on MLB schedule
     from start of season through today
     """
     today = datetime.date.today().strftime('%Y-%m-%d')
-    year = today.split('-')[0]
+    year = today.split('-')[0] if not year else year
 
     url = 'https://www.baseball-reference.com/leagues/MLB/{}-schedule.shtml'\
                                                                 .format(year)
@@ -683,7 +684,10 @@ def get_past_schedule_dates():
 
     content = soup.find('div', {'class' : 'section_content'})
     all_dates = [date.text for date in content.find_all('h3')]
-    end = all_dates.index("Today's Games")
+    try:
+        end = all_dates.index("Today's Games")
+    except:
+        end = None
 
     past_dates = all_dates[:end]
     past_dates = [datetime.datetime.strptime(x, '%A, %B %d, %Y')\
@@ -692,10 +696,9 @@ def get_past_schedule_dates():
     return past_dates
 
 
-def game_previews(dbc=dbc):
+def find_dates_for_update():
     """
-    Collect data on upcomming game
-    from mlb.com/gameday
+    Return list of dates that are missing preview data
     """
     past_schedule_dates = get_past_schedule_dates()
     past_database_dates = dbc.get_past_game_dates()
@@ -707,6 +710,15 @@ def game_previews(dbc=dbc):
 
     dates = dates.union(outdated)
     dates = sorted(list(dates))
+    return dates
+
+
+def game_previews(dbc=dbc):
+    """
+    Collect data on upcomming game
+    from mlb.com/gameday
+    """
+    dates = find_dates_for_update()
 
     url_string = 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}'
 
@@ -765,6 +777,57 @@ def game_previews(dbc=dbc):
                          'gid'  : gid},
                          {'$push': {'preview': game_data}}, upsert=True)
 
+        # Add savant preview data
+        savant_preview(gid, date)
+
+        # Add baseballpress lineups
+        lineups(date)
+
+
+def savant_preview(gid, date):
+    url = 'https://baseballsavant.mlb.com/preview?game_pk={}&game_date={}'\
+                                                        .format(gid, date)
+    res = requests.get(url).text
+    soup = BeautifulSoup(res, "html.parser")
+    jstr = soup.find_all('script')[9].contents[0].strip()\
+                                                 .rstrip(';')\
+                                                 .lstrip('var teams = ')
+    game_data = json.loads(jstr)
+
+    db.Games.update_one({'date' : date,
+                         'gid'  : gid},
+                         {'$set': {'savant.preview' : []}})
+
+    db.Games.update_one({'date' : date,
+                         'gid'  : gid},
+                        {'$push': {'savant.preview': game_data}})
+
+
+def savant_previews(date=None):
+    date = datetime.date.today().strftime('%Y-%m-%d') if not date else date
+    url= 'https://statsapi.mlb.com/api/v1/schedule?sportId=1&date={}'\
+                                                        .format(date)
+    res = json.loads(requests.get(url).text)
+
+    gids = [str(x['gamePk']) for x in res['dates'][0]['games']]
+
+
+    game_url = 'https://baseballsavant.mlb.com/preview?game_pk={}&game_date={}'
+
+    game_urls = [(gid, game_url.format(gid, date)) for gid in gids]
+
+    for gid, url in tqdm(game_urls):
+        res = requests.get(url).text
+        soup = BeautifulSoup(res, "html.parser")
+        jstr = soup.find_all('script')[9].contents[0].strip()\
+                                                     .rstrip(';')\
+                                                     .lstrip('var teams = ')
+        game_data = json.loads(jstr)
+
+        db.Games.update_one({'date' : date,
+                             'gid'  : gid},
+                            {'$push': {'savant.preview': game_data}})
+
 
 def espn_preview_text(date, team):
     # Find competition ID
@@ -806,14 +869,14 @@ def espn_preview_text(date, team):
 
 def league_elo():
     """
-    – Rank
-    – Team
-    – Rating
-    – Playoffs %
-    – Division %
-    – World Series %
+    - Rank
+    - Team
+    - Rating
+    - Playoffs %
+    - Division %
+    - World Series %
     """
-    url = 'https://projects.fivethirtyeight.com/2018-mlb-predictions/'
+    url = 'https://projects.fivethirtyeight.com/2019-mlb-predictions/'
     soup = open_url(url)
 
     tbody = soup.find('tbody')
@@ -836,10 +899,11 @@ def league_elo():
 
         # Clear existing elo document
         tm = convert_name(name=team, how='abbr')
-        db.Teams.update({'Tm' : tm}, {'$set': {'elo' : []}})
+        db.Teams.update_many({'Tm' : tm}, {'$set': {'elo' : []}})
 
-        db.Teams.update({'Tm' : tm},
-                        {'$push': {'elo' : db_data}})
+        db.Teams.update_many({'Tm' : tm},
+                             {'$push': {'elo' : db_data}})
+
 
 def team_logos():
     url = 'https://www.mlb.com/team'
@@ -879,14 +943,17 @@ def team_logos():
         fn = "{}/{}.png".format(path, abbr)
         img.save(fn)
 
-def fte_prediction():
+
+def fte_prediction(year=None):
     """
     Scrape game predictions from:
     https://projects.fivethirtyeight.com/2018-mlb-predictions/games/
     """
     today = datetime.date.today().strftime('%Y-%m-%d')
+    year = today.split('-')[0] if not year else year
 
-    url = 'https://projects.fivethirtyeight.com/2018-mlb-predictions/games/'
+    url = 'https://projects.fivethirtyeight.com/{}-mlb-predictions/games/'\
+                                                                .format(year)
     soup = open_url(url)
 
     table = soup.find('table', {'class' : 'table'}).find('tbody')
@@ -906,7 +973,7 @@ def fte_prediction():
         if len(d) < 2:
             d = '0'
 
-        datef = '2018-{}-{}'.format(m, d)
+        datef = '2019-{}-{}'.format(m, d)
         return datef
 
     # Iterate over rows and account for double headers
@@ -950,11 +1017,53 @@ def fte_prediction():
         else:
             gid = todays_game[0]['gid']
 
-        g._db.Games.update({'gid' : gid}, {'$set':  {'fte' : []}})
+        g._db.Games.update({'gid'  : gid}, {'$set':  {'fte' : []}})
         g._db.Games.update({'gid' : gid}, {'$push': {'fte' : game}})
 
         # Add home team to seen list to catch double headers
         seen.append(home)
+
+
+def lineups(date=None):
+    date = datetime.date.today().strftime('%Y-%m-%d') if not date else date
+    url = 'https://www.baseballpress.com/lineups/{}'.format(date)
+    res = requests.get(url).text
+    soup = BeautifulSoup(res, 'html.parser')
+    cards = soup.find_all('div', {'class' : 'lineup-card'})
+    for card in cards:
+        lineup = [x for x in card.find('div', {'class' : 'lineup-card-body'})\
+                                      .find_all('div', {'class' : 'player'})]
+        ldata = []
+        for player in lineup:
+            pstats = {}
+            pstats.update({'order' : player.text.split('.')[0]})
+            pstats.update({'pid' : player.find('a',
+                                  {'class' : 'player-link'})['data-mlb']})
+            try:
+                pstats.update({'name' : player.find('span').text})
+            except:
+                pstats.update({'name' : player.find('a').text})
+
+            ldata.append(pstats)
+
+        away, home  = [x['href'].split('/')[-1] for x in
+                       card.find('div', {'class' : 'lineup-card-header'})\
+                                                          .find_all('a')][:2]
+
+        db_data = {}
+        db_data.update({convert_name(away) : ldata[:9]})
+        db_data.update({convert_name(home) : ldata[9:]})
+
+        db.Games.update_one({'date' : date,
+                             'home' : convert_name(home),
+                             'away' : convert_name(away)},
+                            {'$set': {'baseballpress.lineup' : []}})
+
+        db.Games.update_one({'date' : date,
+                             'home' : convert_name(home),
+                             'away' : convert_name(away)},
+                            {'$push': {'baseballpress.lineup': db_data}})
+
 
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
@@ -969,8 +1078,7 @@ if __name__ == '__main__':
     fangraphs('bat', year)
     fangraphs('pit', year)
 
-    fangraph_splits(year=year)
-
+    fangraphs_splits(year=year)
 
     print("Scraping league elo and division standings")
     standings()

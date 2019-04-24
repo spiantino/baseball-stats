@@ -282,7 +282,7 @@ def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
         l.end_table()
     l.end_multicol()
 
-    # l.page_break()
+    l.page_break()
     l.add_subsection("{} Bullpen".format(home))
     l.start_table('lcrrrrrrrrrr')
     l.add_headers(['Name', '#', 'war', 'sv', 'era', 'ip',

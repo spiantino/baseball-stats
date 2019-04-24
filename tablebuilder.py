@@ -88,6 +88,10 @@ class TableBuilder:
         df = df.fillna('-')
         return df
 
+    def starting_pitchers_savant(self):
+        pass
+
+
     def make_slash_line(self, *columns):
         stats = []
         for stat in columns:
@@ -97,7 +101,6 @@ class TableBuilder:
         return '/'.join(stats).replace('nan', '-')
 
     def rosters(self, who='starters'):
-        year = self._year
         batters = self.game._batters
 
         def extract_data(side):
@@ -120,7 +123,7 @@ class TableBuilder:
                     'Slash', 'HR', 'RBI', 'SB', 'Off', 'Def']
             df = pd.DataFrame(data)
 
-            df['Order'] = df.index + 1
+            # df['Order'] = df.index + 1
             df['Slash'] = df[['AVG', 'OBP', 'SLG']]\
                             .apply(lambda x: self.make_slash_line(*x), axis=1)
 
@@ -152,6 +155,104 @@ class TableBuilder:
 
         return ((away_starter_df, home_starter_df),
                 (away_bench_df, home_bench_df))
+
+    def rosters_savant(self):
+        batters = self.game._savant_batters
+
+        def extract_data(data):
+            stats = ['AVG', 'OBP', 'SLG', 'HR', 'RBI',
+                     'SB', 'WAR', 'Off', 'Def']
+            bat_data = []
+            for pdata in data:
+                decoded = unidecode(pdata['Name'])
+                batter = Player(name=decoded)
+                pstats = batter.get_stats(stats)
+
+                tmp = pdata.copy()
+                tmp.update(pstats)
+                bat_data.append(tmp)
+
+            return bat_data
+
+        def construct_table(data):
+            cols = ['Order', 'Pos', 'Number', 'Name', 'WAR',
+                    'Slash', 'HR', 'RBI', 'SB', 'Off', 'Def']
+            df = pd.DataFrame(data)
+
+            df['Slash'] = df[['AVG', 'OBP', 'SLG']]\
+                            .apply(lambda x: self.make_slash_line(*x), axis=1)
+
+            try:
+                df = df.sort_values(by='Order', ascending=True)
+                df['Order'] = df.reset_index().index + 1
+            except:
+                df = df.sort_values(by='WAR')
+                df['Order'] = None
+
+            df = df[cols]
+            df = df.fillna(value='-')
+            return df
+
+        away_starter_data = extract_data(batters['away_batters'])
+        home_starter_data = extract_data(batters['home_batters'])
+
+        away_starter_df = construct_table(away_starter_data)
+        home_starter_df = construct_table(home_starter_data)
+
+        away_bench_data = extract_data(batters['away_bench'])
+        home_bench_data = extract_data(batters['home_bench'])
+
+        away_bench_df = construct_table(away_bench_data)
+        home_bench_df = construct_table(home_bench_data)
+
+        return ((away_starter_df, home_starter_df),
+                (away_bench_df, home_bench_df))
+
+    def lineups(self):
+        away_lineup = self.game._bbpress_batters['away_batters']
+        home_lineup = self.game._bbpress_batters['home_batters']
+        players = self.game._players
+
+        df = pd.DataFrame(players)
+
+        df['position'] = df.primaryPosition.apply(lambda x: x.get('name'))
+
+        df = df.set_index('id')[['position', 'primaryNumber']]
+        df = df.rename({'primaryNumber' : 'Number'}, axis=1)
+
+        away_df = pd.DataFrame(away_lineup).set_index('pid')
+        home_df = pd.DataFrame(home_lineup).set_index('pid')
+
+        away_df.index = away_df.index.astype(int)
+        home_df.index = home_df.index.astype(int)
+
+        away_df = away_df.join(df).reset_index()
+        home_df = home_df.join(df).reset_index()
+
+        def add_player_stats(df):
+            stats = ['AVG', 'OBP', 'SLG', 'HR', 'RBI',
+                     'SB', 'WAR', 'Off', 'Def']
+            bat_data = []
+            for player in df.name:
+                decoded = unidecode(player)
+                batter = Player(name=decoded)
+                pstats = batter.get_stats(stats)
+                bat_data.append(pstats)
+
+            df = df.join(pd.DataFrame(bat_data))
+
+            df['Slash'] = df[['AVG', 'OBP', 'SLG']]\
+                            .apply(lambda x: self.make_slash_line(*x), axis=1)
+
+            return df
+
+        cols = ['order', 'position', 'Number', 'name', 'WAR',
+                'Slash', 'HR', 'RBI', 'SB', 'Off', 'Def']
+
+        away_df = add_player_stats(away_df)[cols]
+        home_df = add_player_stats(home_df)[cols]
+
+        return (away_df, home_df)
 
     def bullpen(self):
         if self.game._state == 'Scheduled':
@@ -197,6 +298,48 @@ class TableBuilder:
 
         return(home_df, away_df)
 
+    def bullpen2(self):
+        pitchers = self.game._all_pitchers
+
+        def construct_table(pitchers, side):
+            stats = ['WAR', 'SV', 'ERA', 'IP', 'K/9',
+                     'BB/9', 'HR/9', 'WHIP', 'GB%']
+
+            df_data = []
+            for pitcher in pitchers:
+                name = pitcher['fullName']
+                decoded = unidecode(name)
+                p = Player(name=decoded)
+
+                pstats = p.get_stats(stats, pos='pit')
+                pstats.update({'Name' : name})
+                pstats.update({'#' : pitcher['number']})
+
+                # Find days since last active
+                today = datetime.date.today().strftime('%Y-%m-%d')
+                team = self.game._game[side]
+                last = self.game.find_pitch_dates(decoded, team, n=1)
+                if last:
+                    days = subtract_dates(today, last[0])
+                else:
+                    days = None
+
+                pstats.update({'Days' : days})
+
+                df_data.append(pstats)
+
+            cols = ['Name', '#'] + stats + ['Days']
+            df = pd.DataFrame(df_data)[cols]
+
+            df = df.sort_values(by='IP', ascending=False)
+            df = df.fillna(value='-')
+            return df
+
+        away_df = construct_table(pitchers['away'], 'away')
+        home_df = construct_table(pitchers['home'], 'home')
+
+        return (home_df, away_df)
+
     def standings(self):
         stats = ['Tm', 'W', 'L', 'last10', 'gb',
                  'div', 'Strk', 'Home', 'Road', 'W-L%']
@@ -222,6 +365,10 @@ class TableBuilder:
             def win_percent(x):
                 w, l = x.split('-')
                 total = int(w) + int(l)
+
+                if total == 0:
+                    return None
+
                 percent = float(w) / total
                 return round(percent, 3)
 
@@ -280,9 +427,6 @@ class TableBuilder:
             df['groups'] = df.Date.apply(lambda x: x.split('-')[0])
             month_dfs = [frame[1][cols] for frame in df.groupby('groups')]
             return month_dfs[::-1]
-
-            # df = df[cols]
-            # return df
 
         home_df = construct_table('home')
         away_df = construct_table('away')
@@ -401,15 +545,19 @@ class TableBuilder:
             try:
                 g.query_game_preview_by_date(team=team, date=date, idx=idx)
             except:
-                print(date)
-                g.query_game_preview_by_date(team=team, date=date, idx=idx)
+                try:
+                    print(date)
+                    g.query_game_preview_by_date(team=team, date=date, idx=idx)
+                except:
+                    continue
             g.parse_all()
 
             # Skip if current game is not finalized
             if g._state not in ['Final', 'Game Over', 'Completed Early']:
                 continue
 
-            pitch_stats = g._pitcher_gamestats[g._side]
+            pitcher = g._pitchers[g._side]['name']
+            pitch_stats = g._br_pit_data[g._side][pitcher]
 
             short_date = datetime.datetime.strptime(date, '%Y-%m-%d')\
                                           .strftime('%m/%d %a')

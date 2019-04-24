@@ -158,7 +158,9 @@ class Game(DBController):
             self._opp = game[self._opp_side]
             self._game = game
             self._preview = game['preview'][0]
+            self._savant = game['savant']['preview'][0]
             self._state = self._preview['gameData']['status']['detailedState']
+            self._players = list(self._preview['gameData']['players'].values())
 
     def extract_game(self, cursor):
         """
@@ -221,38 +223,22 @@ class Game(DBController):
         home = game_data['teams']['home']
         away = game_data['teams']['away']
 
-        if self._state == 'Scheduled':
-            home_name = home['name']
-            away_name = away['name']
-            home_abbr = convert_name(home['abbreviation'])
-            away_abbr = convert_name(away['abbreviation'])
-            home_rec  = home['record']['leagueRecord']
-            away_rec  = away['record']['leagueRecord']
+        home_name = home['name']
+        away_name = away['name']
+        home_abbr = convert_name(home['abbreviation'])
+        away_abbr = convert_name(away['abbreviation'])
+        home_rec  = home['record']['leagueRecord']
+        away_rec  = away['record']['leagueRecord']
 
-            raw_game_time = game_data['datetime']['time']
-            hour = int(raw_game_time.split(':')[0]) + 1
-            mins = raw_game_time.split(':')[1]
-            game_time = "{}:{}".format(hour, mins)
+        raw_game_time = game_data['datetime']['time']
+        hour = int(raw_game_time.split(':')[0]) + 1
+        mins = raw_game_time.split(':')[1]
+        game_time = "{}:{}".format(hour, mins)
 
-            wind_dir = ''
+        wind_dir = ''
 
-            home_score = None
-            away_score = None
-
-        else:
-            home_name = home['name']['full']
-            away_name = away['name']['full']
-            home_abbr = convert_name(home['name']['abbrev'])
-            away_abbr = convert_name(away['name']['abbrev'])
-            home_rec  = home['record']
-            away_rec  = away['record']
-            game_time = game_data['datetime']['time']
-
-            wind_dir = game_data['weather']['wind']
-
-            home_score = live_data['linescore']['home']['runs']
-            away_score = live_data['linescore']['away']['runs']
-
+        home_score = None
+        away_score = None
 
         home_wins = home_rec['wins']
         away_wins = away_rec['wins']
@@ -298,27 +284,14 @@ class Game(DBController):
     def parse_starting_pitchers(self):
 
         def extract_data(side):
-            if self._state == 'Scheduled':
-                pitchers = self._preview['gameData']['probablePitchers']
-                players = self._preview['gameData']['players']
+            pitchers = self._preview['gameData']['probablePitchers']
+            players = self._preview['gameData']['players']
 
-                pid  = 'ID' + str(pitchers[side]['id'])
-                data = players[pid]
-                name = access_array(data, 'fullName')
-                num  = access_array(data, 'primaryNumber')
-                hand = access_array(data, 'pitchHand', 'code')
-
-            else:
-                pitchers = self._preview['liveData']['boxscore']['teams']
-                players  = self._preview['liveData']['players']['allPlayers']
-
-                pid = 'ID' + str(pitchers[side]['pitchers'][0])
-                data = players[pid]
-                name = ' '.join((data['name']['first'],
-                                 data['name']['last']))
-
-                num = access_array(data, 'shirtNum')
-                hand = access_array(data, 'rightLeft')
+            pid  = 'ID' + str(pitchers[side]['id'])
+            data = players[pid]
+            name = access_array(data, 'fullName')
+            num  = access_array(data, 'primaryNumber')
+            hand = access_array(data, 'pitchHand', 'code')
 
             team = self._game[side]
 
@@ -372,10 +345,13 @@ class Game(DBController):
 
             self._pitcher_gamestats[side] = stats
 
+
     def parse_br_pitching_data(self):
         """
         Parse pitching stats from BR boxscores:
         - WPA, Pitches, IP, Inning entered
+
+        Add data to get same results as parse_pitcher_game_stats (depricated)
         """
         self._br_pit_data = {'home' : {}, 'away' : {}}
 
@@ -400,6 +376,14 @@ class Game(DBController):
                          'pit'  : data['Pit'],
                          'ip'   : data['IP'],
                          'gsc'  : data['GSc'],
+                         'ipit' : data['IP'],
+                         'hrun' : data['HR'],
+                         'erun' : data['ER'],
+                         'hits' : data['H'],
+                         'runs' : data['R'],
+                         'walk' : data['BB'],
+                         'strk' : data['Str'],
+                         'name' : data['Pitching'],
                          'entered'  : entered}
 
                 self._br_pit_data[side][name] = pdata
@@ -439,71 +423,59 @@ class Game(DBController):
         self._bullpen = {'home' : home_bullpen,
                          'away' : away_bullpen}
 
-    def parse_batters(self):
-        live_data = self._preview['liveData']['boxscore']
+    def parse_savant_batters(self):
 
-        if self._state == 'Scheduled':
-            def extract_data(side):
-                plyrs = live_data['teams'][side]['players']
-                pids = plyrs.keys()
+        def extract_data(side):
+            roster = self._savant[side]['roster']['hitters']
+            starters = []
+            bench = []
+            for b in roster:
+                batter = {
+                      'Name'  : access_array(b, 'person', 'fullName'),
+                      'Pos'   : access_array(b, 'position', 'name'),
+                      'Number': access_array(b, 'jerseyNumber')
+                      }
 
-                names = [plyrs[pid]['person']['fullName'] for pid in pids]
+                if access_array(b, 'gameStatus', 'isOnBench'):
+                    bench.append(batter)
+                else:
+                    batter.update({'Order' : access_array(b, 'battingOrder')\
+                                                         .replace('0', '')})
+                    starters.append(batter)
+            return starters, bench
 
-                nums = [access_array(plyrs, pid, 'jerseyNumber')
-                                                for pid in pids]
+        home_batters, home_bench = extract_data('home')
+        away_batters, away_bench = extract_data('away')
+        self._savant_batters = {'away_batters' : away_batters,
+                                'home_batters' : home_batters,
+                                'away_bench'   : away_bench,
+                                'home_bench'   : home_bench}
 
-                try:
-                    pos = [access_array(plyrs, pid, 'position','abbreviation')
-                                                              for pid in pids]
-                except:
-                    pos = [access_array(plyrs, pid, 'position')
-                                               for pid in pids]
+    def parse_bbpress_batters(self):
+        lineups = self._game['baseballpress']['lineup'][0]
+        self._bbpress_batters = {'away_batters' : lineups[self._game['away']],
+                                 'home_batters' : lineups[self._game['home']]}
 
-                batters_list = list(zip(names, pos, nums))
+    def parse_savant_pitchers(self):
+        apits = self._savant['away']['roster']['pitchers']
+        hpits = self._savant['home']['roster']['pitchers']
 
-                batters = [{'Name': x[0], 'Position': x[1], 'Number': x[2]}
-                                                     for x in batters_list]
-                return batters
+        for pit in apits:
+            pit['person'].update({'number':pit['jerseyNumber']})
 
-            away_batters = extract_data('away')
-            home_batters = extract_data('home')
+        for pit in hpits:
+            pit['person'].update({'number' : pit['jerseyNumber']})
 
-            away_bench = None
-            home_bench = None
+        astarter = self._pitchers['away']['pid'].strip('ID')
+        hstarter = self._pitchers['home']['pid'].strip('ID')
 
-        else:
-            def extract_data(side, who='battingOrder'):
-                players = live_data['teams'][side]['players']
-                batters = live_data['teams'][side][who]
+        apits = [pit['person']for pit in apits
+                                      if pit['person']['id'] != astarter]
 
-                batter_ids = ['ID{}'.format(x) for x in batters]
+        hpits = [pit['person'] for pit in hpits
+                                if pit['person']['id'] != hstarter]
 
-                data = [players[pid] for pid in batter_ids]
-
-                names = [' '.join((batter['name']['first'],
-                                   batter['name']['last']))
-                                        for batter in data]
-
-                posn = [access_array(batter, 'position') for batter in data]
-                nums = [access_array(batter, 'shirtNum') for batter in data]
-                data = list(zip(names, posn, nums))
-
-                # Convert tuples to dicts
-                d = [{'Name': x[0], 'Position': x[1], 'Number': x[2]}
-                                                        for x in data]
-                return d
-
-            away_batters = extract_data('away')
-            home_batters = extract_data('home')
-
-            away_bench = extract_data('away', 'bench')
-            home_bench = extract_data('home', 'bench')
-
-
-        self._batters = {'away_batters' : away_batters,
-                         'home_batters' : home_batters,
-                         'away_bench'   : away_bench,
-                         'home_bench'   : home_bench}
+        self._all_pitchers = {'away' : apits , 'home' : hpits}
 
     def parse_pitch_types(self):
         player_data = self._preview['liveData']['players']['allPlayers']
@@ -586,12 +558,17 @@ class Game(DBController):
         if self._game:
             self.parse_game_details()
             self.parse_starting_pitchers()
-            self.parse_batters()
+            self.parse_savant_pitchers()
+            self.parse_savant_batters()
+            try:    # remove this when database contains full data
+                self.parse_bbpress_batters()
+            except:
+                pass
             self.parse_bullpen()
 
             if self._state in ["Final", "Game Over", "Completed Early"]:
-                self.parse_pitcher_game_stats()
-                self.parse_pitch_types()
+            #     self.parse_pitcher_game_stats()
+            #     self.parse_pitch_types()
 
                 try: # Change this to check if game date != today
                     self.parse_br_pitching_data()
@@ -601,7 +578,7 @@ class Game(DBController):
 
 
 class Team(DBController):
-    def __init__(self, test=True, name=None):
+    def __init__(self, name=None, test=True):
         self._team = name
         super().__init__(test)
 
@@ -701,5 +678,4 @@ class Team(DBController):
                                             {'_id' : 0,
                                              'txs': '$Transactions'}}])
 
-        return list(res)[0]['txs']['2018'][0]['transaction_all']\
-                                         ['queryResults']['row']
+        return list(res)[0]['txs'][self._year]

@@ -9,7 +9,7 @@ class DBController:
         if test:
             address='localhost'
             port=27017
-            db='mlb2'
+            db='mlb2019'
             self._client = MongoClient(address, port)
         else:
             url="mongodb://alex:Q8b5^SR5Oh@ds123110-a0.mlab.com:23110,ds123110-a1.mlab.com:23110/heroku_kcpx1gp1?replicaSet=rs-ds123110"

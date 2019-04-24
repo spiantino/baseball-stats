@@ -25,6 +25,8 @@ class Automator:
         self.leaders_need_scraping = True
         with open('elist.pkl', 'rb') as f:
             self.elist = pickle.load(f)
+        self.elist = {'NYY' : ['aaclarke@gmail.com', 'Sp@spiantino.net']}
+
 
     def scrape_previews(self):
         self.store_current_time()
@@ -54,7 +56,7 @@ class Automator:
 
             print("Scraping pitching leaderboard...")
             scrape.fangraphs(state='pit', year=year)
-            scrape.fangraph_splits(year=year)
+            scrape.fangraphs_splits(year=year)
 
             print("Scraping league standings...")
             scrape.standings()
@@ -83,12 +85,12 @@ class Automator:
 
     def schedule_tasks(self):
         for team, delay in self.delays.items():
-            if delay > 0:   # Don't execute on games already started
-                self.sched.enter(delay,
-                                 self.priority,
-                                 self.execute_tasks,
-                                 argument=(team,))
-                self.priority += 1
+            # if delay > 0:   # Don't execute on games already started
+            self.sched.enter(delay,
+                             self.priority,
+                             self.execute_tasks,
+                             argument=(team,))
+            self.priority += 1
 
         self.display_tasks()
         self.sched.run()
@@ -148,7 +150,7 @@ class Automator:
         team = team.split('_')[0]
 
         print("Running tasks for {}...".format(team))
-        self.pull_code()
+        # self.pull_code()
         self.scrape_previews()
         self.scrape_daily_update()
         self.make_pdf(team)
@@ -170,7 +172,8 @@ class Automator:
 
 
 if __name__ == '__main__':
-    teams = ['NYY', 'HOU', 'NYM', 'BOS', 'ATL', 'MIL', 'KCR']
+    # teams = ['NYY', 'HOU', 'NYM', 'BOS', 'ATL', 'MIL', 'KCR']
+    teams = ['NYY']
 
     auto = Automator(teams)
 
