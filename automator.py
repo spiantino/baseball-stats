@@ -23,8 +23,8 @@ class Automator:
         self.new_day = False
         self.boxes_need_scraping = True
         self.leaders_need_scraping = True
-        with open('elist.pkl', 'rb') as f:
-            self.elist = pickle.load(f)
+        # with open('elist.pkl', 'rb') as f:
+        #     self.elist = pickle.load(f)
         self.elist = {'NYY' : ['aaclarke@gmail.com', 'Sp@spiantino.net']}
 
 

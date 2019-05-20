@@ -223,7 +223,7 @@ class Latex:
     def make_pdf(self):
         self._f.close()
         subprocess.call(['xelatex', self._filename])
-
+        
 
 def make_pdf(team, date, home, away, summary, pitchers, starters, bench,
              bullpen, standings, history, bat_df, hr_df, rbi_df,

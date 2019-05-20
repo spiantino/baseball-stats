@@ -557,7 +557,10 @@ class TableBuilder:
                 continue
 
             pitcher = g._pitchers[g._side]['name']
-            pitch_stats = g._br_pit_data[g._side][pitcher]
+            try:
+                pitch_stats = g._br_pit_data[g._side][pitcher]
+            except:
+                continue
 
             short_date = datetime.datetime.strptime(date, '%Y-%m-%d')\
                                           .strftime('%m/%d %a')
@@ -595,8 +598,11 @@ class TableBuilder:
             idx = 1 if date == last_date else 0
 
             g = Game()
-            g.query_game_preview_by_date(team=team, date=date, idx=idx)
-            g.parse_all()
+            try:
+                g.query_game_preview_by_date(team=team, date=date, idx=idx)
+                g.parse_all()
+            except:
+                continue
 
             # Skip if current game is not finalized
             if g._state not in ['Final', 'Game Over', 'Completed Early']:
@@ -665,8 +671,11 @@ class TableBuilder:
             idx = 1 if date == last_date else 0
 
             g = Game()
-            g.query_game_preview_by_date(team=team, date=date, idx=idx)
-            g.parse_all()
+            try:
+                g.query_game_preview_by_date(team=team, date=date, idx=idx)
+                g.parse_all()
+            except:
+                continue
 
             # Skip over today's game
             if date == today and g._state not in ['Final', 'Game Over']:
