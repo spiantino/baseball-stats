@@ -332,7 +332,7 @@ def forty_man(team, year):
         exists = dbc.player_exists(player)
         if not exists:
             try:
-                print("Scraping br data for {}".format(player))
+                # print("Scraping br data for {}".format(player))
                 br_player_stats(player, team)
             except:
                 print("Unable to scrape br data for {}".format(player))
@@ -784,7 +784,8 @@ def game_previews(dbc=dbc):
         # Add savant preview data
         savant_preview(gid, date)
 
-        # Add baseballpress lineups
+    # Add baseballpress lineups
+    for date in dates:
         lineups(date)
 
 
@@ -1031,8 +1032,16 @@ def fte_prediction(year=None):
 def lineups(date=None):
     date = datetime.date.today().strftime('%Y-%m-%d') if not date else date
     url = 'https://www.baseballpress.com/lineups/{}'.format(date)
-    res = requests.get(url).text
-    soup = BeautifulSoup(res, 'html.parser')
+
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-gpu')
+    browser = webdriver.Chrome(chrome_options=options)
+    browser.implicitly_wait(3)
+    browser.get(url)
+
+    soup = BeautifulSoup(browser.page_source, 'html.parser')
     cards = soup.find_all('div', {'class' : 'lineup-card'})
     for card in cards:
         lineup = [x for x in card.find('div', {'class' : 'lineup-card-body'})\
@@ -1060,27 +1069,30 @@ def lineups(date=None):
 
         db.Games.update_one({'date' : date,
                              'home' : convert_name(home),
-                             'away' : convert_name(away)},
+                             'away' : convert_name(away),
+                             'baseballpress' : {'$exists' : False}},
                             {'$set': {'baseballpress.lineup' : []}})
 
         db.Games.update_one({'date' : date,
                              'home' : convert_name(home),
-                             'away' : convert_name(away)},
+                             'away' : convert_name(away),
+                             'baseballpress.lineup' : {'$size' : 0}},
                             {'$push': {'baseballpress.lineup': db_data}})
+    browser.quit()
 
 
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    # game_previews()
-    # print("Scraping past boxscores...")
-    # boxscores()
-    # fte_prediction()
-    # team_logos()
+    game_previews()
+    print("Scraping past boxscores...")
+    boxscores()
+    fte_prediction()
+    team_logos()
 
     print("Scraping batter and pitcher leaderboards")
-    # fangraphs('bat', year)
-    # fangraphs('pit', year)
+    fangraphs('bat', year)
+    fangraphs('pit', year)
 
     fangraphs_splits(year=year)
 
