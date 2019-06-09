@@ -175,23 +175,26 @@ class TableBuilder:
             return bat_data
 
         def construct_table(data):
-            cols = ['Order', 'Pos', 'Number', 'Name', 'WAR',
-                    'Slash', 'HR', 'RBI', 'SB', 'Off', 'Def']
-            df = pd.DataFrame(data)
-
-            df['Slash'] = df[['AVG', 'OBP', 'SLG']]\
-                            .apply(lambda x: self.make_slash_line(*x), axis=1)
-
             try:
-                df = df.sort_values(by='Order', ascending=True)
-                df['Order'] = df.reset_index().index + 1
-            except:
-                df = df.sort_values(by='WAR')
-                df['Order'] = None
+                cols = ['Order', 'Pos', 'Number', 'Name', 'WAR',
+                        'Slash', 'HR', 'RBI', 'SB', 'Off', 'Def']
+                df = pd.DataFrame(data)
 
-            df = df[cols]
-            df = df.fillna(value='-')
-            return df
+                df['Slash'] = df[['AVG', 'OBP', 'SLG']]\
+                                .apply(lambda x: self.make_slash_line(*x), axis=1)
+
+                try:
+                    df = df.sort_values(by='Order', ascending=True)
+                    df['Order'] = df.reset_index().index + 1
+                except:
+                    df = df.sort_values(by='WAR')
+                    df['Order'] = None
+
+                df = df[cols]
+                df = df.fillna(value='-')
+                return df
+            except:
+                return pd.DataFrame()
 
         away_starter_data = extract_data(batters['away_batters'])
         home_starter_data = extract_data(batters['home_batters'])
@@ -595,7 +598,11 @@ class TableBuilder:
             idx = 1 if date == last_date else 0
 
             g = Game()
-            g.query_game_preview_by_date(team=team, date=date, idx=idx)
+            try:
+                g.query_game_preview_by_date(team=team, date=date, idx=idx)
+            except:
+                print("Double header for {} on {} not found".format(team, date))
+                continue
             g.parse_all()
 
             # Skip if current game is not finalized
