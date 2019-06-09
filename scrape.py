@@ -6,7 +6,6 @@ import re
 import json
 import datetime
 import pickle
-import inspect
 import os
 import pandas as pd
 from io import StringIO, BytesIO
@@ -16,6 +15,7 @@ from urllib.parse import unquote
 
 from selenium.webdriver.chrome.options import Options
 from selenium import webdriver
+from selenium.webdriver.support.ui import WebDriverWait
 
 from dbcontroller import DBController
 from conflictresolver import ConflictResolver
@@ -97,7 +97,7 @@ def fangraphs_splits(year):
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-gpu')
     browser = webdriver.Chrome(chrome_options=options)
-    browser.implicitly_wait(20)
+    browser.implicitly_wait(10)
 
 
     # 5 is for left handed batters, 6 for right handed batters
@@ -109,8 +109,12 @@ def fangraphs_splits(year):
                .format(hand, year).replace(' ', '')
 
         browser.get(url)
-        xpath = '//*[@id="react-drop-test"]/div[2]/a'
-        csv_btn = browser.find_element_by_xpath(xpath)
+        try:
+            xpath = '//*[@id="react-drop-test"]/div[2]/a'
+            csv_btn = browser.find_element_by_xpath(xpath)
+        except:
+            csv_btn = browser.find_element_by_class_name('data-export')
+
         csv = unquote(csv_btn.get_attribute('href')\
                     .replace('data:application/csv;charset=utf-8,', ''))
         df = pd.read_csv(StringIO(csv))
@@ -1068,15 +1072,15 @@ def lineups(date=None):
 if __name__ == '__main__':
     year = datetime.date.today().strftime('%Y')
 
-    game_previews()
-    print("Scraping past boxscores...")
-    boxscores()
-    fte_prediction()
-    team_logos()
+    # game_previews()
+    # print("Scraping past boxscores...")
+    # boxscores()
+    # fte_prediction()
+    # team_logos()
 
     print("Scraping batter and pitcher leaderboards")
-    fangraphs('bat', year)
-    fangraphs('pit', year)
+    # fangraphs('bat', year)
+    # fangraphs('pit', year)
 
     fangraphs_splits(year=year)
 
