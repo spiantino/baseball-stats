@@ -116,35 +116,35 @@ def run(team, date=None, scrape=False):
         txs = tb.transactions(away, home)
         upcoming = tb.upcoming_games(away, home)
 
-        # print(summary)
-        # print(pitchers)
-        # print(starters)
-        # print(bench)
-        # print(bullpen)
-        # print(standings)
-        # print(history)
-        # print(bat_df)
-        # print(hr_df)
-        # print(rbi_df)
-        # print(pit_df)
-        # print(era_df)
-        # print(rel_df)
-        # print(elo_df)
-        # print(pit_hist)
-        # print(last_week_bp)
-        # print(series_table)
-        # print(gb)
-        # print(inj)
-        # print(txs)
-        # print(upcoming)
+        print(summary)
+        print(pitchers)
+        print(starters)
+        print(bench)
+        print(bullpen)
+        print(standings)
+        print(history)
+        print(bat_df)
+        print(hr_df)
+        print(rbi_df)
+        print(pit_df)
+        print(era_df)
+        print(rel_df)
+        print(elo_df)
+        print(pit_hist)
+        print(last_week_bp)
+        print(series_table)
+        print(gb)
+        print(inj)
+        print(txs)
+        print(upcoming)
 
-        latex.make_pdf(team, date, home, away,
-                       summary, pitchers, starters,
-                       bench, bullpen, standings,
-                       history, bat_df, hr_df, rbi_df,
-                       pit_df, era_df, rel_df, elo_df,
-                       pit_hist, last_week_bp, series_table,
-                       gb, inj, txs, upcoming)
+        # latex.make_pdf(team, date, home, away,
+        #                summary, pitchers, starters,
+        #                bench, bullpen, standings,
+        #                history, bat_df, hr_df, rbi_df,
+        #                pit_df, era_df, rel_df, elo_df,
+        #                pit_hist, last_week_bp, series_table,
+        #                gb, inj, txs, upcoming)
 
 
 if __name__ == '__main__':

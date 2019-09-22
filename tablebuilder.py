@@ -219,10 +219,10 @@ class TableBuilder:
         df = pd.DataFrame(players)
 
         df['position'] = df.primaryPosition.apply(lambda x: x.get('name'))
-
+        
         df = df.set_index('id')[['position', 'primaryNumber']]
         df = df.rename({'primaryNumber' : 'Number'}, axis=1)
-
+        
         away_df = pd.DataFrame(away_lineup).set_index('pid')
         home_df = pd.DataFrame(home_lineup).set_index('pid')
 
@@ -592,7 +592,7 @@ class TableBuilder:
 
         last_date = None
         data = {}
-        for date in schedule:
+        for date in dates:
 
             # Check if game is a double header
             idx = 1 if date == last_date else 0

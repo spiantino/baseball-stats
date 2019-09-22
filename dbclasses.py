@@ -173,11 +173,11 @@ class Game(DBController):
                           ['status']['detailedState']
                                    for game in games]
 
-            # Return later game if earlier game has already started or
-            target_states = ['Final', 'Game Over', 'In Progress']
-            if any([state in target_states for state in status]):
-                idx = [status.index(x) for x in status if x!='Final'][0]
-                return games[idx]
+            # Return later game if earlier game has already started or ended
+            end_states = ['Final', 'Game Over', 'In Progress']
+            idxs = [status.index(x) for x in status if x not in end_states]
+            if idxs:
+                return games[idxs[0]]
 
             # Find and return earlier game
             else:

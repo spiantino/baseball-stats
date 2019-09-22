@@ -14,6 +14,7 @@ from collections import defaultdict
 from urllib.parse import unquote
 
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 
@@ -92,12 +93,18 @@ def fangraphs(state, year):
 def fangraphs_splits(year):
 
     # Set up headless chrome
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-gpu')
-    browser = webdriver.Chrome(chrome_options=options)
+    # options = Options()
+    # options.add_argument('--headless')
+    # options.add_argument('--no-sandbox')
+    # options.add_argument('--disable-gpu')
+    # browser = webdriver.Chrome(chrome_options=options)
+    # browser.implicitly_wait(10)
+
+    options = FirefoxOptions()
+    options.add_argument("--headless")
+    browser = webdriver.Firefox(options=options)
     browser.implicitly_wait(10)
+
 
 
     # 5 is for left handed batters, 6 for right handed batters
@@ -184,7 +191,7 @@ def standings():
 
         # Skip last row (league averages)
         if row_data[0]:
-            team = row_data[1]
+            team = row_data[1].split('-')[-1]
             db_data = {k:v for k,v in zip(cols, row_data)}
 
             # Add division and gb information
@@ -195,7 +202,7 @@ def standings():
 
             # Store int/float when possible
             db_data = parse_types(db_data)
-
+            db_data['Tm'] = team.split('-')[-1]
             # Insert row into database
             db.Teams.update({'Tm' : team}, {'$set': db_data}, upsert=True)
 
@@ -745,6 +752,9 @@ def game_previews(dbc=dbc):
                                               for game in games_data]
         game_urls += [game for game in gdata]
 
+    # Clear existing previews
+    db.Games.delete_many({'date' : date})
+
     # Collect data on all upcoming games
     print("Collecting game data on past and upcoming games...")
     for date, url, state in tqdm(game_urls):
@@ -1033,12 +1043,17 @@ def lineups(date=None):
     date = datetime.date.today().strftime('%Y-%m-%d') if not date else date
     url = 'https://www.baseballpress.com/lineups/{}'.format(date)
 
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-gpu')
-    browser = webdriver.Chrome(chrome_options=options)
-    browser.implicitly_wait(3)
+    # options = Options()
+    # options.add_argument('--headless')
+    # options.add_argument('--no-sandbox')
+    # options.add_argument('--disable-gpu')
+    # browser = webdriver.Chrome(chrome_options=options)
+
+    options = FirefoxOptions()
+    options.add_argument("--headless")
+    browser = webdriver.Firefox(options=options)
+
+    browser.implicitly_wait(2)
     browser.get(url)
 
     soup = BeautifulSoup(browser.page_source, 'html.parser')
