@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Baseball Stats{% endblock %}</title>
+
+    <style>
+        /* Base styles for both PDF and HTML */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            font-size: 10pt;
+            line-height: 1.2;
+            color: #000;
+            background-color: {% if output_format == 'pdf' %}white{% else %}#f5f5f5{% endif %};
+            {% if output_format == 'pdf' %}
+            margin: 0;
+            {% else %}
+            padding: 10px;
+            {% endif %}
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            {% if output_format == 'html' %}
+            background-color: white;
+            padding: 15px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-radius: 4px;
+            {% endif %}
+        }
+
+        /* Header styles */
+        .header {
+            text-align: left;
+            padding: 4px 0;
+            border-bottom: 1px solid #000;
+            margin-bottom: 6px;
+        }
+
+        .header h1 {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 3px;
+        }
+
+        .header .subtitle {
+            font-size: 11pt;
+            color: #333;
+        }
+
+        /* Section styles */
+        .section {
+            margin-bottom: 10px;
+            {% if output_format == 'pdf' %}
+            page-break-inside: avoid;
+            {% endif %}
+        }
+
+        .section-title {
+            font-size: 11pt;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 4px;
+            margin-top: 8px;
+        }
+
+        /* Table styles - Baseball Savant inspired with thick borders */
+        table {
+            width: auto;
+            border-collapse: collapse;
+            margin: 4px 0;
+            font-size: 9pt;
+        }
+
+        th {
+            background-color: #f0f0f0;
+            color: #000;
+            font-weight: bold;
+            padding: 6px 8px;
+            text-align: left;
+            border-top: 2px solid #000;
+            border-bottom: 2px solid #000;
+            font-size: 9pt;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 3px 6px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:hover {
+            {% if output_format == 'html' %}
+            background-color: #f0f0f0;
+            {% endif %}
+        }
+
+        /* Baseball Savant-style pitcher table */
+        .pitcher-table {
+            border-top: 2px solid #000;
+            border-bottom: 2px solid #000;
+        }
+
+        .pitcher-table .pitcher-row {
+            background-color: #fff;
+            font-weight: 500;
+        }
+
+        .pitcher-table .pitch-mix-header {
+            background-color: #f5f5f5;
+            border-top: 2px solid #999;
+        }
+
+        .pitcher-table .pitch-mix-row {
+            background-color: #fafafa;
+            font-size: 8pt;
+        }
+
+        .pitcher-table .pitch-mix-row:hover {
+            {% if output_format == 'html' %}
+            background-color: #f0f0f0;
+            {% endif %}
+        }
+
+        /* Number alignment */
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        /* Game info box */
+        .game-info {
+            padding: 3px 0;
+            margin: 3px 0;
+            font-size: 7.5pt;
+        }
+
+        /* Team colors */
+        .team-header {
+            padding: 2px;
+            font-weight: bold;
+            font-size: 8pt;
+            margin-top: 4px;
+        }
+
+        /* Chart container */
+        .chart-container {
+            margin: 6px 0;
+            {% if output_format == 'pdf' %}
+            page-break-inside: avoid;
+            {% endif %}
+        }
+
+        /* Two-column layout */
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .chart-image {
+            width: 100%;
+            height: auto;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 4px 0;
+            margin-top: 8px;
+            border-top: 1px solid #ccc;
+            color: #666;
+            font-size: 6pt;
+        }
+
+        /* PDF-specific styles */
+        {% if output_format == 'pdf' %}
+        @page {
+            size: letter;
+            margin: 0.4in;
+        }
+
+        .page-break {
+            page-break-after: always;
+        }
+        {% endif %}
+
+        /* Utility classes */
+        .bold {
+            font-weight: bold;
+        }
+
+        .muted {
+            color: #666;
+        }
+
+        .text-small {
+            font-size: 9pt;
+        }
+
+        /* Responsive for HTML */
+        {% if output_format == 'html' %}
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            table {
+                font-size: 9pt;
+            }
+
+            th, td {
+                padding: 6px 4px;
+            }
+        }
+        {% endif %}
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="container">
+        {% block header %}
+        <div class="header">
+            <h1>{% block header_title %}Baseball Stats{% endblock %}</h1>
+            <div class="subtitle">{% block header_subtitle %}{% endblock %}</div>
+        </div>
+        {% endblock %}
+
+        {% block content %}{% endblock %}
+
+        {% block footer %}
+        <div class="footer">
+            <p>Generated on {{ generation_date }} | Data sources: MLB Stats API, FanGraphs, Baseball Reference</p>
+        </div>
+        {% endblock %}
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

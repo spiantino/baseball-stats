@@ -1,0 +1,31 @@
+{# Lineup table component - displays batting order #}
+<table>
+    <thead>
+        <tr>
+            <th class="text-center">#</th>
+            <th>Player</th>
+            <th class="text-center">Pos</th>
+            <th class="text-right">AVG</th>
+            <th class="text-right">OBP</th>
+            <th class="text-right">SLG</th>
+            <th class="text-right">HR</th>
+            <th class="text-right">RBI</th>
+            <th class="text-right">WAR</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for player in lineup %}
+        <tr>
+            <td class="text-center">{{ loop.index }}</td>
+            <td class="bold">{{ player.name }}</td>
+            <td class="text-center">{{ player.position }}</td>
+            <td class="text-right">{{ "%.3f"|format(player.avg|default(0.0)) }}</td>
+            <td class="text-right">{{ "%.3f"|format(player.obp|default(0.0)) }}</td>
+            <td class="text-right">{{ "%.3f"|format(player.slg|default(0.0)) }}</td>
+            <td class="text-right">{{ player.hr|default(0) }}</td>
+            <td class="text-right">{{ player.rbi|default(0) }}</td>
+            <td class="text-right">{{ "%.1f"|format(player.war|default(0.0)) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

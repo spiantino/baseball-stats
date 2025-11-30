@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block title %}Game Preview: {{ away_team }} @ {{ home_team}} - {{ game_date }}{% endblock %}
+
+{% block header_title %}
+<div style="display: flex; align-items: center; gap: 12px;">
+    {% if away_team_logo %}
+    <img src="{{ away_team_logo }}" alt="{{ away_team }}" style="height: 40px; width: auto;">
+    {% endif %}
+    <span>{{ away_team_full }} ({{ away_record }})</span>
+    <span style="font-weight: normal; margin: 0 8px;">@</span>
+    {% if home_team_logo %}
+    <img src="{{ home_team_logo }}" alt="{{ home_team }}" style="height: 40px; width: auto;">
+    {% endif %}
+    <span>{{ home_team_full }} ({{ home_record }})</span>
+</div>
+{% endblock %}
+{% block header_subtitle %}{{ game_time }} {{ venue }}{% if weather %} · {{ weather }}{% endif %}{% endblock %}
+
+{% block content %}
+
+{# Starting Pitchers #}
+{% if away_pitcher or home_pitcher %}
+<table class="pitcher-table">
+    <thead>
+        <tr>
+            <th>Team</th>
+            <th>R/L</th>
+            <th>#</th>
+            <th>Name</th>
+            <th class="text-right">war</th>
+            <th class="text-right">w</th>
+            <th class="text-right">l</th>
+            <th class="text-right">era</th>
+            <th class="text-right">ip</th>
+            <th class="text-right">k/9</th>
+            <th class="text-right">bb/9</th>
+            <th class="text-right">hr/9</th>
+            <th class="text-right">whip</th>
+            <th class="text-right">gb%</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if away_pitcher %}
+        <tr class="pitcher-row">
+            <td class="bold">{{ away_team }}</td>
+            <td>{{ away_pitcher.hand }}</td>
+            <td>{{ away_pitcher.number }}</td>
+            <td>{{ away_pitcher.name }}</td>
+            <td class="text-right">{{ "%.1f"|format(away_pitcher.WAR) }}</td>
+            <td class="text-right">{{ away_pitcher.wins }}</td>
+            <td class="text-right">{{ away_pitcher.losses }}</td>
+            <td class="text-right">{{ "%.2f"|format(away_pitcher.ERA) }}</td>
+            <td class="text-right">{{ "%.1f"|format(away_pitcher.IP) }}</td>
+            <td class="text-right">{{ "%.2f"|format(away_pitcher['K/9']) }}</td>
+            <td class="text-right">{{ "%.2f"|format(away_pitcher['BB/9']) }}</td>
+            <td class="text-right">{{ "%.2f"|format(away_pitcher['HR/9']) }}</td>
+            <td class="text-right">{{ "%.2f"|format(away_pitcher.WHIP) }}</td>
+            <td class="text-right">{{ "%.1f"|format(away_pitcher['GB%']) }} %</td>
+        </tr>
+        {% if away_pitcher_pitches %}
+        <tr class="pitch-mix-header">
+            <td rowspan="{% if away_pitcher_pitches %}{{ 1 + away_pitcher_pitches|length }}{% else %}1{% endif %}" style="padding: 4px; width: 60px; vertical-align: top;">
+                {% if away_pitcher.headshot_url %}
+                <img src="{{ away_pitcher.headshot_url }}" alt="{{ away_pitcher.name }}" style="width: 100%; height: auto; border-radius: 4px;">
+                {% endif %}
+            </td>
+            <td colspan="2" style="font-size: 8pt; font-weight: bold; font-style: italic;">Pitch Mix</td>
+            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Usage</td>
+            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Velo</td>
+            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Spin</td>
+            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Whiff%</td>
+            <td colspan="7"></td>
+        </tr>
+        {% for pitch in away_pitcher_pitches %}
+        <tr class="pitch-mix-row">
+            <td colspan="2" style="padding-left: 12px;">{{ pitch.name }}</td>
+            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.usage) }}%</td>
+            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.velocity) }}</td>
+            <td class="text-right" style="font-size: 8pt; color: #666;">{{ pitch.spin }}</td>
+            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.whiff) }}%</td>
+            <td colspan="7"></td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+        {% endif %}
+        {% if home_pitcher %}
+        <tr class="pitcher-row">
+            <td class="bold">{{ home_team }}</td>
+            <td>{{ home_pitcher.hand }}</td>
+            <td>{{ home_pitcher.number }}</td>
+            <td>{{ home_pitcher.name }}</td>
+            <td class="text-right">{{ "%.1f"|format(home_pitcher.WAR) }}</td>
+            <td class="text-right">{{ home_pitcher.wins }}</td>
+            <td class="text-right">{{ home_pitcher.losses }}</td>
+            <td class="text-right">{{ "%.2f"|format(home_pitcher.ERA) }}</td>
+            <td class="text-right">{{ "%.1f"|format(home_pitcher.IP) }}</td>
+            <td class="text-right">{{ "%.2f"|format(home_pitcher['K/9']) }}</td>
+            <td class="text-right">{{ "%.2f"|format(home_pitcher['BB/9']) }}</td>
+            <td class="text-right">{{ "%.2f"|format(home_pitcher['HR/9']) }}</td>
+            <td class="text-right">{{ "%.2f"|format(home_pitcher.WHIP) }}</td>
+            <td class="text-right">{{ "%.1f"|format(home_pitcher['GB%']) }} %</td>
+        </tr>
+        {% if home_pitcher_pitches %}
+        <tr class="pitch-mix-header">
+            <td rowspan="{% if home_pitcher_pitches %}{{ 1 + home_pitcher_pitches|length }}{% else %}1{% endif %}" style="padding: 4px; width: 60px; vertical-align: top;">
+                {% if home_pitcher.headshot_url %}
+                <img src="{{ home_pitcher.headshot_url }}" alt="{{ home_pitcher.name }}" style="width: 100%; height: auto; border-radius: 4px;">
+                {% endif %}
+            </td>
+            <td colspan="2" style="font-size: 8pt; font-weight: bold; font-style: italic;">Pitch Mix</td>
+            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Usage</td>
+            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Velo</td>
+            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Spin</td>
+            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Whiff%</td>
+            <td colspan="7"></td>
+        </tr>
+        {% for pitch in home_pitcher_pitches %}
+        <tr class="pitch-mix-row">
+            <td colspan="2" style="padding-left: 12px;">{{ pitch.name }}</td>
+            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.usage) }}%</td>
+            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.velocity) }}</td>
+            <td class="text-right" style="font-size: 8pt; color: #666;">{{ pitch.spin }}</td>
+            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.whiff) }}%</td>
+            <td colspan="7"></td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+        {% endif %}
+    </tbody>
+</table>
+{% endif %}
+
+{# Lineups Side by Side #}
+{% if away_lineup or home_lineup %}
+<h2 class="section-title">{{ away_team }} Lineup</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Pos</th>
+            <th>#</th>
+            <th>Name</th>
+            <th class="text-right">war</th>
+            <th class="text-right">slash</th>
+            <th class="text-right">hr</th>
+            <th class="text-right">rbi</th>
+            <th class="text-right">sb</th>
+            <th class="text-right">owar</th>
+            <th class="text-right">dwar</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if away_lineup %}
+        {% for player in away_lineup %}
+        <tr>
+            <td>{{ player.position }}</td>
+            <td>{{ player.number }}</td>
+            <td class="bold">{{ player.name }}</td>
+            <td class="text-right">{{ "%.1f"|format(player.war) }}</td>
+            <td class="text-right">{{ player.slash }}</td>
+            <td class="text-right">{{ player.hr }}</td>
+            <td class="text-right">{{ player.rbi }}</td>
+            <td class="text-right">{{ player.sb }}</td>
+            <td class="text-right">{{ "%.1f"|format(player.owar) }}</td>
+            <td class="text-right">{{ "%.1f"|format(player.dwar) }}</td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+    </tbody>
+</table>
+
+<h2 class="section-title">{{ home_team }} Lineup</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Pos</th>
+            <th>#</th>
+            <th>Name</th>
+            <th class="text-right">war</th>
+            <th class="text-right">slash</th>
+            <th class="text-right">hr</th>
+            <th class="text-right">rbi</th>
+            <th class="text-right">sb</th>
+            <th class="text-right">owar</th>
+            <th class="text-right">dwar</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% if home_lineup %}
+        {% for player in home_lineup %}
+        <tr>
+            <td>{{ player.position }}</td>
+            <td>{{ player.number }}</td>
+            <td class="bold">{{ player.name }}</td>
+            <td class="text-right">{{ "%.1f"|format(player.war) }}</td>
+            <td class="text-right">{{ player.slash }}</td>
+            <td class="text-right">{{ player.hr }}</td>
+            <td class="text-right">{{ player.rbi }}</td>
+            <td class="text-right">{{ player.sb }}</td>
+            <td class="text-right">{{ "%.1f"|format(player.owar) }}</td>
+            <td class="text-right">{{ "%.1f"|format(player.dwar) }}</td>
+        </tr>
+        {% endfor %}
+        {% endif %}
+    </tbody>
+</table>
+{% endif %}
+
+{# Standings #}
+{% if standings %}
+<h2 class="section-title">Standings</h2>
+<div class="two-column">
+    {% include 'components/standings_table.html' %}
+</div>
+{% endif %}
+
+{# Division Race Chart #}
+{% if division_race_chart %}
+<h2 class="section-title">{{ away_division }} Division Race</h2>
+<div class="chart-container" style="width: 50%; display: inline-block;">
+    {{ division_race_chart|safe }}
+</div>
+{% endif %}
+
+{# Second division chart if different divisions #}
+{% if division_race_chart_2 %}
+<h2 class="section-title">{{ home_division }} Division Race</h2>
+<div class="chart-container" style="width: 50%; display: inline-block;">
+    {{ division_race_chart_2|safe }}
+</div>
+{% endif %}
+
+{% endblock %}

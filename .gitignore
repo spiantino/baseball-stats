@@ -1,9 +1,76 @@
+# Virtual Environment
+venv/
+env/
+ENV/
 bin/
 lib/
 share/
 lib64
 pyvenv.cfg
-instructions*
-pip-*
-test*
-*.csv
+
+# Environment Variables (IMPORTANT: Keep credentials secure)
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+tests/archive/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+logs/
+
+# Project-specific: Generated outputs
+output/html/*.html
+output/pdfs/*.pdf
+output/charts/*.svg
+
+# Project-specific: Cached data
+data/cache/*.json
+data/raw/
+data/processed/
+
+# Project-specific: Development docs
+PHASE*.md
+*_PROGRESS.md
+*_COMPLETE.md
+*_REFACTOR.md
+JSON_STORAGE.md
+PLAYWRIGHT_REFACTOR.md
+
+# Backup folder
+_backup/
+
+# OS
+.DS_Store
+Thumbs.db

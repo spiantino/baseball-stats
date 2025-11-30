@@ -1,0 +1,72 @@
+{# Pitcher recent performance component - last 5 starts #}
+{% if away_pitcher_recent or home_pitcher_recent %}
+<div style="margin-top: 20px;">
+    <h3 style="font-size: 12pt; color: #666; margin-bottom: 10px;">Last 5 Starts</h3>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Pitcher</th>
+                <th>Date</th>
+                <th>Opp</th>
+                <th class="text-center">Result</th>
+                <th class="text-right">IP</th>
+                <th class="text-right">H</th>
+                <th class="text-right">R</th>
+                <th class="text-right">ER</th>
+                <th class="text-right">BB</th>
+                <th class="text-right">SO</th>
+                <th class="text-right">HR</th>
+                <th class="text-right">GSc</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if away_pitcher_recent %}
+                {% for game in away_pitcher_recent %}
+                <tr>
+                    {% if loop.index == 1 %}<td rowspan="{{ away_pitcher_recent|length }}" class="bold" style="vertical-align: middle; background-color: #f0f0f0;">{{ away_pitcher.name }}</td>{% endif %}
+                    <td class="text-small">{{ game.date }}</td>
+                    <td class="text-center">{{ game.opponent }}</td>
+                    <td class="text-center">
+                        <span style="color: {% if game.result == 'W' %}#28a745{% elif game.result == 'L' %}#dc3545{% else %}#666{% endif %};">
+                            {{ game.result }}
+                        </span>
+                    </td>
+                    <td class="text-right">{{ game.IP }}</td>
+                    <td class="text-right">{{ game.H }}</td>
+                    <td class="text-right">{{ game.R }}</td>
+                    <td class="text-right">{{ game.ER }}</td>
+                    <td class="text-right">{{ game.BB }}</td>
+                    <td class="text-right">{{ game.SO }}</td>
+                    <td class="text-right">{{ game.HR }}</td>
+                    <td class="text-right">{{ game.GSc|default('-') }}</td>
+                </tr>
+                {% endfor %}
+            {% endif %}
+
+            {% if home_pitcher_recent %}
+                {% for game in home_pitcher_recent %}
+                <tr>
+                    {% if loop.index == 1 %}<td rowspan="{{ home_pitcher_recent|length }}" class="bold" style="vertical-align: middle; background-color: #f0f0f0;">{{ home_pitcher.name }}</td>{% endif %}
+                    <td class="text-small">{{ game.date }}</td>
+                    <td class="text-center">{{ game.opponent }}</td>
+                    <td class="text-center">
+                        <span style="color: {% if game.result == 'W' %}#28a745{% elif game.result == 'L' %}#dc3545{% else %}#666{% endif %};">
+                            {{ game.result }}
+                        </span>
+                    </td>
+                    <td class="text-right">{{ game.IP }}</td>
+                    <td class="text-right">{{ game.H }}</td>
+                    <td class="text-right">{{ game.R }}</td>
+                    <td class="text-right">{{ game.ER }}</td>
+                    <td class="text-right">{{ game.BB }}</td>
+                    <td class="text-right">{{ game.SO }}</td>
+                    <td class="text-right">{{ game.HR }}</td>
+                    <td class="text-right">{{ game.GSc|default('-') }}</td>
+                </tr>
+                {% endfor %}
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endif %}

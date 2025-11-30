@@ -1,0 +1,47 @@
+# Baseball Stats Refactored - Dependencies
+# Phase 1: Foundation
+
+# Core Dependencies (existing)
+pymongo>=4.5.0
+pandas>=2.1.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.3
+unidecode>=1.3.7
+python-dateutil>=2.8.2
+
+# Configuration Management (new)
+python-decouple>=3.8
+pydantic>=2.4.0
+pydantic-settings>=2.0.0
+
+# Resilient HTTP & Scraping (new)
+tenacity>=8.2.3
+
+# APIs (new - Phase 2)
+pybaseball>=2.2.7
+MLB-StatsAPI>=1.6.0
+
+# Visualization (new - Phase 3)
+plotly>=5.17.0
+kaleido>=0.2.1
+
+# PDF/HTML Generation (new - Phase 3)
+playwright>=1.40.0
+jinja2>=3.1.2
+
+# Progress bars (existing)
+tqdm>=4.66.0
+
+# Testing (new)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+
+# Development Tools (new)
+black>=23.0.0
+flake8>=6.1.0
+mypy>=1.5.0
+
+# Optional: For better matplotlib rendering (existing usage)
+matplotlib>=3.8.0
