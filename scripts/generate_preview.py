@@ -13,6 +13,7 @@ import argparse
 import sys
 from pathlib import Path
 import pandas as pd
+import io
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
@@ -25,6 +26,15 @@ from output.pdf_generator import PDFGenerator
 from config.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
+def fig_to_svg(fig) -> str:
+    """Convert Matplotlib figure to SVG string."""
+    output = io.StringIO()
+    fig.savefig(output, format='svg', bbox_inches='tight')
+    svg_string = output.getvalue()
+    output.close()
+    return svg_string
 
 
 def main():
@@ -100,16 +110,19 @@ Examples:
             for team, records in team_data.items():
                 team_dataframes[team] = pd.DataFrame(records)
 
-            chart = create_division_race_chart(team_dataframes, division)
+            chart_fig = create_division_race_chart(team_dataframes, division)
+
+            # Convert Matplotlib figure to SVG string
+            chart_svg = fig_to_svg(chart_fig)
 
             # Use appropriate chart key
             if division == data.get('away_division'):
-                charts['division_race_chart'] = chart
+                charts['division_race_chart'] = chart_svg
             elif division == data.get('home_division'):
                 if data.get('away_division') == data.get('home_division'):
-                    charts['division_race_chart'] = chart
+                    charts['division_race_chart'] = chart_svg
                 else:
-                    charts['division_race_chart_2'] = chart
+                    charts['division_race_chart_2'] = chart_svg
 
             print(f"   {division} chart created")
 

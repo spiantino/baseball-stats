@@ -13,7 +13,7 @@ from jinja2 import Environment, FileSystemLoader
 from playwright.sync_api import sync_playwright
 import plotly.graph_objects as go
 
-from visualization.chart_renderer import ChartRenderer
+# Charts are now passed as pre-rendered SVG strings
 from config.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -63,7 +63,7 @@ class PDFGenerator:
         )
 
         # Initialize chart renderer (HTML mode)
-        self.chart_renderer = ChartRenderer()
+        # Charts are now passed as pre-rendered SVG strings
 
         logger.info(f"PDFGenerator initialized with templates from {self.template_dir}")
 
@@ -102,10 +102,9 @@ class PDFGenerator:
         data['output_format'] = 'pdf'
         data['generation_date'] = datetime.now().strftime('%Y-%m-%d %H:%M')
 
-        # Render charts to HTML (they'll render natively in browser)
+        # Add charts (already pre-rendered as SVG strings)
         if charts:
-            rendered_charts = self.chart_renderer.render_multiple(charts)
-            data.update(rendered_charts)
+            data.update(charts)
 
         # Render template to HTML
         html_content = self._render_template('game_preview.html', data)
@@ -151,10 +150,9 @@ class PDFGenerator:
         data['output_format'] = 'pdf'
         data['generation_date'] = datetime.now().strftime('%Y-%m-%d %H:%M')
 
-        # Render charts if provided
+        # Add charts (already pre-rendered as SVG strings)
         if charts:
-            rendered_charts = self.chart_renderer.render_multiple(charts)
-            data.update(rendered_charts)
+            data.update(charts)
 
         # Render template
         html_content = self._render_template(template_name, data)
@@ -276,8 +274,7 @@ class PDFGenerator:
         data['generation_date'] = datetime.now().strftime('%Y-%m-%d %H:%M')
 
         if charts:
-            rendered_charts = self.chart_renderer.render_multiple(charts)
-            data.update(rendered_charts)
+            data.update(charts)
 
         html_content = self._render_template(template_name, data)
 

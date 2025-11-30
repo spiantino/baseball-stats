@@ -9,10 +9,10 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 import statsapi
+import requests
 
 from config.settings import APIConfig
 from config.logging_config import get_logger
-from ingestion.resilient_fetcher import ResilientFetcher
 
 logger = get_logger(__name__)
 
@@ -39,7 +39,8 @@ class MLBStatsAPIClient:
 
         self.config = config
         self.base_url = config.mlb_api_base_url
-        self.fetcher = ResilientFetcher()
+        self.session = requests.Session()
+        self.session.headers.update({'User-Agent': 'baseball-stats/1.0'})
 
     def get_schedule(
         self,
@@ -224,7 +225,7 @@ class MLBStatsAPIClient:
             url = f"{self.base_url}/sports/{sport_id}/players"
             params = {'search': search_term}
 
-            response = self.fetcher.get_json(url, params=params)
+            response = self.session.get(url, params=params, timeout=10).json()
 
             if response and 'people' in response:
                 players = response['people']
@@ -281,9 +282,9 @@ class MLBStatsAPIClient:
         return team_map.get(team_abbr)
 
     def close(self):
-        """Close the HTTP fetcher."""
-        if self.fetcher:
-            self.fetcher.close()
+        """Close the HTTP session."""
+        if self.session:
+            self.session.close()
 
     def __enter__(self):
         """Context manager entry."""

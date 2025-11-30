@@ -12,7 +12,6 @@ import logging
 from jinja2 import Environment, FileSystemLoader
 import plotly.graph_objects as go
 
-from visualization.chart_renderer import ChartRenderer
 from config.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -57,7 +56,7 @@ class HTMLGenerator:
         )
 
         # Initialize chart renderer
-        self.chart_renderer = ChartRenderer()
+        # Charts are now passed as pre-rendered SVG strings
 
         logger.info(f"HTMLGenerator initialized with templates from {self.template_dir}")
 
@@ -96,10 +95,9 @@ class HTMLGenerator:
         data['output_format'] = 'html'
         data['generation_date'] = datetime.now().strftime('%Y-%m-%d %H:%M')
 
-        # Render charts to interactive HTML
+        # Add charts (already rendered as SVG strings)
         if charts:
-            rendered_charts = self.chart_renderer.render_multiple(charts)
-            data.update(rendered_charts)
+            data.update(charts)
 
         # Render template to HTML
         html_content = self._render_template('game_preview.html', data)
@@ -139,10 +137,9 @@ class HTMLGenerator:
         data['output_format'] = 'html'
         data['generation_date'] = datetime.now().strftime('%Y-%m-%d %H:%M')
 
-        # Render charts
+        # Add charts (already rendered as SVG strings)
         if charts:
-            rendered_charts = self.chart_renderer.render_multiple(charts)
-            data.update(rendered_charts)
+            data.update(charts)
 
         # Render template
         template_name = data.get('template', 'game_preview.html')
