@@ -82,6 +82,7 @@ class AppConfig(BaseSettings):
     environment: str = 'development'
     debug: bool = False
     log_level: str = 'INFO'
+    timezone: str = 'America/New_York'
 
 
 class Settings:

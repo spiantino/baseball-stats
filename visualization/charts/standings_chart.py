@@ -6,6 +6,7 @@ Uses Matplotlib for publication-quality print output.
 """
 
 from typing import List, Dict, Optional
+from pathlib import Path
 import pandas as pd
 
 # Set non-interactive backend to prevent macOS dock icon
@@ -14,11 +15,22 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.figure as mpl_fig
 from matplotlib.patches import Rectangle
+from matplotlib import font_manager
 import plotly.graph_objects as go  # For legacy functions (to be converted)
 
 from config.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Register custom fonts from local fonts directory
+_fonts_dir = Path(__file__).parent.parent / 'fonts'
+if _fonts_dir.exists():
+    for font_file in _fonts_dir.glob('*.ttf'):
+        try:
+            font_manager.fontManager.addfont(str(font_file))
+            logger.debug(f"Registered font: {font_file.name}")
+        except Exception as e:
+            logger.warning(f"Failed to register font {font_file.name}: {e}")
 
 
 # MLB team colors (primary colors)
@@ -220,7 +232,9 @@ def create_division_race_chart(
     division_name: str,
     title: Optional[str] = None,
     figsize: tuple = (6, 3.5),
-    dpi: int = 150
+    dpi: int = 150,
+    playing_teams: Optional[List[str]] = None,
+    show_y_labels: bool = True
 ) -> mpl_fig.Figure:
     """
     Create division race chart showing games above .500 over the season.
@@ -237,6 +251,7 @@ def create_division_race_chart(
         title: Optional custom title
         figsize: Figure size in inches (width, height)
         dpi: Resolution for rasterized output
+        playing_teams: Optional list of team abbreviations that are playing in this game
 
     Returns:
         Matplotlib Figure
@@ -264,59 +279,93 @@ def create_division_race_chart(
     # Track final positions for annotations
     team_final_positions = {}
 
+    # Find max games played across all teams
+    max_games = max(df['game_number'].max() for df in team_data.values() if not df.empty)
+
+    # B&W-friendly colors for non-playing teams
+    bw_colors = ['#333333', '#666666', '#999999']
+    bw_color_idx = 0
+
+    # Determine if we have playing teams
+    playing_teams = playing_teams or []
+
     # Plot each team's line
     for team, df in team_data.items():
         if df.empty:
             logger.warning(f"No data for team {team}")
             continue
 
-        # Get team color
-        color = TEAM_COLORS.get(team, '#333333')
+        # Determine line style based on whether team is playing
+        is_playing = team in playing_teams
+
+        if is_playing:
+            # Playing teams: use team color, thick line
+            color = TEAM_COLORS.get(team, '#333333')
+            linewidth = 3.5
+            alpha = 1.0
+            zorder = 5  # Higher z-order (on top)
+        else:
+            # Non-playing teams: grayscale, thin line
+            color = bw_colors[bw_color_idx % len(bw_colors)]
+            bw_color_idx += 1
+            linewidth = 1.5
+            alpha = 0.6
+            zorder = 3
 
         # Plot line
         ax.plot(
             df['game_number'],
             df['games_above_500'],
             color=color,
-            linewidth=2.5,
+            linewidth=linewidth,
+            alpha=alpha,
             solid_capstyle='round',
             solid_joinstyle='round',
-            zorder=3
+            zorder=zorder
         )
 
         # Store final position for annotation
         final_game = df.iloc[-1]
         team_final_positions[team] = {
             'games_above_500': final_game['games_above_500'],
-            'color': color
+            'color': color,
+            'is_playing': is_playing
         }
 
     # Find the leader (team with most games above .500)
     leader_games_above = max(pos['games_above_500'] for pos in team_final_positions.values())
 
+    # Count how many teams are tied for first
+    teams_tied_for_first = sum(1 for pos in team_final_positions.values() if pos['games_above_500'] == leader_games_above)
+
     # Annotate end of each line with team code and games behind
     for team, pos in team_final_positions.items():
         games_above = pos['games_above_500']
         games_behind = leader_games_above - games_above
+        is_playing = pos['is_playing']
 
         # Format annotation
         if games_behind == 0:
-            # Leader - just show team code
-            annotation = team
+            # Tied for first or leader
+            if teams_tied_for_first > 1:
+                annotation = f"{team} (tied)"
+            else:
+                annotation = team
         else:
             # Show team code and games behind
             annotation = f"{team} (-{games_behind:.0f})"
 
-        # Add annotation at end of line
+        # Add annotation at end of line (make playing teams more prominent)
         ax.annotate(
             annotation,
-            xy=(162, games_above),
+            xy=(max_games, games_above),
             xytext=(5, 0),
             textcoords='offset points',
-            fontsize=9,
-            fontweight='bold',
+            fontsize=10 if is_playing else 8,
+            fontweight='bold' if is_playing else 'normal',
             color=pos['color'],
-            verticalalignment='center'
+            verticalalignment='center',
+            family='Crimson Text'
         )
 
     # Add horizontal line at .500
@@ -337,32 +386,43 @@ def create_division_race_chart(
         'May': 26,
         'June': 57,
         'July': 87,
-        'August': 114,
-        'September': 145
+        'Aug': 114,
+        'Sep': 145
     }
 
     for month, game_num in month_boundaries.items():
-        ax.axvline(x=game_num, color='#CCCCCC', linestyle=':', linewidth=0.8, alpha=0.5, zorder=1)
-        # Add month label at top
-        ax.text(game_num, ax.get_ylim()[1], month,
-                fontsize=8, color='gray', alpha=0.7,
-                horizontalalignment='left', verticalalignment='bottom',
-                rotation=0)
+        if game_num <= max_games:
+            ax.axvline(x=game_num, color='#CCCCCC', linestyle=':', linewidth=0.8, alpha=0.5, zorder=1)
+            # Add month label at top
+            ax.text(game_num, ax.get_ylim()[1], month,
+                    fontsize=8, color='gray', alpha=0.7,
+                    horizontalalignment='left', verticalalignment='bottom',
+                    rotation=0, family='Crimson Text')
 
-    # No title or axis labels (will be added as section title in template)
+    # No axis labels (title is in template)
+
+    # Style tick labels with JetBrains Mono (monospace for numbers)
+    for label in ax.get_xticklabels() + ax.get_yticklabels():
+        label.set_fontfamily('JetBrains Mono')
+        label.set_fontsize(8)
+
+    # Hide y-axis labels and ticks if requested (to save space)
+    if not show_y_labels:
+        ax.set_yticklabels([])
+        ax.tick_params(axis='y', length=0)
 
     # Set axis limits (extend x to make room for annotations)
-    ax.set_xlim(0, 175)
+    ax.set_xlim(0, max_games + 15)
 
     # Disable default grid (we added custom gridlines)
     ax.grid(False)
     ax.set_axisbelow(True)  # Grid behind data
 
-    # Spine styling (remove top and right)
+    # Spine styling (remove all spines for clean appearance)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
-    ax.spines['left'].set_linewidth(1)
-    ax.spines['bottom'].set_linewidth(1)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
 
     # No legend (annotations replace it)
 
@@ -427,4 +487,207 @@ def create_wild_card_race_chart(
     )
 
     logger.info(f"Created wild card race chart for {league}")
+    return fig
+
+
+def create_re24_chart(
+    player_data: Dict[str, pd.DataFrame],
+    team_name: str,
+    title: Optional[str] = None,
+    figsize: tuple = (7.5, 4),
+    dpi: int = 100,
+    highlight_players: Optional[List[str]] = None,
+    show_y_labels: bool = True
+) -> mpl_fig.Figure:
+    """
+    Create cumulative RE24 chart showing player value over the season.
+
+    Args:
+        player_data: Dict mapping player name -> DataFrame with columns:
+                     - 'game_date': Date of the game (YYYY-MM-DD)
+                     - 'cumulative_re24': Cumulative RE24 after this game
+        team_name: Team name for title
+        title: Optional custom title
+        figsize: Figure size in inches (width, height)
+        dpi: Resolution for rasterized output
+        highlight_players: Optional list of player names to highlight
+
+    Returns:
+        Matplotlib Figure
+    """
+    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+
+    # Track final positions for annotations
+    player_final_positions = {}
+
+    # Collect all unique dates across all players to create a common x-axis
+    all_dates = set()
+    for df in player_data.values():
+        if not df.empty and 'game_date' in df.columns:
+            all_dates.update(df['game_date'].tolist())
+
+    # Sort dates and create a mapping to team game number
+    sorted_dates = sorted(all_dates)
+    date_to_game_num = {date: i + 1 for i, date in enumerate(sorted_dates)}
+    max_games = len(sorted_dates)
+
+    # Color palette for players (distinct colors)
+    player_colors = [
+        '#1f77b4',  # blue
+        '#ff7f0e',  # orange
+        '#2ca02c',  # green
+        '#d62728',  # red
+        '#9467bd',  # purple
+        '#8c564b',  # brown
+        '#e377c2',  # pink
+        '#7f7f7f',  # gray
+        '#bcbd22',  # olive
+        '#17becf',  # cyan
+    ]
+
+    highlight_players = highlight_players or []
+
+    # Sort players by final RE24 to assign colors consistently
+    sorted_players = sorted(
+        player_data.items(),
+        key=lambda x: x[1]['cumulative_re24'].iloc[-1] if not x[1].empty else 0,
+        reverse=True
+    )
+
+    for idx, (player, df) in enumerate(sorted_players):
+        if df.empty:
+            continue
+
+        is_highlighted = player in highlight_players
+        color = player_colors[idx % len(player_colors)]
+
+        # Highlighted players get thicker lines
+        if is_highlighted:
+            linewidth = 2.5
+            alpha = 1.0
+            zorder = 5
+        else:
+            linewidth = 1.5
+            alpha = 0.7
+            zorder = 3
+
+        # Map game_date to team game number for proper x-axis alignment
+        x_values = df['game_date'].map(date_to_game_num)
+
+        ax.plot(
+            x_values,
+            df['cumulative_re24'],
+            color=color,
+            linewidth=linewidth,
+            alpha=alpha,
+            solid_capstyle='round',
+            solid_joinstyle='round',
+            zorder=zorder
+        )
+
+        # Store final position (use the last game's date mapped to game number)
+        final_game = df.iloc[-1]
+        final_x = date_to_game_num.get(final_game['game_date'], max_games)
+        player_final_positions[player] = {
+            'cumulative_re24': final_game['cumulative_re24'],
+            'final_x': final_x,
+            'color': color,
+            'is_highlighted': is_highlighted
+        }
+
+    # Annotate end of each line with player name and RE24
+    # Sort by RE24 to place labels from top to bottom
+    sorted_positions = sorted(
+        player_final_positions.items(),
+        key=lambda x: x[1]['cumulative_re24'],
+        reverse=True
+    )
+
+    # Calculate y positions to avoid overlap
+    y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
+    min_spacing = y_range * 0.035  # Minimum vertical space between labels
+
+    placed_positions = []
+    for player, pos in sorted_positions:
+        re24 = pos['cumulative_re24']
+        is_highlighted = pos['is_highlighted']
+
+        sign = '+' if re24 >= 0 else ''
+        annotation = f"{player} {sign}{re24:.0f}"
+
+        # Find y position that doesn't overlap
+        label_y = re24
+        for placed_y in placed_positions:
+            if abs(label_y - placed_y) < min_spacing:
+                # Nudge down if too close to a higher label
+                label_y = placed_y - min_spacing
+
+        placed_positions.append(label_y)
+
+        ax.annotate(
+            annotation,
+            xy=(max_games, re24),  # Point at end of line
+            xytext=(8, 0),  # Offset to the right in points
+            textcoords='offset points',
+            fontsize=9 if is_highlighted else 8,
+            fontweight='bold' if is_highlighted else 'normal',
+            color=pos['color'],
+            verticalalignment='center',
+            ha='left',
+            family='Crimson Text',
+            annotation_clip=False
+        )
+
+    # Add horizontal line at 0
+    ax.axhline(y=0, color='gray', linestyle='--', linewidth=1, alpha=0.5, zorder=1)
+
+    # Add horizontal gridlines at intervals of 20
+    y_min, y_max = ax.get_ylim()
+    y_grid_start = int(y_min // 20) * 20
+    y_grid_end = int(y_max // 20) * 20 + 20
+    for y in range(y_grid_start, y_grid_end + 1, 20):
+        if y != 0:
+            ax.axhline(y=y, color='#CCCCCC', linestyle=':', linewidth=0.8, alpha=0.5, zorder=1)
+
+    # Add vertical lines for month boundaries
+    month_boundaries = {
+        'May': 26,
+        'June': 57,
+        'July': 87,
+        'Aug': 114,
+        'Sep': 145
+    }
+
+    for month, game_num in month_boundaries.items():
+        if game_num <= max_games:
+            ax.axvline(x=game_num, color='#CCCCCC', linestyle=':', linewidth=0.8, alpha=0.5, zorder=1)
+            ax.text(game_num, ax.get_ylim()[1], month,
+                    fontsize=8, color='gray', alpha=0.7,
+                    horizontalalignment='left', verticalalignment='bottom',
+                    family='Crimson Text')
+
+    # Style tick labels
+    for label in ax.get_xticklabels() + ax.get_yticklabels():
+        label.set_fontfamily('JetBrains Mono')
+        label.set_fontsize(8)
+
+    if not show_y_labels:
+        ax.set_yticklabels([])
+        ax.tick_params(axis='y', length=0)
+
+    # Set axis limits
+    ax.set_xlim(0, max_games + 25)  # Extra room for player names
+
+    ax.grid(False)
+    ax.set_axisbelow(True)
+
+    # Remove spines
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    ax.spines['bottom'].set_visible(False)
+
+    fig.tight_layout()
+
+    logger.info(f"Created RE24 chart for {team_name} with {len(player_data)} players")
     return fig

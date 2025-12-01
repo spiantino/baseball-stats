@@ -47,7 +47,8 @@ def fetch_division_race_data(team_abbr: str, season: int = 2025) -> pd.DataFrame
 
     for game in schedule:
         # Skip games that haven't been played yet
-        if game.get('game_type') != 'R':  # Only regular season
+        game_type = game.get('game_type', '')
+        if game_type not in ['R', 'F']:  # R = regular season, F = final game
             continue
 
         status = game.get('status', '')

@@ -1,233 +1,1139 @@
-{% extends "base.html" %}
+<!DOCTYPE html>
+<html lang="en">
 
-{% block title %}Game Preview: {{ away_team }} @ {{ home_team}} - {{ game_date }}{% endblock %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Program: {{ away_team }} @ {{ home_team }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Crimson+Text:ital,wght@0,400;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        /* -----------------------------------------------------------------
+           PAGE SETTINGS - Letter paper (8.5 x 11 inches)
+           ----------------------------------------------------------------- */
+        @page {
+            size: letter;
+            margin: 0;
+        }
 
-{% block header_title %}
-<div style="display: flex; align-items: center; gap: 12px;">
-    {% if away_team_logo %}
-    <img src="{{ away_team_logo }}" alt="{{ away_team }}" style="height: 40px; width: auto;">
-    {% endif %}
-    <span>{{ away_team_full }} ({{ away_record }})</span>
-    <span style="font-weight: normal; margin: 0 8px;">@</span>
-    {% if home_team_logo %}
-    <img src="{{ home_team_logo }}" alt="{{ home_team }}" style="height: 40px; width: auto;">
-    {% endif %}
-    <span>{{ home_team_full }} ({{ home_record }})</span>
-</div>
-{% endblock %}
-{% block header_subtitle %}{{ game_time }} {{ venue }}{% if weather %} · {{ weather }}{% endif %}{% endblock %}
+        @media print {
+            body {
+                background: white;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
 
-{% block content %}
+            .no-print {
+                display: none !important;
+            }
 
-{# Starting Pitchers #}
-{% if away_pitcher or home_pitcher %}
-<table class="pitcher-table">
-    <thead>
-        <tr>
-            <th>Team</th>
-            <th>R/L</th>
-            <th>#</th>
-            <th>Name</th>
-            <th class="text-right">war</th>
-            <th class="text-right">w</th>
-            <th class="text-right">l</th>
-            <th class="text-right">era</th>
-            <th class="text-right">ip</th>
-            <th class="text-right">k/9</th>
-            <th class="text-right">bb/9</th>
-            <th class="text-right">hr/9</th>
-            <th class="text-right">whip</th>
-            <th class="text-right">gb%</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% if away_pitcher %}
-        <tr class="pitcher-row">
-            <td class="bold">{{ away_team }}</td>
-            <td>{{ away_pitcher.hand }}</td>
-            <td>{{ away_pitcher.number }}</td>
-            <td>{{ away_pitcher.name }}</td>
-            <td class="text-right">{{ "%.1f"|format(away_pitcher.WAR) }}</td>
-            <td class="text-right">{{ away_pitcher.wins }}</td>
-            <td class="text-right">{{ away_pitcher.losses }}</td>
-            <td class="text-right">{{ "%.2f"|format(away_pitcher.ERA) }}</td>
-            <td class="text-right">{{ "%.1f"|format(away_pitcher.IP) }}</td>
-            <td class="text-right">{{ "%.2f"|format(away_pitcher['K/9']) }}</td>
-            <td class="text-right">{{ "%.2f"|format(away_pitcher['BB/9']) }}</td>
-            <td class="text-right">{{ "%.2f"|format(away_pitcher['HR/9']) }}</td>
-            <td class="text-right">{{ "%.2f"|format(away_pitcher.WHIP) }}</td>
-            <td class="text-right">{{ "%.1f"|format(away_pitcher['GB%']) }} %</td>
-        </tr>
-        {% if away_pitcher_pitches %}
-        <tr class="pitch-mix-header">
-            <td rowspan="{% if away_pitcher_pitches %}{{ 1 + away_pitcher_pitches|length }}{% else %}1{% endif %}" style="padding: 4px; width: 60px; vertical-align: top;">
-                {% if away_pitcher.headshot_url %}
-                <img src="{{ away_pitcher.headshot_url }}" alt="{{ away_pitcher.name }}" style="width: 100%; height: auto; border-radius: 4px;">
+            .sheet {
+                box-shadow: none !important;
+                margin: 0 !important;
+                page-break-after: always;
+                break-after: page;
+            }
+
+            .sheet:last-child {
+                page-break-after: auto;
+                break-after: auto;
+            }
+        }
+
+        /* -----------------------------------------------------------------
+           TYPOGRAPHY & UTILITIES
+           ----------------------------------------------------------------- */
+        :root {
+            --font-serif: 'Crimson Text', serif;
+            --font-sans: 'Inter', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        body {
+            background-color: #f3f4f6;
+            color: #111827;
+            font-family: var(--font-serif);
+        }
+
+        .sheet {
+            background: white;
+            width: 8.5in;
+            height: 11in;
+            margin: 2rem auto;
+            padding: 0.5in;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        /* Data Tables */
+        .stat-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.7rem;
+        }
+
+        .stat-table th {
+            font-family: var(--font-sans);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.55rem;
+            color: #6b7280;
+            border-bottom: 1px solid #d1d5db;
+            padding: 2px 4px;
+            text-align: center;
+        }
+
+        .stat-table td {
+            font-family: var(--font-mono);
+            /* Numbers/Stats default to mono */
+            padding: 3px 4px;
+            text-align: center;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        /* Zebra Striping */
+        .stat-table tbody tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+
+        /* Bench Divider */
+        .bench-divider td {
+            padding: 4px 0;
+            border-top: 1px solid #d1d5db;
+        }
+
+        /* Specific Column Styles */
+        .col-name {
+            text-align: left !important;
+            font-weight: 700;
+            font-family: var(--font-sans) !important;
+            /* Names are Sans */
+            letter-spacing: -0.01em;
+        }
+
+        .col-pos {
+            font-family: var(--font-sans) !important;
+            /* Positions are Sans */
+            color: #6b7280;
+            font-size: 0.6rem;
+        }
+
+        .col-highlight {
+            background-color: #f3f4f6;
+            font-weight: 700;
+        }
+
+        /* Section Headers */
+        .section-header {
+            font-family: var(--font-sans);
+            font-weight: 600;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: #9ca3af;
+            border-bottom: none;
+            margin-bottom: 0.25rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding-bottom: 0;
+            letter-spacing: 0.05em;
+        }
+
+        /* Pitch Mix Container */
+        .pitch-mix {
+            margin-top: 4px;
+            position: relative;
+        }
+
+        /* Pitch Bars */
+        .pitch-bar-container {
+            display: flex;
+            gap: 1px;
+            height: 16px;
+            width: 100%;
+            background: white;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .pitch-segment {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            min-width: 0;
+        }
+
+        .pitch-segment-label {
+            font-family: var(--font-mono);
+            font-size: 0.5rem;
+            font-weight: 700;
+            color: white;
+            white-space: nowrap;
+            text-shadow: 0 0 2px rgba(0,0,0,0.3);
+        }
+
+
+        /* Connector lines SVG */
+        .pitch-connectors {
+            width: 100%;
+            height: 12px;
+            display: block;
+        }
+
+        .pitch-connector-line {
+            stroke: #d1d5db;
+            stroke-width: 1;
+            fill: none;
+        }
+
+        /* Pitch Data Grid */
+        .pitch-data-grid {
+            display: flex;
+            justify-content: space-between;
+            gap: 0;
+        }
+
+        .pitch-data-item {
+            text-align: center;
+            padding: 0;
+            flex: 1;
+        }
+
+        .pitch-label {
+            font-weight: 700;
+            font-family: var(--font-sans);
+            color: #111827;
+            font-size: 0.55rem;
+            display: block;
+        }
+
+        .pitch-val {
+            font-family: var(--font-mono);
+            font-size: 0.55rem;
+        }
+
+        .rv-good {
+            color: #15803d;
+            font-weight: bold;
+        }
+
+        .rv-bad {
+            color: #b91c1c;
+            font-weight: bold;
+        }
+
+        /* Pitch Type Colors - by typical velocity (darker = faster) */
+        /* Spread across common pitches for good visual range */
+        .pitch-4-seam-fb { background-color: #111827; }  /* Darkest - fastest */
+        .pitch-fastball { background-color: #111827; }
+        .pitch-sinker { background-color: #1f2937; }
+        .pitch-cutter { background-color: #374151; }
+        .pitch-splitter { background-color: #4b5563; }
+        .pitch-slider { background-color: #6b7280; }
+        .pitch-changeup { background-color: #9ca3af; }
+        .pitch-sweeper { background-color: #9ca3af; }
+        .pitch-curveball { background-color: #d1d5db; }  /* Lightest common pitch */
+        .pitch-slurve { background-color: #d1d5db; }
+
+        /* Rare pitches */
+        .pitch-forkball { background-color: #4b5563; }
+        .pitch-knuckleball { background-color: #d1d5db; }
+        .pitch-screwball { background-color: #d1d5db; }
+        .pitch-eephus { background-color: #e5e7eb; }
+
+        .pitch-default { background-color: #6b7280; }
+
+        /* Light text for dark backgrounds */
+        .pitch-4-seam-fb .pitch-segment-label,
+        .pitch-fastball .pitch-segment-label,
+        .pitch-sinker .pitch-segment-label,
+        .pitch-cutter .pitch-segment-label,
+        .pitch-splitter .pitch-segment-label,
+        .pitch-slider .pitch-segment-label,
+        .pitch-forkball .pitch-segment-label,
+        .pitch-default .pitch-segment-label {
+            color: white;
+            text-shadow: 0 0 2px rgba(0,0,0,0.3);
+        }
+
+        /* Dark text for light backgrounds */
+        .pitch-changeup .pitch-segment-label,
+        .pitch-sweeper .pitch-segment-label,
+        .pitch-curveball .pitch-segment-label,
+        .pitch-slurve .pitch-segment-label,
+        .pitch-knuckleball .pitch-segment-label,
+        .pitch-screwball .pitch-segment-label,
+        .pitch-eephus .pitch-segment-label {
+            color: #1f2937;
+            text-shadow: none;
+        }
+
+        /* Schedule Calendar */
+        .sched-calendar {
+            border: 1px solid #000;
+            border-collapse: collapse;
+        }
+
+        .sched-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+
+        .sched-header-day {
+            font-family: var(--font-sans);
+            font-size: 0.55rem;
+            font-weight: 700;
+            color: #6b7280;
+            text-align: center;
+            padding: 2px 0;
+            text-transform: uppercase;
+        }
+
+        .sched-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+
+        .sched-month-border-bottom {
+            border-bottom: 1px solid #000 !important;
+        }
+
+        .sched-month-border-right {
+            border-right: 1px solid #000 !important;
+        }
+
+        .sched-day {
+            border: 1px solid #e5e7eb;
+            border-top: none;
+            border-left: none;
+            padding: 14px 2px 3px 2px;
+            min-height: 42px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            background: #f3f4f6;
+            position: relative;
+        }
+
+        .sched-day.sched-game {
+            background: white;
+        }
+
+        .sched-day:nth-child(7n) {
+            border-right: none;
+        }
+
+        .sched-day:nth-child(-n+7) {
+            border-top: none;
+        }
+
+        .sched-date {
+            font-family: var(--font-mono);
+            font-size: 0.5rem;
+            color: #9ca3af;
+            font-weight: 600;
+            line-height: 1;
+            position: absolute;
+            top: 2px;
+            left: 3px;
+        }
+
+        .sched-opp {
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 0.65rem;
+            text-align: center;
+            line-height: 1;
+            letter-spacing: -0.5px;
+        }
+
+        .sched-result {
+            font-family: var(--font-sans);
+            font-weight: 700;
+            font-size: 0.5rem;
+            text-align: center;
+            line-height: 1;
+            margin-top: 1px;
+        }
+
+        .sched-today {
+            background-color: #fef08a !important;
+            border: 2px solid #d97706 !important;
+        }
+
+        .sched-today .sched-date {
+            color: #92400e;
+            font-weight: 800;
+        }
+
+        .sched-today .sched-opp {
+            font-weight: 800;
+        }
+
+        .sched-past {
+            background-color: #f9fafb;
+        }
+
+        .sched-past .sched-opp {
+            color: #6b7280;
+        }
+
+        /* Transactions List */
+        .trans-list li {
+            font-family: var(--font-sans);
+            font-size: 0.65rem;
+            margin-bottom: 2px;
+            line-height: 1.2;
+        }
+
+        .trans-date {
+            font-weight: 700;
+            color: #374151;
+            margin-right: 4px;
+        }
+
+        /* SVG Chart Scaling */
+        svg {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- PAGE 1: MATCHUP & STATS -->
+    <div class="sheet">
+
+        <!-- HEADER -->
+        <header class="flex justify-between items-end border-b-2 border-black pb-3 mb-4">
+            <div class="w-3/4">
+                <h1 class="text-2xl font-serif font-bold leading-none text-gray-900 mb-1 flex items-center gap-1">
+                    <img src="{{ home_team_logo }}" alt="{{ home_team }}" class="w-6 h-6 object-contain inline-block" onerror="this.style.display='none'">
+                    {{ home_team_short|default(home_team_full) }} <span class="text-lg text-gray-600 font-normal px-1">({{ home_record }})</span>
+                    <span class="text-lg text-gray-400 italic px-1">vs</span>
+                    <img src="{{ away_team_logo }}" alt="{{ away_team }}" class="w-6 h-6 object-contain inline-block" onerror="this.style.display='none'">
+                    {{ away_team_short|default(away_team_full) }} <span class="text-lg text-gray-600 font-normal px-1">({{ away_record }})</span>
+                </h1>
+                <div class="text-xs font-sans text-gray-500 mt-1">
+                    {{ game_date_formatted|default(game_date) }}{% if series_total_games %} · Game {{ current_series_game_num }} of {{ series_total_games }}{% if series_wins or series_losses %} · Series {{ series_wins }}-{{ series_losses }}{% endif %} · Season {{ h2h_season_wins|default(season_wins) }}-{{ h2h_season_losses|default(season_losses) }}{% endif %}
+                </div>
+            </div>
+            <div class="w-1/4 text-right">
+                <div class="text-lg font-bold font-sans text-gray-900">{{ venue }}</div>
+                <div class="text-sm font-mono font-bold text-gray-600 mt-0.5">
+                    {{ game_time }}{% if temperature %} • {{ temperature }}°F{% endif %}
+                </div>
+            </div>
+        </header>
+
+        <!-- PREVIEW TEXT (Placeholder for now) -->
+        <div class="mb-6 font-serif text-sm leading-relaxed text-gray-800 text-justify border-b border-gray-200 pb-4">
+            <p class="mb-0">
+                The {{ home_team_full }} host the {{ away_team_full }} at {{ venue }}.
+                {% if division_race_data %}
+                This matchup has implications for the division race.
                 {% endif %}
-            </td>
-            <td colspan="2" style="font-size: 8pt; font-weight: bold; font-style: italic;">Pitch Mix</td>
-            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Usage</td>
-            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Velo</td>
-            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Spin</td>
-            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Whiff%</td>
-            <td colspan="7"></td>
-        </tr>
-        {% for pitch in away_pitcher_pitches %}
-        <tr class="pitch-mix-row">
-            <td colspan="2" style="padding-left: 12px;">{{ pitch.name }}</td>
-            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.usage) }}%</td>
-            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.velocity) }}</td>
-            <td class="text-right" style="font-size: 8pt; color: #666;">{{ pitch.spin }}</td>
-            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.whiff) }}%</td>
-            <td colspan="7"></td>
-        </tr>
-        {% endfor %}
-        {% endif %}
-        {% endif %}
-        {% if home_pitcher %}
-        <tr class="pitcher-row">
-            <td class="bold">{{ home_team }}</td>
-            <td>{{ home_pitcher.hand }}</td>
-            <td>{{ home_pitcher.number }}</td>
-            <td>{{ home_pitcher.name }}</td>
-            <td class="text-right">{{ "%.1f"|format(home_pitcher.WAR) }}</td>
-            <td class="text-right">{{ home_pitcher.wins }}</td>
-            <td class="text-right">{{ home_pitcher.losses }}</td>
-            <td class="text-right">{{ "%.2f"|format(home_pitcher.ERA) }}</td>
-            <td class="text-right">{{ "%.1f"|format(home_pitcher.IP) }}</td>
-            <td class="text-right">{{ "%.2f"|format(home_pitcher['K/9']) }}</td>
-            <td class="text-right">{{ "%.2f"|format(home_pitcher['BB/9']) }}</td>
-            <td class="text-right">{{ "%.2f"|format(home_pitcher['HR/9']) }}</td>
-            <td class="text-right">{{ "%.2f"|format(home_pitcher.WHIP) }}</td>
-            <td class="text-right">{{ "%.1f"|format(home_pitcher['GB%']) }} %</td>
-        </tr>
-        {% if home_pitcher_pitches %}
-        <tr class="pitch-mix-header">
-            <td rowspan="{% if home_pitcher_pitches %}{{ 1 + home_pitcher_pitches|length }}{% else %}1{% endif %}" style="padding: 4px; width: 60px; vertical-align: top;">
-                {% if home_pitcher.headshot_url %}
-                <img src="{{ home_pitcher.headshot_url }}" alt="{{ home_pitcher.name }}" style="width: 100%; height: auto; border-radius: 4px;">
+            </p>
+        </div>
+
+        <!-- MAIN MATCHUP GRID -->
+        <div class="grid grid-cols-2 gap-8 h-full">
+
+            <!-- LEFT COLUMN: AWAY TEAM -->
+            <div class="flex flex-col h-full">
+
+                <!-- PITCHER -->
+                {% if away_pitcher %}
+                <div class="mb-6">
+                    <div class="flex justify-between items-start border-b border-black mb-2 pb-1">
+                        <div class="flex items-center gap-3">
+                            <!-- HEADSHOT -->
+                            <div
+                                class="w-10 h-14 bg-gray-100 border border-gray-300 flex items-center justify-center overflow-hidden">
+                                <img src="{{ away_pitcher.headshot_url }}" alt="Headshot"
+                                    class="w-full h-full object-cover grayscale opacity-90"
+                                    onerror="this.style.display='none'">
+                            </div>
+                            <div>
+                                <h3 class="font-sans font-bold text-base uppercase text-gray-900">{{ away_pitcher.name
+                                    }}</h3>
+                                <div class="text-xs font-sans text-gray-500">{{ away_pitcher.hand }}HP • #{{
+                                    away_pitcher.number }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <table class="stat-table mb-2">
+                        <thead>
+                            <tr>
+                                <th>IP</th>
+                                <th>ERA</th>
+                                <th>WHIP</th>
+                                <th>K/9</th>
+                                <th>BB/9</th>
+                                <th>WAR</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>{{ "%.1f"|format(away_pitcher.IP) }}</td>
+                                <td class="col-highlight">{{ "%.2f"|format(away_pitcher.ERA) }}</td>
+                                <td>{{ "%.2f"|format(away_pitcher.WHIP) }}</td>
+                                <td>{{ "%.1f"|format(away_pitcher['K/9']) }}</td>
+                                <td>{{ "%.1f"|format(away_pitcher['BB/9']) }}</td>
+                                <td>{{ "%.1f"|format(away_pitcher.WAR) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Pitch Mix -->
+                    {% if away_pitcher_pitches %}
+                    {% set pitches = away_pitcher_pitches[:5] %}
+                    <div class="pitch-mix">
+                        <div class="pitch-bar-container">
+                            {% for pitch in pitches %}
+                            {% set pitch_class = 'pitch-' + pitch.name|lower|replace(' ', '-')|replace('4-seam', '4-seam') %}
+                            <div class="pitch-segment {{ pitch_class }}" style="width: {{ pitch.usage }}%;">
+                                <span class="pitch-segment-label">{{ "%.0f"|format(pitch.usage) }}%</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <svg class="pitch-connectors" viewBox="0 0 100 12" preserveAspectRatio="none">
+                            {% set cumulative = namespace(pct=0) %}
+                            {% for pitch in pitches %}
+                            {% set bar_center = cumulative.pct + (pitch.usage / 2) %}
+                            {% set label_center = (loop.index0 + 0.5) * (100 / pitches|length) %}
+                            <path class="pitch-connector-line" d="M {{ bar_center }} 0 L {{ bar_center }} 3 L {{ label_center }} 9 L {{ label_center }} 12" vector-effect="non-scaling-stroke"/>
+                            {% set cumulative.pct = cumulative.pct + pitch.usage %}
+                            {% endfor %}
+                        </svg>
+                        <div class="pitch-data-grid">
+                            {% for pitch in pitches %}
+                            <div class="pitch-data-item">
+                                <span class="pitch-label">{{ pitch.name }}</span>
+                                <div class="pitch-val">{{ "%.1f"|format(pitch.velocity) }}<span class="text-[0.45rem] text-gray-400">mph</span></div>
+                                <div class="pitch-val {% if pitch.get('rv_100') and pitch.rv_100 < 0 %}rv-good{% elif pitch.get('rv_100') and pitch.rv_100 > 0 %}rv-bad{% endif %}">
+                                    {{ "%.1f"|format(pitch.rv_100) if pitch.get('rv_100') else '-' }}<span class="text-[0.45rem] text-gray-400">rv</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
                 {% endif %}
-            </td>
-            <td colspan="2" style="font-size: 8pt; font-weight: bold; font-style: italic;">Pitch Mix</td>
-            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Usage</td>
-            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Velo</td>
-            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Spin</td>
-            <td class="text-right" style="font-size: 7pt; font-weight: bold; text-transform: uppercase; color: #555;">Whiff%</td>
-            <td colspan="7"></td>
-        </tr>
-        {% for pitch in home_pitcher_pitches %}
-        <tr class="pitch-mix-row">
-            <td colspan="2" style="padding-left: 12px;">{{ pitch.name }}</td>
-            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.usage) }}%</td>
-            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.velocity) }}</td>
-            <td class="text-right" style="font-size: 8pt; color: #666;">{{ pitch.spin }}</td>
-            <td class="text-right" style="font-size: 8pt; color: #666;">{{ "%.1f"|format(pitch.whiff) }}%</td>
-            <td colspan="7"></td>
-        </tr>
-        {% endfor %}
+
+                <!-- LINEUP + BENCH -->
+                {% if away_lineup %}
+                <div class="mb-4 flex-grow">
+                    <div class="section-header">
+                        <span>{{ away_team }} Lineup</span>
+                    </div>
+                    <table class="stat-table">
+                        <thead>
+                            <tr>
+                                <th class="w-4">#</th>
+                                <th class="w-6">Pos</th>
+                                <th class="text-left pl-2">Player</th>
+                                <th>AVG</th>
+                                <th>OPS</th>
+                                <th>OPS+</th>
+                                <th>oWAR</th>
+                                <th>dWAR</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for batter in away_lineup %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td class="col-pos">{{ batter.position }}</td>
+                                <td class="col-name pl-2">{{ batter.name }}</td>
+                                {% set avg, obp, slg = batter.slash.split('/') %}
+                                <td>{{ avg }}</td>
+                                <td>{{ "%.3f"|format(batter.ops)|replace("0.", ".") }}</td>
+                                <td>{{ batter.ops_plus|default(100) }}</td>
+                                <td>{{ "%.1f"|format(batter.owar|default(0)) }}</td>
+                                <td>{{ "%.1f"|format(batter.dwar|default(0)) }}</td>
+                            </tr>
+                            {% endfor %}
+
+                            <!-- BENCH DIVIDER -->
+                            {% if away_bench %}
+                            <tr class="bench-divider">
+                                <td colspan="8"></td>
+                            </tr>
+
+                            <!-- BENCH PLAYERS -->
+                            {% for batter in away_bench %}
+                            <tr>
+                                <td class="text-gray-400">-</td>
+                                <td class="col-pos">{{ batter.position }}</td>
+                                <td class="col-name pl-2">{{ batter.name }}</td>
+                                {% set avg, obp, slg = batter.slash.split('/') %}
+                                <td>{{ avg }}</td>
+                                <td>{{ "%.3f"|format(batter.ops)|replace("0.", ".") }}</td>
+                                <td>{{ batter.ops_plus|default(100) }}</td>
+                                <td>{{ "%.1f"|format(batter.owar|default(0)) }}</td>
+                                <td>{{ "%.1f"|format(batter.dwar|default(0)) }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                <!-- BULLPEN -->
+                {% if away_bullpen %}
+                <div>
+                    <div class="section-header">
+                        <span>{{ away_team }} Bullpen</span>
+                    </div>
+                    <table class="stat-table">
+                        <thead>
+                            <tr>
+                                <th class="text-left pl-2">Pitcher</th>
+                                <th>#</th>
+                                <!-- Placeholder for recent usage if we had it -->
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pitcher in away_bullpen[:5] %}
+                            <tr>
+                                <td class="col-name pl-2">{{ pitcher.name }}</td>
+                                <td>{{ pitcher.number }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+            </div>
+
+            <!-- RIGHT COLUMN: HOME TEAM -->
+            <div class="flex flex-col h-full">
+
+                <!-- PITCHER -->
+                {% if home_pitcher %}
+                <div class="mb-6">
+                    <div class="flex justify-between items-start border-b border-black mb-2 pb-1">
+                        <div class="flex items-center gap-3">
+                            <!-- HEADSHOT -->
+                            <div
+                                class="w-10 h-14 bg-gray-100 border border-gray-300 flex items-center justify-center overflow-hidden">
+                                <img src="{{ home_pitcher.headshot_url }}" alt="Headshot"
+                                    class="w-full h-full object-cover grayscale opacity-90"
+                                    onerror="this.style.display='none'">
+                            </div>
+                            <div>
+                                <h3 class="font-sans font-bold text-base uppercase text-gray-900">{{ home_pitcher.name
+                                    }}</h3>
+                                <div class="text-xs font-sans text-gray-500">{{ home_pitcher.hand }}HP • #{{
+                                    home_pitcher.number }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <table class="stat-table mb-2">
+                        <thead>
+                            <tr>
+                                <th>IP</th>
+                                <th>ERA</th>
+                                <th>WHIP</th>
+                                <th>K/9</th>
+                                <th>BB/9</th>
+                                <th>WAR</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>{{ "%.1f"|format(home_pitcher.IP) }}</td>
+                                <td class="col-highlight">{{ "%.2f"|format(home_pitcher.ERA) }}</td>
+                                <td>{{ "%.2f"|format(home_pitcher.WHIP) }}</td>
+                                <td>{{ "%.1f"|format(home_pitcher['K/9']) }}</td>
+                                <td>{{ "%.1f"|format(home_pitcher['BB/9']) }}</td>
+                                <td>{{ "%.1f"|format(home_pitcher.WAR) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <!-- Pitch Mix -->
+                    {% if home_pitcher_pitches %}
+                    {% set pitches = home_pitcher_pitches[:5] %}
+                    <div class="pitch-mix">
+                        <div class="pitch-bar-container">
+                            {% for pitch in pitches %}
+                            {% set pitch_class = 'pitch-' + pitch.name|lower|replace(' ', '-')|replace('4-seam', '4-seam') %}
+                            <div class="pitch-segment {{ pitch_class }}" style="width: {{ pitch.usage }}%;">
+                                <span class="pitch-segment-label">{{ "%.0f"|format(pitch.usage) }}%</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <svg class="pitch-connectors" viewBox="0 0 100 12" preserveAspectRatio="none">
+                            {% set cumulative = namespace(pct=0) %}
+                            {% for pitch in pitches %}
+                            {% set bar_center = cumulative.pct + (pitch.usage / 2) %}
+                            {% set label_center = (loop.index0 + 0.5) * (100 / pitches|length) %}
+                            <path class="pitch-connector-line" d="M {{ bar_center }} 0 L {{ bar_center }} 3 L {{ label_center }} 9 L {{ label_center }} 12" vector-effect="non-scaling-stroke"/>
+                            {% set cumulative.pct = cumulative.pct + pitch.usage %}
+                            {% endfor %}
+                        </svg>
+                        <div class="pitch-data-grid">
+                            {% for pitch in pitches %}
+                            <div class="pitch-data-item">
+                                <span class="pitch-label">{{ pitch.name }}</span>
+                                <div class="pitch-val">{{ "%.1f"|format(pitch.velocity) }}<span class="text-[0.45rem] text-gray-400">mph</span></div>
+                                <div class="pitch-val {% if pitch.get('rv_100') and pitch.rv_100 < 0 %}rv-good{% elif pitch.get('rv_100') and pitch.rv_100 > 0 %}rv-bad{% endif %}">
+                                    {{ "%.1f"|format(pitch.rv_100) if pitch.get('rv_100') else '-' }}<span class="text-[0.45rem] text-gray-400">rv</span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <!-- LINEUP + BENCH -->
+                {% if home_lineup %}
+                <div class="mb-4 flex-grow">
+                    <div class="section-header">
+                        <span>{{ home_team }} Lineup</span>
+                    </div>
+                    <table class="stat-table">
+                        <thead>
+                            <tr>
+                                <th class="w-4">#</th>
+                                <th class="w-6">Pos</th>
+                                <th class="text-left pl-2">Player</th>
+                                <th>AVG</th>
+                                <th>OPS</th>
+                                <th>OPS+</th>
+                                <th>oWAR</th>
+                                <th>dWAR</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for batter in home_lineup %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td class="col-pos">{{ batter.position }}</td>
+                                <td class="col-name pl-2">{{ batter.name }}</td>
+                                {% set avg, obp, slg = batter.slash.split('/') %}
+                                <td>{{ avg }}</td>
+                                <td>{{ "%.3f"|format(batter.ops)|replace("0.", ".") }}</td>
+                                <td>{{ batter.ops_plus|default(100) }}</td>
+                                <td>{{ "%.1f"|format(batter.owar|default(0)) }}</td>
+                                <td>{{ "%.1f"|format(batter.dwar|default(0)) }}</td>
+                            </tr>
+                            {% endfor %}
+
+                            <!-- BENCH DIVIDER -->
+                            {% if home_bench %}
+                            <tr class="bench-divider">
+                                <td colspan="8"></td>
+                            </tr>
+
+                            <!-- BENCH PLAYERS -->
+                            {% for batter in home_bench %}
+                            <tr>
+                                <td class="text-gray-400">-</td>
+                                <td class="col-pos">{{ batter.position }}</td>
+                                <td class="col-name pl-2">{{ batter.name }}</td>
+                                {% set avg, obp, slg = batter.slash.split('/') %}
+                                <td>{{ avg }}</td>
+                                <td>{{ "%.3f"|format(batter.ops)|replace("0.", ".") }}</td>
+                                <td>{{ batter.ops_plus|default(100) }}</td>
+                                <td>{{ "%.1f"|format(batter.owar|default(0)) }}</td>
+                                <td>{{ "%.1f"|format(batter.dwar|default(0)) }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+                <!-- BULLPEN -->
+                {% if home_bullpen %}
+                <div>
+                    <div class="section-header">
+                        <span>{{ home_team }} Bullpen</span>
+                    </div>
+                    <table class="stat-table">
+                        <thead>
+                            <tr>
+                                <th class="text-left pl-2">Pitcher</th>
+                                <th>#</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for pitcher in home_bullpen[:5] %}
+                            <tr>
+                                <td class="col-name pl-2">{{ pitcher.name }}</td>
+                                <td>{{ pitcher.number }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+            </div>
+        </div>
+    </div>
+
+    <!-- PAGE 2: SCHEDULE & STANDINGS -->
+    <div class="sheet">
+
+        <!-- HEADER PAGE 2 -->
+        <div class="section-header mb-4">
+            <span>Schedule & Standings</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-8 h-full">
+
+            <!-- LEFT COL: SCHEDULE -->
+            <div class="flex flex-col gap-6">
+
+                <!-- CALENDAR -->
+                {% if schedule_context %}
+                <div>
+                    <h3 class="font-sans font-bold text-sm uppercase mb-2 border-b border-black">Schedule</h3>
+
+                    <div class="sched-header">
+                        <div class="sched-header-day">Sun</div>
+                        <div class="sched-header-day">Mon</div>
+                        <div class="sched-header-day">Tue</div>
+                        <div class="sched-header-day">Wed</div>
+                        <div class="sched-header-day">Thu</div>
+                        <div class="sched-header-day">Fri</div>
+                        <div class="sched-header-day">Sat</div>
+                    </div>
+                    <div class="sched-calendar">
+                        <div class="sched-grid">
+                            {% for game in schedule_context.calendar %}
+                            {# Bottom border if day 7 days later is in different month #}
+                            {% set needs_bottom = loop.index0 + 7 < schedule_context.calendar|length and schedule_context.calendar[loop.index0 + 7].game_date[5:7] != game.game_date[5:7] %}
+                            {# Right border if this is the last day of the month #}
+                            {% set needs_right = loop.index0 < schedule_context.calendar|length - 1 and schedule_context.calendar[loop.index0 + 1].game_date[5:7] != game.game_date[5:7] %}
+                            <div class="sched-day{% if game.status != 'OFF' %} sched-game{% endif %}{% if game.is_today %} sched-today{% elif game.result %} sched-past{% endif %}{% if needs_bottom %} sched-month-border-bottom{% endif %}{% if needs_right %} sched-month-border-right{% endif %}">
+                                <span class="sched-date">{{ game.game_date[5:7]|int }}/{{ game.game_date[8:]|int }}</span>
+                                {% if game.status != 'OFF' %}
+                                <span class="sched-opp">{{ game.opponent_abbr }}</span>
+                                {% if game.result %}
+                                <span class="sched-result {{ 'text-green-700' if game.result == 'W' else 'text-red-600' }}">
+                                    {{ game.result }} {{ game.score }}
+                                </span>
+                                {% elif game.game_time %}
+                                <span class="sched-result text-gray-500">{{ game.game_time }}</span>
+                                {% endif %}
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- INJURIES -->
+                {% if injuries %}
+                <div>
+                    <h3 class="font-sans font-bold text-sm uppercase mb-1 border-b border-black">Injuries</h3>
+                    <table class="stat-table text-left">
+                        <thead>
+                            <tr>
+                                <th>Team</th>
+                                <th>Player</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for inj in injuries.away[:3] %}
+                            <tr>
+                                <td>{{ away_team }}</td>
+                                <td class="col-name">{{ inj.player }}</td>
+                                <td>{{ inj.code }}</td>
+                            </tr>
+                            {% endfor %}
+                            {% for inj in injuries.home[:3] %}
+                            <tr>
+                                <td>{{ home_team }}</td>
+                                <td class="col-name">{{ inj.player }}</td>
+                                <td>{{ inj.code }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+
+            </div>
+
+            <!-- RIGHT COL: STANDINGS -->
+            <div class="flex flex-col gap-6">
+
+                <!-- DIVISION CHART -->
+                {% if division_race_chart %}
+                <div>
+                    <h3 class="font-sans font-bold text-sm uppercase mb-2 border-b border-black">{{ home_division }} Standings</h3>
+                    <div class="w-full">
+                        {{ division_race_chart|safe }}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- TRANSACTIONS -->
+                {% if transactions %}
+                <div class="flex-grow">
+                    <h3 class="font-sans font-bold text-sm uppercase mb-1 border-b border-black">Transactions</h3>
+                    <ul class="trans-list list-none pl-0 space-y-1 text-gray-700">
+                        {% for t in transactions %}
+                        <li><span class="trans-date">{{ t.date[5:] if t.date else '' }}</span> <strong>{{ t.team
+                                }}</strong> {{ t.description }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+            </div>
+
+        </div>
+
+        <!-- FOOTER -->
+        <div class="mt-auto pt-2 border-t border-gray-300 text-center text-[0.6rem] font-sans text-gray-400">
+            Generated at {{ generation_date }}
+        </div>
+
+    </div>
+
+    <!-- PAGE 3: LEAGUE LEADERS -->
+    {% if league_leaders %}
+    <div class="sheet">
+
+        <!-- HEADER PAGE 3 -->
+        <div class="section-header mb-4">
+            <span>League Leaders</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-8 h-full">
+
+            <!-- LEFT COL: BATTING -->
+            <div class="flex flex-col gap-6">
+                <div>
+                    <h3 class="font-sans font-bold text-sm uppercase mb-1 border-b border-black">League Leaders: Batting</h3>
+                    <table class="stat-table">
+                        <thead>
+                            <tr>
+                                <th class="text-left pl-2">Player</th>
+                                <th>Team</th>
+                                <th>AVG</th>
+                                <th>HR</th>
+                                <th>OPS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for player in league_leaders.batting %}
+                            <tr>
+                                <td class="col-name pl-2">{{ player.name }}</td>
+                                <td>{{ player.team }}</td>
+                                <td>{{ player.AVG }}</td>
+                                <td>{{ player.HR }}</td>
+                                <td class="font-bold">{{ player.OPS }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- RIGHT COL: PITCHING -->
+            <div class="flex flex-col gap-6">
+                <div>
+                    <h3 class="font-sans font-bold text-sm uppercase mb-1 border-b border-black">League Leaders: Pitching</h3>
+                    <table class="stat-table">
+                        <thead>
+                            <tr>
+                                <th class="text-left pl-2">Player</th>
+                                <th>Team</th>
+                                <th>ERA</th>
+                                <th>K</th>
+                                <th>WHIP</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for player in league_leaders.pitching %}
+                            <tr>
+                                <td class="col-name pl-2">{{ player.name }}</td>
+                                <td>{{ player.team }}</td>
+                                <td class="font-bold">{{ player.ERA }}</td>
+                                <td>{{ player.K }}</td>
+                                <td>{{ player.WHIP }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- FOOTER -->
+        <div class="mt-auto pt-2 border-t border-gray-300 text-center text-[0.6rem] font-sans text-gray-400">
+            Generated at {{ generation_date }}
+        </div>
+
+    </div>
+    {% endif %}
+
+    <!-- PAGE 4: RE24 LINEUP TABLE -->
+    {% if home_lineup_re24 %}
+    <div class="sheet">
+
+        <!-- HEADER PAGE 4 -->
+        <div class="section-header mb-4">
+            <span>Lineup Breakdown with RE24</span>
+            <span class="text-xs font-sans text-gray-500 font-normal">{{ game_date }}</span>
+        </div>
+
+        <!-- HOME TEAM LINEUP WITH RE24 -->
+        <div class="mb-6">
+            <h3 class="font-sans font-bold text-sm uppercase mb-2 border-b border-black">
+                {{ home_team }} Lineup
+                {% if current_series_game_num > 1 %}
+                <span class="font-normal text-gray-500 text-xs ml-2">Game {{ current_series_game_num }} vs {{ away_team }}</span>
+                {% endif %}
+            </h3>
+            <table class="stat-table">
+                <thead>
+                    <tr>
+                        <th class="w-4">#</th>
+                        <th class="w-6">Pos</th>
+                        <th class="text-left pl-2">Player</th>
+                        <th>Age</th>
+                        <!-- Slash line -->
+                        <th>AVG</th>
+                        <th>OBP</th>
+                        <th class="border-r border-gray-300">SLG</th>
+                        <!-- Counting stats -->
+                        <th>HR</th>
+                        <th>RBI</th>
+                        <th class="border-r border-gray-300">TB</th>
+                        <!-- Value stats -->
+                        <th>OPS</th>
+                        <th>OPS+</th>
+                        <th>oWAR</th>
+                        <th class="border-r border-gray-300">dWAR</th>
+                        <!-- RE24 -->
+                        <th>RE24</th>
+                        <th title="RE24 last 10 games">L10</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for batter in home_lineup_re24 %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td class="col-pos">{{ batter.position }}</td>
+                        <td class="col-name pl-2">{{ batter.name }}</td>
+                        <td>{{ batter.age|default(0) }}</td>
+                        {% set avg, obp, slg = batter.slash.split('/') %}
+                        <td>{{ avg }}</td>
+                        <td>{{ obp }}</td>
+                        <td class="border-r border-gray-300">{{ slg }}</td>
+                        <td>{{ batter.hr }}</td>
+                        <td>{{ batter.rbi|default(0) }}</td>
+                        <td class="border-r border-gray-300">{{ batter.tb|default(0) }}</td>
+                        <td>{{ "%.3f"|format(batter.ops)|replace("0.", ".") }}</td>
+                        <td>{{ batter.ops_plus|default(100) }}</td>
+                        <td>{{ "%.1f"|format(batter.owar|default(0)) }}</td>
+                        <td class="border-r border-gray-300">{{ "%.1f"|format(batter.dwar|default(0)) }}</td>
+                        <td>{{ "%.1f"|format(batter.re24_season) }}</td>
+                        <td>{{ "%.1f"|format(batter.re24_l10|default(0)) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- AWAY TEAM LINEUP WITH RE24 -->
+        {% if away_lineup_re24 %}
+        <div class="mb-6">
+            <h3 class="font-sans font-bold text-sm uppercase mb-2 border-b border-black">
+                {{ away_team }} Lineup
+            </h3>
+            <table class="stat-table">
+                <thead>
+                    <tr>
+                        <th class="w-4">#</th>
+                        <th class="w-6">Pos</th>
+                        <th class="text-left pl-2">Player</th>
+                        <th>Age</th>
+                        <!-- Slash line -->
+                        <th>AVG</th>
+                        <th>OBP</th>
+                        <th class="border-r border-gray-300">SLG</th>
+                        <!-- Counting stats -->
+                        <th>HR</th>
+                        <th>RBI</th>
+                        <th class="border-r border-gray-300">TB</th>
+                        <!-- Value stats -->
+                        <th>OPS</th>
+                        <th>OPS+</th>
+                        <th>oWAR</th>
+                        <th class="border-r border-gray-300">dWAR</th>
+                        <!-- RE24 -->
+                        <th>RE24</th>
+                        <th title="RE24 last 10 games">L10</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for batter in away_lineup_re24 %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td class="col-pos">{{ batter.position }}</td>
+                        <td class="col-name pl-2">{{ batter.name }}</td>
+                        <td>{{ batter.age|default(0) }}</td>
+                        {% set avg, obp, slg = batter.slash.split('/') %}
+                        <td>{{ avg }}</td>
+                        <td>{{ obp }}</td>
+                        <td class="border-r border-gray-300">{{ slg }}</td>
+                        <td>{{ batter.hr }}</td>
+                        <td>{{ batter.rbi|default(0) }}</td>
+                        <td class="border-r border-gray-300">{{ batter.tb|default(0) }}</td>
+                        <td>{{ "%.3f"|format(batter.ops)|replace("0.", ".") }}</td>
+                        <td>{{ batter.ops_plus|default(100) }}</td>
+                        <td>{{ "%.1f"|format(batter.owar|default(0)) }}</td>
+                        <td class="border-r border-gray-300">{{ "%.1f"|format(batter.dwar|default(0)) }}</td>
+                        <td>{{ "%.1f"|format(batter.re24_season) }}</td>
+                        <td>{{ "%.1f"|format(batter.re24_l10|default(0)) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
         {% endif %}
-        {% endif %}
-    </tbody>
-</table>
-{% endif %}
 
-{# Lineups Side by Side #}
-{% if away_lineup or home_lineup %}
-<h2 class="section-title">{{ away_team }} Lineup</h2>
-<table>
-    <thead>
-        <tr>
-            <th>Pos</th>
-            <th>#</th>
-            <th>Name</th>
-            <th class="text-right">war</th>
-            <th class="text-right">slash</th>
-            <th class="text-right">hr</th>
-            <th class="text-right">rbi</th>
-            <th class="text-right">sb</th>
-            <th class="text-right">owar</th>
-            <th class="text-right">dwar</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% if away_lineup %}
-        {% for player in away_lineup %}
-        <tr>
-            <td>{{ player.position }}</td>
-            <td>{{ player.number }}</td>
-            <td class="bold">{{ player.name }}</td>
-            <td class="text-right">{{ "%.1f"|format(player.war) }}</td>
-            <td class="text-right">{{ player.slash }}</td>
-            <td class="text-right">{{ player.hr }}</td>
-            <td class="text-right">{{ player.rbi }}</td>
-            <td class="text-right">{{ player.sb }}</td>
-            <td class="text-right">{{ "%.1f"|format(player.owar) }}</td>
-            <td class="text-right">{{ "%.1f"|format(player.dwar) }}</td>
-        </tr>
-        {% endfor %}
-        {% endif %}
-    </tbody>
-</table>
 
-<h2 class="section-title">{{ home_team }} Lineup</h2>
-<table>
-    <thead>
-        <tr>
-            <th>Pos</th>
-            <th>#</th>
-            <th>Name</th>
-            <th class="text-right">war</th>
-            <th class="text-right">slash</th>
-            <th class="text-right">hr</th>
-            <th class="text-right">rbi</th>
-            <th class="text-right">sb</th>
-            <th class="text-right">owar</th>
-            <th class="text-right">dwar</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% if home_lineup %}
-        {% for player in home_lineup %}
-        <tr>
-            <td>{{ player.position }}</td>
-            <td>{{ player.number }}</td>
-            <td class="bold">{{ player.name }}</td>
-            <td class="text-right">{{ "%.1f"|format(player.war) }}</td>
-            <td class="text-right">{{ player.slash }}</td>
-            <td class="text-right">{{ player.hr }}</td>
-            <td class="text-right">{{ player.rbi }}</td>
-            <td class="text-right">{{ player.sb }}</td>
-            <td class="text-right">{{ "%.1f"|format(player.owar) }}</td>
-            <td class="text-right">{{ "%.1f"|format(player.dwar) }}</td>
-        </tr>
-        {% endfor %}
-        {% endif %}
-    </tbody>
-</table>
-{% endif %}
+        <!-- FOOTER -->
+        <div class="mt-auto pt-2 border-t border-gray-300 text-center text-[0.6rem] font-sans text-gray-400">
+            Generated at {{ generation_date }}
+        </div>
 
-{# Standings #}
-{% if standings %}
-<h2 class="section-title">Standings</h2>
-<div class="two-column">
-    {% include 'components/standings_table.html' %}
-</div>
-{% endif %}
+    </div>
+    {% endif %}
 
-{# Division Race Chart #}
-{% if division_race_chart %}
-<h2 class="section-title">{{ away_division }} Division Race</h2>
-<div class="chart-container" style="width: 50%; display: inline-block;">
-    {{ division_race_chart|safe }}
-</div>
-{% endif %}
+</body>
 
-{# Second division chart if different divisions #}
-{% if division_race_chart_2 %}
-<h2 class="section-title">{{ home_division }} Division Race</h2>
-<div class="chart-container" style="width: 50%; display: inline-block;">
-    {{ division_race_chart_2|safe }}
-</div>
-{% endif %}
-
-{% endblock %}
+</html>
